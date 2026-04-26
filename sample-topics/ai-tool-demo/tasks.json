@@ -1,0 +1,18 @@
+[
+  {
+    "id": "task_001",
+    "title": "Codexを知識提示エージェントとして使う最小要件を整理する",
+    "status": "todo",
+    "priority": "high",
+    "relatedFiles": ["summary.md", "decisions.md"],
+    "notes": "ディレクトリ標準構造の定義を優先"
+  },
+  {
+    "id": "task_002",
+    "title": "Cursor を実運用シナリオで再比較する",
+    "status": "todo",
+    "priority": "medium",
+    "relatedFiles": ["summary.md", "decisions.md", "sources.json"],
+    "notes": "補完速度だけでなく既存 Repo との相性も確認する"
+  }
+]

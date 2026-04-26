@@ -1,0 +1,24 @@
+[
+  {
+    "id": "src_demo_001",
+    "title": "Codex運用メモ",
+    "type": "note",
+    "source": "manual",
+    "path": "inbox/2026-04-15-codex-notes.md",
+    "url": "",
+    "collectedAt": "2026-04-15T10:00:00+09:00",
+    "status": "new",
+    "tags": ["codex", "agent", "workflow"]
+  },
+  {
+    "id": "src_demo_002",
+    "title": "Cursor comparison memo",
+    "type": "note",
+    "source": "manual-note",
+    "path": "inbox/2026-04-26-cursor-comparison-memo.md",
+    "url": "",
+    "collectedAt": "2026-04-26T09:30:00+09:00",
+    "status": "organized",
+    "tags": ["cursor", "codex", "comparison"]
+  }
+]

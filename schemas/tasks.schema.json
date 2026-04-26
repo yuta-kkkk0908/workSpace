@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "tasks",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "title", "status", "priority"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "minLength": 1
+      },
+      "title": {
+        "type": "string",
+        "minLength": 1
+      },
+      "status": {
+        "type": "string",
+        "enum": ["todo", "doing", "done", "blocked"]
+      },
+      "priority": {
+        "type": "string",
+        "enum": ["low", "medium", "high"]
+      },
+      "relatedFiles": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default": []
+      },
+      "notes": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  }
+}

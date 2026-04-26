@@ -1,0 +1,10 @@
+[
+  {
+    "id": "watch_001",
+    "title": "daily 出力フォーマットを固定する",
+    "status": "todo",
+    "priority": "high",
+    "relatedFiles": ["summary.md", "decisions.md"],
+    "notes": "更新内容、影響、次アクションの3点形式を基本にする"
+  }
+]
