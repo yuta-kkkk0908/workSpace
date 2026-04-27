@@ -4,6 +4,7 @@
 この topic で管理する対象を記載する。
 
 ## Canonical Files
+- `topic-manifest.json`
 - `summary.md`
 - `decisions.md`
 - `tasks.json`

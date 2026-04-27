@@ -13,11 +13,13 @@ TEMPLATES_DIR = ROOT / "templates" / "topic"
 SCHEMAS_DIR = ROOT / "schemas"
 
 SCHEMA_MAP = {
+    "topic-manifest.json": SCHEMAS_DIR / "topic-manifest.schema.json",
     "tasks.json": SCHEMAS_DIR / "tasks.schema.json",
     "sources.json": SCHEMAS_DIR / "sources.schema.json",
 }
 
 CANONICAL_FILES = [
+    "topic-manifest.json",
     "index.md",
     "summary.md",
     "decisions.md",
@@ -152,6 +154,29 @@ def validate_sources_semantics(topic_dir: Path, target: Path, sources: object) -
     return errors
 
 
+def validate_manifest_semantics(topic_dir: Path, target: Path, manifest: object) -> list[str]:
+    if not isinstance(manifest, dict):
+        return []
+
+    errors: list[str] = []
+    expected_slug = topic_dir.name
+    if manifest.get("slug") != expected_slug:
+        errors.append(f"{relpath(target)}: slug must match directory name '{expected_slug}'")
+
+    if topic_dir.parent == SAMPLE_TOPICS_DIR:
+        if manifest.get("storage") != "sample":
+            errors.append(f"{relpath(target)}: sample topic storage must be 'sample'")
+        if manifest.get("visibility") not in {"sample", "public"}:
+            errors.append(f"{relpath(target)}: sample topic visibility must be 'sample' or 'public'")
+    elif topic_dir.parent == TOPICS_DIR:
+        if manifest.get("storage") != "workspace":
+            errors.append(f"{relpath(target)}: local topic storage must be 'workspace'")
+        if manifest.get("visibility") != "local":
+            errors.append(f"{relpath(target)}: local topic visibility must be 'local'")
+
+    return errors
+
+
 def validate_sample_topic_safety(sample_dir: Path) -> list[str]:
     errors: list[str] = []
     for path in sample_dir.rglob("*"):
@@ -188,7 +213,9 @@ def main() -> int:
         if schema_errors:
             continue
 
-        if target.name == "tasks.json":
+        if target.name == "topic-manifest.json":
+            errors.extend(validate_manifest_semantics(target.parent, target, data))
+        elif target.name == "tasks.json":
             errors.extend(validate_tasks_semantics(target, data))
         elif target.name == "sources.json":
             topic_dir = target.parent if target.parent != TEMPLATES_DIR else TEMPLATES_DIR

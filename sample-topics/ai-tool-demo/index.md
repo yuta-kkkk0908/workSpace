@@ -4,6 +4,7 @@
 AI 開発支援ツールの比較検討を、公開可能なサンプルとして管理する。
 
 ## Canonical Files
+- `topic-manifest.json`
 - `summary.md`
 - `decisions.md`
 - `tasks.json`

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "topic-manifest",
+  "type": "object",
+  "required": ["slug", "title", "kind", "visibility", "storage", "status"],
+  "properties": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["research", "daily-watch", "demo", "ops", "reference"]
+    },
+    "visibility": {
+      "type": "string",
+      "enum": ["local", "sample", "public"]
+    },
+    "storage": {
+      "type": "string",
+      "enum": ["workspace", "sample"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "paused", "archived"]
+    },
+    "publishable": {
+      "type": "boolean",
+      "default": false
+    },
+    "description": {
+      "type": "string"
+    },
+    "sourcePolicy": {
+      "type": "string",
+      "enum": ["primary-first", "curated", "manual", "mixed"]
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "additionalProperties": false
+}

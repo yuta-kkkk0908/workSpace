@@ -26,6 +26,7 @@
 ## Read Scope
 - `agents/collector.md`
 - `prompts/collector.prompt.md`
+- `topics/{{topic}}/topic-manifest.json`
 - `topics/{{topic}}/index.md`
 - `topics/{{topic}}/sources.json`
 

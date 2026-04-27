@@ -91,6 +91,7 @@ def build_index(topic_title: str, purpose: str) -> str:
 {purpose}
 
 ## Canonical Files
+- `topic-manifest.json`
 - `summary.md`
 - `decisions.md`
 - `tasks.json`
@@ -109,6 +110,23 @@ def build_index(topic_title: str, purpose: str) -> str:
 - 次アクションは `tasks.json` を優先
 - 根拠は `sources.json` と `inbox/` を参照
 """
+
+
+def build_manifest(topic_slug: str, topic_title: str, purpose: str, example_mode: str) -> str:
+    kind = "research" if example_mode == "research" else "reference"
+    data = {
+        "slug": topic_slug,
+        "title": topic_title,
+        "kind": kind,
+        "visibility": "local",
+        "storage": "workspace",
+        "status": "active",
+        "publishable": False,
+        "description": purpose,
+        "sourcePolicy": "mixed",
+        "updatedAt": "2026-04-27",
+    }
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
 def main() -> int:
@@ -152,6 +170,10 @@ def main() -> int:
         return 1
 
     shutil.copytree(TEMPLATE_DIR, target_dir)
+    (target_dir / "topic-manifest.json").write_text(
+        build_manifest(topic_slug, topic_title, args.purpose, args.from_example),
+        encoding="utf-8",
+    )
     (target_dir / "index.md").write_text(build_index(topic_title, args.purpose), encoding="utf-8")
     (target_dir / "summary.md").write_text(build_summary(args.from_example), encoding="utf-8")
     (target_dir / "decisions.md").write_text(build_decisions(args.from_example), encoding="utf-8")
@@ -164,6 +186,7 @@ def main() -> int:
     print(f"- title: {topic_title}")
     print(f"- slug: {topic_slug}")
     print(f"- from-example: {args.from_example}")
+    print("- topic-manifest.json")
     print("- index.md")
     print("- summary.md")
     print("- decisions.md")

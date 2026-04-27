@@ -16,8 +16,9 @@
 
 ## Mandatory Rules
 ### 1. 正本ファイルを守る
-各 topic の正本は次の 4 つだけです。
+各 topic の正本は次の 5 つだけです。
 
+- `topic-manifest.json`
 - `summary.md`
 - `decisions.md`
 - `tasks.json`
@@ -71,11 +72,12 @@
 
 ## Reading Priority
 1. `index.md`
-2. `summary.md`
-3. `decisions.md`
-4. `tasks.json`
-5. `sources.json`
-6. `inbox/`
+2. `topic-manifest.json`
+3. `summary.md`
+4. `decisions.md`
+5. `tasks.json`
+6. `sources.json`
+7. `inbox/`
 
 ## Output Policy
 - 要点を先に出す

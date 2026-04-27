@@ -1,0 +1,12 @@
+{
+  "slug": "ai-tool-demo",
+  "title": "AI Tool Demo",
+  "kind": "demo",
+  "visibility": "sample",
+  "storage": "sample",
+  "status": "active",
+  "publishable": true,
+  "description": "AI 開発支援ツールの比較検討を、公開可能なサンプルとして管理する。",
+  "sourcePolicy": "manual",
+  "updatedAt": "2026-04-27"
+}

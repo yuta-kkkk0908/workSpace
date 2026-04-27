@@ -1,0 +1,12 @@
+{
+  "slug": "topic",
+  "title": "Template Topic",
+  "kind": "research",
+  "visibility": "local",
+  "storage": "workspace",
+  "status": "active",
+  "publishable": false,
+  "description": "この topic で扱う対象を記載する。",
+  "sourcePolicy": "mixed",
+  "updatedAt": "2026-04-27"
+}

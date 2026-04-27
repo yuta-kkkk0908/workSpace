@@ -1,4 +1,4 @@
-.PHONY: validate new-topic export-sample
+.PHONY: validate new-topic export-sample diff-topic
 
 validate:
 	python3 scripts/validate_topics.py
@@ -16,3 +16,10 @@ export-sample:
 		exit 1; \
 	fi
 	python3 scripts/export_sample_topic.py "$(TOPIC)" $(if $(SAMPLE),--sample-slug "$(SAMPLE)",)
+
+diff-topic:
+	@if [ -z "$(LEFT)" ] || [ -z "$(RIGHT)" ]; then \
+		echo "Usage: make diff-topic LEFT=topics/foo RIGHT=sample-topics/foo-demo"; \
+		exit 1; \
+	fi
+	python3 scripts/diff_topic.py "$(LEFT)" "$(RIGHT)"

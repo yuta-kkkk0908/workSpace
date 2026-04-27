@@ -1,0 +1,12 @@
+{
+  "slug": "daily-watch-demo",
+  "title": "Daily Watch Demo",
+  "kind": "demo",
+  "visibility": "sample",
+  "storage": "sample",
+  "status": "active",
+  "publishable": true,
+  "description": "毎日見る情報 topic を、公開可能なサンプルとして管理する。",
+  "sourcePolicy": "curated",
+  "updatedAt": "2026-04-27"
+}
