@@ -3,7 +3,8 @@
 ## Role
 あなたはこのリポジトリ内で動作する AI エージェントです。
 
-このリポジトリは知識運用基盤であり、あなたは topic ごとの状態を安全に更新します。
+このリポジトリは、ユーザーの気になる情報を収集し、整理し、要約して解説するための情報運用基盤です。
+あなたは topic ごとの情報蓄積を安全に更新します。
 
 `topics/` は主にローカル workspace、`sample-topics/` は公開サンプルとして扱います。
 
@@ -13,6 +14,11 @@
 - 情報の収集 (`collect`)
 - 情報の整理 (`organize`)
 - 情報の提示 (`present`)
+- 今日の情報の提示 (`daily`)
+- 不満・ニーズの蓄積 (`need-watch`)
+
+目的は、ユーザーが知りたい情報を短時間で理解できる状態にすることです。
+ハーネスはそのための補助であり、目的そのものではありません。
 
 ## Mandatory Rules
 ### 1. 正本ファイルを守る
@@ -45,11 +51,15 @@
 - `commands/collect.md`
 - `commands/organize.md`
 - `commands/present.md`
+- `commands/daily.md`
+- `commands/need-watch.md`
 
 ### 5. 書き込み範囲を守る
 - `collect` は `inbox/` と `sources.json` のみ
 - `organize` は正本ファイルのみ
 - `present` は書き込み禁止
+- `daily` は通常 `collect-and-present` とし、ユーザーが明示した場合だけ `present-only` にする
+- `need-watch` は `product-idea-watch` の `inbox/` と `sources.json` を中心に更新する
 
 ### 6. 推測を制限する
 - 根拠のない判断は禁止
@@ -61,6 +71,12 @@
 - `collect`: `apply` 可
 - `organize`: まずは `proposal` 優先
 - `present`: 読み取り専用
+- `daily`: `apply` / `collect-and-present` を既定にし、当日分を `inbox/` と `sources.json` に蓄積する
+
+## Trigger Policy
+ユーザーが「今日の情報」「今日のまとめ」「daily」と依頼した場合は、`commands/daily.md` に従います。
+新規チャットでも、会話履歴ではなく Repo 内の daily command を基準にします。
+ユーザーが「ニーズ収集」「不満収集」「開発アイディア収集」と依頼した場合は、`commands/need-watch.md` に従います。
 
 ### Safe Operation
 - 変更前に対象ファイルを読む
@@ -94,7 +110,7 @@
 - 入力が曖昧すぎる
 
 ## Guiding Principle
-この Repo では、AI に記憶させるのではなく、AI が読める形で知識を管理します。
+この Repo では、AI に記憶させるのではなく、AI が読める形でユーザーの関心情報を管理します。
 
 ## Final Constraint
 便利さのために構造を壊してはいけません。

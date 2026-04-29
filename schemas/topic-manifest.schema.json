@@ -14,7 +14,7 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["research", "daily-watch", "demo", "ops", "reference"]
+      "enum": ["research", "daily-watch", "need-watch", "demo", "ops", "reference"]
     },
     "visibility": {
       "type": "string",

@@ -1,0 +1,18 @@
+このRepoは、ユーザーの気になる情報をAIが収集・整理・要約して解説するための情報運用Repoです。
+
+まず `AGENT.md` を読み、作業は `commands/` の契約に従ってください。
+
+ユーザーが「今日の情報」「今日のまとめ」「daily」と依頼した場合は、`commands/daily.md` を読むこと。
+通常は `present-only` として、`topic-manifest.json` の `kind: daily-watch` の topic を対象に今日見るべき情報を短く提示してください。
+
+daily の既定対象は次の topic です。
+- `ai-news-watch`
+- `investment-research`
+- `pokemon-card-watch`
+- `tech-stack-reads`
+
+出力では、最新確認が必要な情報には出典URLを付け、未確認事項は未確認として明示してください。
+投資情報は売買助言ではなく、材料整理と確認観点に限定してください。
+
+ユーザーが「ニーズ収集」「不満収集」「開発アイディア収集」と依頼した場合は、`commands/need-watch.md` を読むこと。
+`product-idea-watch` に蓄積し、daily には通常出さず、分析できる量が溜まったときだけ通知してください。
