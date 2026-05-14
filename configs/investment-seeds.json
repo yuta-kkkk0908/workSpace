@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "description": "Seed files used to build the rough investment backtest dataset. These are research logs, not trading advice.",
+  "defaultSeedList": "rough_backtest_full",
+  "seedLists": {
+    "rough_backtest_light": [
+      "topics/investment-research/inbox/2026-04-30-market-signals.md",
+      "topics/investment-research/inbox/2026-05-02-market-signals.md",
+      "topics/investment-research/inbox/2026-05-07-market-signals.md"
+    ],
+    "rough_backtest_short_focus": [
+      "topics/investment-research/inbox/2026-05-11-six-month-rough-backtest-batch-6-short-negative.md",
+      "topics/investment-research/inbox/2026-04-30-market-signals.md",
+      "topics/investment-research/inbox/2026-05-02-market-signals.md",
+      "topics/investment-research/inbox/2026-05-07-market-signals.md"
+    ],
+    "rough_backtest_full": [
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-1.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-2-disclosure-expanded.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-3-risk-holder-policy.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-4-earnings-positive.md",
+      "topics/investment-research/inbox/2026-05-11-six-month-rough-backtest-batch-5-kabutan-surprise.md",
+      "topics/investment-research/inbox/2026-05-11-six-month-rough-backtest-batch-6-short-negative.md",
+      "topics/investment-research/inbox/2026-05-02-backfill-2026-04-02-to-2026-05-02.md",
+      "topics/investment-research/inbox/2026-05-03-backfill-2026-02-03-to-2026-05-02.md",
+      "topics/investment-research/inbox/2026-05-09-april-backfill-signal-ranks.md",
+      "topics/investment-research/inbox/2026-04-30-market-signals.md",
+      "topics/investment-research/inbox/2026-05-02-market-signals.md",
+      "topics/investment-research/inbox/2026-05-07-market-signals.md"
+    ],
+    "rough_backtest_v1": [
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-1.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-2-disclosure-expanded.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-3-risk-holder-policy.md",
+      "topics/investment-research/inbox/2026-05-10-six-month-rough-backtest-batch-4-earnings-positive.md",
+      "topics/investment-research/inbox/2026-05-11-six-month-rough-backtest-batch-5-kabutan-surprise.md",
+      "topics/investment-research/inbox/2026-05-11-six-month-rough-backtest-batch-6-short-negative.md",
+      "topics/investment-research/inbox/2026-05-02-backfill-2026-04-02-to-2026-05-02.md",
+      "topics/investment-research/inbox/2026-05-03-backfill-2026-02-03-to-2026-05-02.md",
+      "topics/investment-research/inbox/2026-05-09-april-backfill-signal-ranks.md",
+      "topics/investment-research/inbox/2026-04-30-market-signals.md",
+      "topics/investment-research/inbox/2026-05-02-market-signals.md",
+      "topics/investment-research/inbox/2026-05-07-market-signals.md"
+    ]
+  }
+}

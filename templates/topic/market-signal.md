@@ -1,0 +1,177 @@
+# {{date}} Market Signals
+
+## Topic
+- slug: investment-research
+- date: {{date}}
+- mode: {{mode}}
+
+## Signals
+### {{signal_id}}: {{company}} {{signal_title}}
+- ticker: {{ticker}}
+- company: {{company}}
+- source: {{source_label}}
+- url: {{source_url}}
+- publishedAt: {{published_at}}
+- session: {{session}}
+- signalType: {{signal_type}}
+- disclosureCategory: {{earnings_dividend_capital_policy_ma_tob_business_event_monthly_kpi_risk_external_technical_other}}
+- materialityReason: {{why_this_disclosure_may_or_may_not_matter}}
+- signalRank: {{signal_rank}}
+- longSignalRank: {{long_signal_rank}}
+- shortSignalRank: {{short_signal_rank}}
+- signalSource: {{signal_source}}
+- candidateUse: {{candidate_use}}
+- signalSummary: {{signal_summary}}
+- expectedDirection: {{expected_direction}}
+- hypothesisDirection:
+  - primary: {{up_down_neutral_unclear}}
+  - confidence: {{high_medium_low}}
+  - rationaleTags:
+    - {{tag_from_tag_taxonomy}}
+- tradeUse: {{trade_use}}
+- tradeHorizon: {{trade_horizon}}
+- confidence: {{confidence}}
+- reason: {{reason}}
+- priceAction:
+  - openReaction: {{open_reaction}}
+  - intradayShape: {{intraday_shape}}
+  - closeStrength: {{close_strength}}
+  - volumeSpike: {{volume_spike}}
+  - relativeStrength: {{relative_strength}}
+- technicalSignal:
+  - type: {{technical_signal}}
+  - trend: {{technical_trend}}
+  - volume: {{technical_volume}}
+  - candle: {{technical_candle}}
+  - maPosition: {{ma_position}}
+- technicalContext:
+  - ma5: {{ma5}}
+  - ma25: {{ma25}}
+  - ma75: {{ma75}}
+  - volumeToday: {{volume_today}}
+  - volumeAvg5: {{volume_avg_5}}
+  - volumeAvg25: {{volume_avg_25}}
+  - volumeRatio5: {{volume_ratio_5}}
+  - rsi: {{rsi}}
+  - macd: {{macd}}
+  - bollinger: {{bollinger}}
+  - candleDetail: {{candle_detail}}
+  - highLowContext: {{high_low_context}}
+- marginContext:
+  - marginBuyBalance: {{margin_buy_balance}}
+  - marginSellBalance: {{margin_sell_balance}}
+  - marginRatio: {{margin_ratio}}
+  - marginBuyChange: {{margin_buy_change}}
+  - marginSellChange: {{margin_sell_change}}
+  - lendable: {{lendable}}
+  - reverseDailyFee: {{reverse_daily_fee}}
+  - stockShortage: {{stock_shortage}}
+  - shortSqueezeRisk: {{short_squeeze_risk}}
+  - sellPressureRisk: {{sell_pressure_risk}}
+- marketContext:
+  - indexTrend: {{index_trend}}
+  - globalMarket: {{global_market}}
+  - futures: {{futures}}
+  - fxRates: {{fx_rates}}
+  - rates: {{rates}}
+  - commodities: {{commodities}}
+  - sectorTrend: {{sector_trend}}
+  - volumeContext: {{volume_context}}
+  - externalFactors: {{external_factors}}
+- externalContextAssessment:
+  - directionBias: {{tailwind_headwind_mixed_neutral_unknown}}
+  - affectedSectors:
+    - {{affected_sector}}
+  - rankImpact: {{upgrade_downgrade_keep_hold_for_confirmation_unknown}}
+  - rankAdjustmentReason: {{rank_adjustment_reason}}
+- ruleContext:
+  - ruleVersion: {{signal_rules_version_or_date}}
+  - ruleHits:
+    - {{rule_hit}}
+  - hypothesisOnly:
+    - {{hypothesis_only_rule}}
+  - rankAdjustmentReason:
+    - {{rule_based_rank_adjustment_reason}}
+  - watchReason:
+    - {{watch_reason}}
+  - ruleException:
+    - {{rule_exception}}
+  - lessonCandidate:
+    - {{lesson_candidate}}
+- sectorPattern:
+  - sector: {{sector_key}}
+  - externalTriggerType: {{external_trigger_type}}
+  - sectorImpact: {{sector_impact}}
+  - patternKey: {{pattern_key}}
+  - comparablePastSignals:
+    - {{comparable_past_signal}}
+- sectorMarketContext:
+  - proxySymbol: {{sector_proxy_symbol}}
+  - proxyName: {{sector_proxy_name}}
+  - proxyDirection: {{sector_tailwind_headwind_relative_strength_relative_weakness_neutral_unknown}}
+  - proxyPct: {{sector_proxy_pct}}
+  - topixPct: {{topix_proxy_pct}}
+  - relativeToTopixPct: {{relative_to_topix_pct}}
+  - sectorRead: {{sector_read}}
+- timeOfDayPlan:
+  - beforeOpen: {{before_open_plan}}
+  - morningSession: {{morning_session_plan}}
+  - afternoonSession: {{afternoon_session_plan}}
+  - afterClose: {{after_close_plan}}
+- sessionRead:
+  - morning: {{morning_read}}
+  - afternoon: {{afternoon_read}}
+  - close: {{close_read}}
+- entryReadiness:
+  - direction: {{entry_direction}}
+  - readiness: {{entry_readiness}}
+  - trigger: {{entry_trigger}}
+  - waitCondition: {{wait_condition}}
+  - invalidation: {{invalidation}}
+  - stopReason:
+    - {{stop_reason}}
+  - timeHorizon: {{entry_time_horizon}}
+- riskFactors:
+  - {{risk_factor}}
+- skipReasons:
+  - {{skip_reason}}
+- directionQuality:
+  - upAllowedByRule: {{yes_no_unclear}}
+  - neutralOrUnclearReason: {{neutral_or_unclear_reason}}
+  - sellTheNewsRisk: {{low_medium_high_unknown}}
+- revisedAssessment:
+  - ruleVersion: {{rule_version}}
+  - originalExpectedDirection: {{original_expected_direction}}
+  - revisedExpectedDirection: {{revised_expected_direction}}
+  - revisedSignalRank: {{revised_signal_rank}}
+  - revisedLongSignalRank: {{revised_long_signal_rank}}
+  - revisedShortSignalRank: {{revised_short_signal_rank}}
+  - missFactors:
+    - {{miss_factor}}
+- checkLater:
+  - T+1:
+  - T+5:
+  - T+20:
+- outcome:
+  - T+0:
+  - T+1:
+  - T+5:
+  - T+20:
+- swingOutcome:
+  - outcomeType: {{swing_outcome_type}}
+  - ma25Maintained: {{ma25_maintained}}
+  - volumeContinuation: {{volume_continuation}}
+  - t20ExceededInitialHigh: {{t20_exceeded_initial_high}}
+  - lessonForNextSignal: {{lesson_for_next_signal}}
+- lesson:
+- requiredCheck:
+  - gateStatus: {{pass_fail}}
+  - materialSignalChecked: {{yes_no}}
+  - technicalSignalChecked: {{yes_no}}
+  - externalContextChecked: {{yes_no}}
+
+## Outcome Updates
+- {{outcome_update}}
+
+## Notes
+- {{notes}}

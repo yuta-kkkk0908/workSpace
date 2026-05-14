@@ -12,6 +12,12 @@
 繰り返し出ているパターン:
 - {{repeated_patterns}}
 
+強いクラスタ:
+- {{strong_clusters}}
+
+今回増えた evidence:
+- {{cluster_updates}}
+
 分析候補:
 - {{analysis_candidates}}
 

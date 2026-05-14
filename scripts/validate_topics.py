@@ -11,6 +11,7 @@ TOPICS_DIR = ROOT / "topics"
 SAMPLE_TOPICS_DIR = ROOT / "sample-topics"
 TEMPLATES_DIR = ROOT / "templates" / "topic"
 SCHEMAS_DIR = ROOT / "schemas"
+INVESTMENT_SEEDS_CONFIG = ROOT / "configs" / "investment-seeds.json"
 
 SCHEMA_MAP = {
     "topic-manifest.json": SCHEMAS_DIR / "topic-manifest.schema.json",
@@ -191,6 +192,54 @@ def validate_sample_topic_safety(sample_dir: Path) -> list[str]:
     return errors
 
 
+def validate_investment_seed_config() -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    validated: list[str] = []
+    if not INVESTMENT_SEEDS_CONFIG.exists():
+        return errors, validated
+
+    try:
+        data = load_json(INVESTMENT_SEEDS_CONFIG)
+    except json.JSONDecodeError as exc:
+        return [f"{relpath(INVESTMENT_SEEDS_CONFIG)}: invalid JSON ({exc.msg} at line {exc.lineno}, column {exc.colno})"], validated
+
+    if not isinstance(data, dict):
+        return [f"{relpath(INVESTMENT_SEEDS_CONFIG)}: expected object"], validated
+
+    default_seed_list = data.get("defaultSeedList")
+    seed_lists = data.get("seedLists")
+    if not isinstance(default_seed_list, str) or not default_seed_list:
+        errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: defaultSeedList must be a non-empty string")
+    if not isinstance(seed_lists, dict) or not seed_lists:
+        errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: seedLists must be a non-empty object")
+        return errors, validated
+    if isinstance(default_seed_list, str) and default_seed_list not in seed_lists:
+        errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: defaultSeedList does not exist in seedLists: {default_seed_list}")
+
+    for list_name, paths in seed_lists.items():
+        if not isinstance(paths, list) or not paths:
+            errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: seedLists.{list_name} must be a non-empty array")
+            continue
+        seen_paths: set[str] = set()
+        for idx, item in enumerate(paths):
+            if not isinstance(item, str) or not item:
+                errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: seedLists.{list_name}[{idx}] must be a non-empty string")
+                continue
+            if Path(item).is_absolute() or ".." in Path(item).parts:
+                errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: seedLists.{list_name}[{idx}] must be a safe repo-relative path: {item}")
+                continue
+            if item in seen_paths:
+                errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: duplicate seed path in {list_name}: {item}")
+            seen_paths.add(item)
+            resolved = ROOT / item
+            if not resolved.exists():
+                errors.append(f"{relpath(INVESTMENT_SEEDS_CONFIG)}: referenced seed file does not exist: {item}")
+
+    if not errors:
+        validated.append(relpath(INVESTMENT_SEEDS_CONFIG))
+    return errors, validated
+
+
 def main() -> int:
     errors: list[str] = []
     validated: list[str] = []
@@ -222,6 +271,10 @@ def main() -> int:
             errors.extend(validate_sources_semantics(topic_dir, target, data))
 
         validated.append(relpath(target))
+
+    seed_errors, seed_validated = validate_investment_seed_config()
+    errors.extend(seed_errors)
+    validated.extend(seed_validated)
 
     if errors:
         print("Validation failed")

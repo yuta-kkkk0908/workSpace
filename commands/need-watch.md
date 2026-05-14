@@ -57,6 +57,35 @@
 - 比較できない
 - タイミング
 
+## Cluster Policy
+同じような不満や要望が繰り返し出る場合は、新規性の低い重複として捨てず、既存 cluster に紐づけて保存する。
+
+収集時は各 need に次の項目を付ける。
+
+- `cluster`: 既存または新規の短いID。例: `ai-tool-trust`
+- `duplicateOf`: ほぼ同じ need が既にある場合、その need ID。なければ空欄
+- `recurrence`: `new` / `repeated` / `strong`
+- `evidenceCount`: 同じ cluster の概算件数
+- `novelty`: `high` / `medium` / `low`
+- `analysisCandidate`: `yes` / `no`
+
+判断基準:
+
+- 新しい観点がある場合は `novelty: high` として新規 need にする
+- 既存 cluster と同じ痛みなら `recurrence: repeated` とし、cluster の evidence を増やす
+- 5件以上の独立した観測がある cluster は `recurrence: strong` とし、分析候補にする
+- 似ているが対象ユーザー、支払い意思、失敗コスト、既存代替が違う場合は、同じ cluster に入れつつ別 need として残す
+
+初期 cluster 候補:
+
+- `ai-tool-trust`: AI生成アプリ/AIツールの信頼性、安全性、レビュー疲れ
+- `saas-sprawl-cost`: SaaS/アプリが増えすぎることによる費用、ログイン、通知、管理疲れ
+- `opportunity-notification`: 抽選、予約、再販、締切、在庫、通知の取り逃し
+- `feedback-roadmap-triage`: 顧客要望、フィードバック、ロードマップ、優先順位付け
+- `scope-change-management`: スコープクリープ、変更依頼、請求、合意ログ
+- `lightweight-web-complexity`: 過剰なWeb技術、古い標準/軽量実装への回帰
+- `need-analysis-pipeline`: 集めた不満/要望の重複分析、記事種/プロダクト種への変換
+
 ## Source Pool
 
 - Reddit
@@ -175,7 +204,7 @@
 - 投稿本文を長く転載しない
 - 個人名、アカウント名、連絡先などの個人情報は保存しない
 - 個別投稿を断定的な市場需要として扱わない
-- 同じ不満の重複は統合する
+- 同じ不満の重複は捨てず、cluster に紐づけて evidence として扱う
 - 収集した声は `不満`, `要望`, `既存代替`, `作れそう度`, `検証方法` の観点で整理する
 - daily digest には通常出さず、分析できる程度に蓄積したときだけ通知する
 
@@ -185,12 +214,14 @@
 - `sources_to_check`
 - `candidate_needs`
 - `dedupe_notes`
+- `cluster_updates`
 - `next_actions`
 
 ### apply
 - `created_files`
 - `updated_files`
 - `collected_need_count`
+- `cluster_updates`
 - `source_entry`
 - `threshold_status`
 

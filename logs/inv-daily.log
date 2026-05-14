@@ -1,0 +1,5 @@
+python3 scripts/run_pipeline.py daily --date "" --seed-list "rough_backtest_light" --min-count "8"
+Python Python make: *** [Makefile:95: inv-daily] Error 49
+python3 scripts/run_pipeline.py daily --date "" --seed-list "rough_backtest_light" --min-count "8"
+Python Python make: *** [Makefile:95: inv-daily] Error 49
+Python 

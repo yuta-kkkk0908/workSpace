@@ -32,6 +32,12 @@
 
 同じ役割の別ファイルを作ってはいけません。
 
+例外:
+- command が明示的に読む補助ルールブックは作成してよい
+- 例: `topics/investment-research/signal-rules.md`
+- 補助ルールブックは正本そのものではなく、daily / market-signal / organize の判断基準を揃えるための運用文書として扱う
+- 補助ルールブックを増やす場合は、対応する command の Read Scope と更新方針に明記する
+
 ### 2. 生データは inbox に置く
 - 未整理情報は必ず `inbox/` に保存する
 - `inbox/` 以外に生データを置かない
@@ -53,6 +59,12 @@
 - `commands/present.md`
 - `commands/daily.md`
 - `commands/need-watch.md`
+- `commands/market-signal.md`
+- `commands/investment-organize.md`
+- `commands/need-organize.md`
+- `commands/report.md`
+- `commands/reminder.md`
+- `commands/rate-budget.md`
 
 ### 5. 書き込み範囲を守る
 - `collect` は `inbox/` と `sources.json` のみ
@@ -66,6 +78,13 @@
 - 不明点は不明として明示する
 - 未整理情報を確定情報として扱わない
 
+### 7. レート残量を守る
+- weekly / 5h レート残量が厳しい場合は、`budget: lean` を優先する
+- `budget: lean` では、読むファイル、調査件数、出力量を絞る
+- `inbox/` と `sources.json` の全量読みは避け、日付指定ファイル、最新ファイル、正本ファイルを優先する
+- 大量バックフィル、unknown一括補完、週次/月次レポート、投資バックテスト拡張は `budget: deep` または明示依頼時のみ行う
+- 継続性を優先し、深掘りが必要なものは `next_watch` に回す
+
 ## Execution Policy
 ### Default Mode
 - `collect`: `apply` 可
@@ -73,10 +92,29 @@
 - `present`: 読み取り専用
 - `daily`: `apply` / `collect-and-present` を既定にし、当日分を `inbox/` と `sources.json` に蓄積する
 
+### Rate Budget
+- `lean`: 低消費。差分、重要変化、期限到来 outcome、最新 dashboard を優先する
+- `balanced`: 通常。daily watch topic を一通り確認する
+- `deep`: 深掘り。バックフィル、unknown補完、ルール再集計、週次/月次レポートを許可する
+
 ## Trigger Policy
 ユーザーが「今日の情報」「今日のまとめ」「daily」と依頼した場合は、`commands/daily.md` に従います。
 新規チャットでも、会話履歴ではなく Repo 内の daily command を基準にします。
+合言葉は `今日の情報` (標準), `今日の情報 deep` (深掘り), `取り逃し補完` (不足日補完) として扱います。
 ユーザーが「ニーズ収集」「不満収集」「開発アイディア収集」と依頼した場合は、`commands/need-watch.md` に従います。
+ユーザーが「投資情報の整理」「投資整理」「シグナルチェック」と依頼した場合は、`commands/investment-organize.md` に従います。
+ユーザーが「ニーズの整理」「ニーズ整理」「記事ネタ整理」と依頼した場合は、`commands/need-organize.md` に従います。
+ユーザーが「週間レポート」「週次レポート」「月間レポート」と依頼した場合は、`commands/report.md` に従います。
+ユーザーが「リマインダー」「daily漏れ確認」「取り忘れ確認」と依頼した場合は、`commands/reminder.md` に従います。
+
+## Daily Operation Contract
+`今日の情報` の運用は次を必須とする。
+
+1. まず DB を確認する（`data/` 配下の topic DB、特に投資は `data/investment.db`）。
+2. DB に当日データがある場合は、DB を正として要約する。
+3. DB に不足がある topic だけ、`topics/*/inbox` を補完参照する。
+4. 「ファイルだけ読んで要約」は禁止。DB確認を省略してはならない。
+5. 回答では、DB確認の有無と、不足補完で読んだファイルの有無を明示する。
 
 ### Safe Operation
 - 変更前に対象ファイルを読む

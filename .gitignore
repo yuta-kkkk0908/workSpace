@@ -4,3 +4,24 @@ __pycache__/
 # Local workspace data
 topics/*
 !topics/.gitkeep
+
+# Generated reminder output
+prompts/pending-daily/
+prompts/pending-daily.prompt.md
+prompts/pending-daily.status.txt
+reminders.log
+reminders-toast.log
+
+# Generated local caches
+.cache/
+
+# Local DB artifacts
+data/*.db
+data/rakuten_rss/board_latest.csv
+
+# Generated brief prompts
+prompts/today-db-brief.md
+prompts/today-topics-db-brief.md
+
+# Local secrets
+.env
