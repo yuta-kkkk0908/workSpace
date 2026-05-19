@@ -9,6 +9,7 @@
 - `investment-organize`: 投資情報の未整理分とシグナル結果を整理する
 - `investment-tag-index`: 投資シグナルにタグを付け、軽量検索用インデックスを更新する
 - `need-organize`: 未整理ニーズをパターン、記事種、プロダクト種へ整理する
+- `needs-triage`: Python一次トリアージ結果をCodexで二次レビューして反映する
 - `report`: topic 情報を週次/月次で通知型に整理する
 - `reminder`: daily の実行漏れを検知し、補完用プロンプトを生成する
 - `rate-budget`: weekly / 5h レート消費を抑えるため、作業を lean / balanced / deep に仕分ける
@@ -28,6 +29,7 @@
 - `investment-organize`: `proposal` first, `apply` allowed after scope is clear
 - `investment-tag-index`: local script execution; generated index update allowed
 - `need-organize`: `proposal` first, `apply` allowed after scope is clear
+- `needs-triage`: `apply` allowed for queue-based triage updates
 - `report`: `proposal` first, `apply` allowed after target topics are clear
 - `reminder`: local script execution only; generated prompt update allowed
 - `rate-budget`: read first when rate is constrained; prefer `lean`

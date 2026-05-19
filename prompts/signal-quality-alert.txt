@@ -1,0 +1,6 @@
+Signal Quality Alert 2026-05-19
+- status: ALERT
+- 当日材料の新規シグナルが0件
+- tradeシナリオが0件（watch偏重）
+- watch比率が高い: watchShare=100% > 70%
+- metrics: prompts\signal-quality-metrics.json

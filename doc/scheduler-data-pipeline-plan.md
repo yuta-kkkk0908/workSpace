@@ -28,15 +28,15 @@ Codexは「要約・分析・改修」に集中させ、レート消費を抑え
 - `make` は使わず `py` で直接スクリプト実行する
 - nightly: `scripts/run_investment_automation.py --mode night`
 - morning: `scripts/run_investment_automation.py --mode morning`
-- brief: `scripts/build_today_brief_from_db.py`
+- brief: `scripts/data/build_today_brief_from_db.py`
 
 ## Current Implemented Scripts
 - `scripts/run_investment_automation.py`
-- `scripts/build_today_brief_from_db.py`
-- `scripts/check_investment_signal_missing.py`
-- `scripts/generate_entry_candidates.py`
-- `scripts/init_investment_db.py`
-- `scripts/ingest_investment_db.py`
+- `scripts/data/build_today_brief_from_db.py`
+- `scripts/investment/signals/check_investment_signal_missing.py`
+- `scripts/investment/signals/generate_entry_candidates.py`
+- `scripts/data/init_investment_db.py`
+- `scripts/data/ingest_investment_db.py`
 
 ## Next Tasks
 - topic別の自動収集スクリプトを追加（RSS/API/公式サイト差分）

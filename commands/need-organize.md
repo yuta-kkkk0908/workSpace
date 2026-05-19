@@ -10,6 +10,9 @@
 - need organize
 - product idea organize
 - 記事ネタ整理
+- ニーズトリアージ
+- needs triage
+- ニーズを分析
 
 ## Required Inputs
 - `date`
@@ -140,3 +143,21 @@ Noteなどの記事にできる題材を抽出する。
 - 未整理ニーズが強いパターンへ束ねられる
 - 記事種とプロダクト種が次に使える形で残る
 - `summary.md` / `tasks.json` から次アクションが分かる
+
+## Codex Triage Flow
+日次運用は次の2段階を標準とする。
+
+1. Python一次トリアージ（定期実行）
+- `scripts/data/init_needs_db.py`
+- `scripts/data/ingest_needs_db.py --date YYYY-MM-DD`
+- `scripts/build_needs_ai_queue.py --limit 20`
+
+2. Codex二次レビュー（手動実行）
+- 入力: `prompts/needs-ai-queue.md` または `prompts/needs-ai-queue.json`
+- 目的: 重複統合、優先度見直し、`watch/investigate/discard` の確定、根拠メモ整備
+- 反映: `scripts/apply_needs_triage.py --input prompts/needs-ai-queue.json`
+
+### Shortcut Prompt
+`prompts/needs-triage.prompt.md` をCodexに貼って実行する。
+
+合言葉 `ニーズを分析` が来た場合は、このショートカットを内部的に適用し、ユーザーに貼り付け作業を求めない。

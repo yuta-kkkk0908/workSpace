@@ -45,3 +45,33 @@ Traceback (most recent call last):
     raise RuntimeError(f"command failed: {printable} (exit={proc.returncode})")
 RuntimeError: command failed: make investment-adaptive DATE=2026-05-14 SEED_LIST=rough_backtest_light MIN_COUNT=8 (exit=2)
 [2026-05-14 07:00:07] AppActivate failed: Exception calling "AppActivate" with "1" argument(s): "プロセス '18500' が見つかりませんでした。"
+skip investment adaptive analysis: outcome file not found for 2026-05-15
+skip rule dashboard: long/short rule inputs not ready for 2026-05-15
+python3 scripts/build_investment_tag_index.py
+Python Python make: *** [Makefile:50: investment-adaptive] Error 49
+[pipeline] make investment-adaptive DATE=2026-05-15 SEED_LIST=rough_backtest_light MIN_COUNT=8
+Traceback (most recent call last):
+  File "E:\workSpace\scripts\pipelines\daily.py", line 37, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "E:\workSpace\scripts\pipelines\daily.py", line 26, in main
+    run_cmd([
+  File "E:\workSpace\scripts\pipelines\common.py", line 25, in run_cmd
+    raise RuntimeError(f"command failed: {printable} (exit={proc.returncode})")
+RuntimeError: command failed: make investment-adaptive DATE=2026-05-15 SEED_LIST=rough_backtest_light MIN_COUNT=8 (exit=2)
+[2026-05-15 07:07:14] AppActivate failed: Exception calling "AppActivate" with "1" argument(s): "プロセス '18500' が見つかりませんでした。"
+skip investment adaptive analysis: outcome file not found for 2026-05-16
+skip rule dashboard: long/short rule inputs not ready for 2026-05-16
+python3 scripts/build_investment_tag_index.py
+Python Python make: *** [Makefile:50: investment-adaptive] Error 49
+[pipeline] make investment-adaptive DATE=2026-05-16 SEED_LIST=rough_backtest_light MIN_COUNT=8
+Traceback (most recent call last):
+  File "E:\workSpace\scripts\pipelines\daily.py", line 37, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "E:\workSpace\scripts\pipelines\daily.py", line 26, in main
+    run_cmd([
+  File "E:\workSpace\scripts\pipelines\common.py", line 25, in run_cmd
+    raise RuntimeError(f"command failed: {printable} (exit={proc.returncode})")
+RuntimeError: command failed: make investment-adaptive DATE=2026-05-16 SEED_LIST=rough_backtest_light MIN_COUNT=8 (exit=2)
+[2026-05-16 07:13:29] AppActivate failed: Exception calling "AppActivate" with "1" argument(s): "プロセス '18500' が見つかりませんでした。"

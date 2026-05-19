@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,8 +22,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    script = ROOT / "scripts" / "pipelines" / f"{args.mode}.py"
-    cmd = ["python3", str(script), "--date", args.date, "--min-count", str(args.min_count)]
+    module = f"scripts.pipelines.{args.mode}"
+    cmd = [sys.executable, "-m", module, "--date", args.date, "--min-count", str(args.min_count)]
     if args.seed_list:
         cmd.extend(["--seed-list", args.seed_list])
     if args.cache_only:

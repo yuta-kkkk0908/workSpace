@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,9 @@ PENDING_DIR = ROOT / "prompts" / "pending-daily"
 PROMPT_PATH = PENDING_DIR / "latest.prompt.md"
 STATUS_PATH = PENDING_DIR / "latest.status.txt"
 JST = timezone(timedelta(hours=9))
+DEFAULT_TOPICS_DB = ROOT / "data" / "topics.db"
+DEFAULT_INVESTMENT_DB = ROOT / "data" / "investment.db"
+DEFAULT_NEEDS_DB = ROOT / "data" / "needs.db"
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +55,36 @@ def parse_args() -> argparse.Namespace:
         "--no-write",
         action="store_true",
         help="Only print the status; do not write the prompt file.",
+    )
+    parser.add_argument(
+        "--check-db",
+        action="store_true",
+        help="Also check db ingestion status for target dates (topics.db / investment.db).",
+    )
+    parser.add_argument(
+        "--topics-db",
+        default=str(DEFAULT_TOPICS_DB.relative_to(ROOT)),
+        help="Path to topics sqlite db. Default: data/topics.db",
+    )
+    parser.add_argument(
+        "--investment-db",
+        default=str(DEFAULT_INVESTMENT_DB.relative_to(ROOT)),
+        help="Path to investment sqlite db. Default: data/investment.db",
+    )
+    parser.add_argument(
+        "--needs-db",
+        default=str(DEFAULT_NEEDS_DB.relative_to(ROOT)),
+        help="Path to needs sqlite db. Default: data/needs.db",
+    )
+    parser.add_argument(
+        "--check-discord-posts",
+        action="store_true",
+        help="Also check daily presence in discord post logs (signal/generic).",
+    )
+    parser.add_argument(
+        "--warn-only-soft",
+        action="store_true",
+        help="Do not fail exit code for soft warnings.",
     )
     return parser.parse_args()
 
@@ -116,6 +150,7 @@ def build_status_text(
     targets: list[date],
     missing_by_date: dict[date, list[Path]],
     existing_by_date: dict[date, list[Path]],
+    warnings: list[str] | None = None,
 ) -> str:
     total_expected = sum(len(missing_by_date[target]) + len(existing_by_date[target]) for target in targets)
     total_existing = sum(len(paths) for paths in existing_by_date.values())
@@ -125,18 +160,119 @@ def build_status_text(
     if missing_dates:
         date_text = ", ".join(target.isoformat() for target in missing_dates)
         first_missing = missing_dates[0].isoformat()
-        return (
+        base = (
             f"AIOS daily missing: {len(missing_dates)}日 / {total_missing}ファイル不足\n"
             f"対象: {targets[0].isoformat()}..{targets[-1].isoformat()}\n"
             f"不足日: {date_text}\n"
             f"Codexに貼る: {first_missing} 分の今日の情報を補完して。"
         )
+        if warnings:
+            base += "\n" + "\n".join(f"- WARN: {w}" for w in warnings)
+        return base
 
-    return (
+    base = (
         "AIOS daily OK\n"
         f"対象: {targets[0].isoformat()}..{targets[-1].isoformat()}\n"
         f"{total_existing}/{total_expected} ファイル確認済み。"
     )
+    if warnings:
+        base += "\n" + "\n".join(f"- WARN: {w}" for w in warnings)
+    return base
+
+
+def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs_db: Path) -> tuple[list[str], list[str]]:
+    hard: list[str] = []
+    soft: list[str] = []
+    dates = [d.isoformat() for d in targets]
+
+    expected_topics: list[str] = []
+    for mf in TOPICS_DIR.glob("*/topic-manifest.json"):
+        try:
+            data = load_json(mf)
+        except Exception:
+            continue
+        if data.get("kind") == "daily-watch" and mf.parent.name != "investment-research":
+            expected_topics.append(mf.parent.name)
+
+    if topics_db.exists():
+        try:
+            conn = sqlite3.connect(topics_db)
+            for ds in dates:
+                for topic in expected_topics:
+                    row = conn.execute(
+                        "select 1 from topic_daily_digest where topic=? and date=? limit 1",
+                        (topic, ds),
+                    ).fetchone()
+                    if not row:
+                        hard.append(f"topics.db 未投入: {topic} {ds}")
+            conn.close()
+        except Exception as exc:
+            hard.append(f"topics.db チェック失敗: {exc}")
+    else:
+        hard.append(f"topics.db が存在しない: {topics_db}")
+
+    if investment_db.exists():
+        try:
+            conn = sqlite3.connect(investment_db)
+            for ds in dates:
+                row_daily = conn.execute(
+                    "select 1 from daily_digest where topic='investment-research' and date=? limit 1",
+                    (ds,),
+                ).fetchone()
+                if not row_daily:
+                    hard.append(f"investment.db daily_digest 未投入: {ds}")
+                row_sig = conn.execute(
+                    "select count(1) from signals where date=?",
+                    (ds,),
+                ).fetchone()
+                cnt_sig = int(row_sig[0]) if row_sig and row_sig[0] is not None else 0
+                if cnt_sig == 0:
+                    hard.append(f"investment.db signals 未投入: {ds}")
+            conn.close()
+        except Exception as exc:
+            hard.append(f"investment.db チェック失敗: {exc}")
+    else:
+        hard.append(f"investment.db が存在しない: {investment_db}")
+
+    if needs_db.exists():
+        try:
+            conn = sqlite3.connect(needs_db)
+            for ds in dates:
+                row_need = conn.execute(
+                    "select count(1) from need_items where date=?",
+                    (ds,),
+                ).fetchone()
+                cnt_need = int(row_need[0]) if row_need and row_need[0] is not None else 0
+                if cnt_need == 0:
+                    hard.append(f"needs.db need_items 未投入: {ds}")
+            conn.close()
+        except Exception as exc:
+            hard.append(f"needs.db チェック失敗: {exc}")
+    else:
+        hard.append(f"needs.db が存在しない: {needs_db}")
+
+    return hard, soft
+
+
+def discord_log_warnings(targets: list[date]) -> tuple[list[str], list[str]]:
+    hard: list[str] = []
+    soft: list[str] = []
+    date_keys = [d.isoformat() for d in targets]
+    signal_log = ROOT / "logs" / "discord-signal.log"
+    generic_log = ROOT / "logs" / "discord-generic.log"
+    pairs = [("signal", signal_log), ("generic", generic_log)]
+    for name, p in pairs:
+        if not p.exists():
+            soft.append(f"{name} logなし: {p}")
+            continue
+        txt = p.read_text(encoding="utf-8", errors="ignore")
+        for ds in date_keys:
+            # Keep discord check soft and avoid false positives for "today".
+            if ds == datetime.now(JST).date().isoformat():
+                continue
+            if ds not in txt:
+                soft.append(f"{name} log 日付未検知: {ds}")
+    return hard, soft
 
 
 def build_range_prompt(
@@ -312,6 +448,29 @@ def main() -> int:
         for path in missing:
             print(f"  - {rel(path)}")
 
+    hard_warns: list[str] = []
+    soft_warns: list[str] = []
+    if args.check_db:
+        h, s = db_warnings(
+            targets,
+            ROOT / args.topics_db,
+            ROOT / args.investment_db,
+            ROOT / args.needs_db,
+        )
+        hard_warns.extend(h)
+        soft_warns.extend(s)
+    if args.check_discord_posts:
+        h, s = discord_log_warnings(targets)
+        hard_warns.extend(h)
+        soft_warns.extend(s)
+
+    warns = [f"[HARD] {w}" for w in hard_warns] + [f"[SOFT] {w}" for w in soft_warns]
+
+    if warns:
+        print(f"warnings: {len(warns)}")
+        for w in warns:
+            print(f"- warning: {w}")
+
     prompt_text = build_range_prompt(targets, missing_by_date, existing_by_date)
     clipboard_text = build_clipboard_prompt(targets, missing_by_date)
     prompt_path = ROOT / args.prompt_path
@@ -325,7 +484,7 @@ def main() -> int:
 
         prompt_path.parent.mkdir(parents=True, exist_ok=True)
         prompt_path.write_text(prompt_text, encoding="utf-8")
-        status_text = build_status_text(targets, missing_by_date, existing_by_date)
+        status_text = build_status_text(targets, missing_by_date, existing_by_date, warns)
         status_path.parent.mkdir(parents=True, exist_ok=True)
         status_path.write_text(status_text, encoding="utf-8")
         clipboard_path.write_text(clipboard_text, encoding="utf-8")
@@ -338,7 +497,13 @@ def main() -> int:
         print(f"archivePrompt: {rel(archive_prompt_path)}")
         print(f"archiveStatus: {rel(archive_status_path)}")
 
-    return 1 if total_missing else 0
+    if total_missing:
+        return 1
+    if hard_warns:
+        return 1
+    if soft_warns and (not args.warn_only_soft):
+        return 1
+    return 0
 
 
 if __name__ == "__main__":

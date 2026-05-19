@@ -191,42 +191,42 @@ Rank上位、弱さが目立つ銘柄、T+1/T+5更新対象について、テク
 ただし、サンプルが少ないものは `hypothesis_only` として残し、確定ルールのように扱わない。
 
 自動集計:
-- `python3 scripts/rule_check_market_outcomes.py --date YYYY-MM-DD --min-count 8`
+- `python3 scripts/investment/analysis/rule_check_market_outcomes.py --date YYYY-MM-DD --min-count 8`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-rule-check-summary.md`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-rule-check-data.json`
-- `python3 scripts/analyze_long_rule_reproducibility.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/analyze_long_rule_reproducibility.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-long-rule-reproducibility.md`
 - ロング側も、該当ルールの出現回数、出現期間、材料タイプ、T+1/T+5/T+20を保存し、再現性を見てから昇格する。
-- `python3 scripts/generate_rule_dashboard.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/generate_rule_dashboard.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-rule-dashboard.md`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-daily-rule-brief.md`
 - ロング/ショートを共通軸で `active_rule` / `watch_rule` / `hypothesis_only` に分け、daily で表示するルールだけを短く抽出する。
-- `python3 scripts/update_rule_history.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/update_rule_history.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/rule-history.md`
 - 出力: `topics/investment-research/rule-history.json`
 - ルールごとの出現回数、T+1/T+5/T+20、初回/最新観測日、ステータス履歴を累積管理する。
 
 母数拡張:
-- `python3 scripts/collect_kabutan_surprise_signals.py --date YYYY-MM-DD`
+- `python3 scripts/investment/collect/collect_kabutan_surprise_signals.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-six-month-rough-backtest-batch-5-kabutan-surprise.md`
-- `python3 scripts/collect_kabutan_short_signals.py --date YYYY-MM-DD`
+- `python3 scripts/investment/collect/collect_kabutan_short_signals.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-six-month-rough-backtest-batch-6-short-negative.md`
 - バックテスト母集団は `configs/investment-seeds.json` の seed list を正本にする。
 - 通常deepは `rough_backtest_full`、軽量確認は `rough_backtest_light`、short検証は `rough_backtest_short_focus` を使う。
 - seedを追加/除外する場合は、Pythonコードではなく `configs/investment-seeds.json` を更新する。
 - ネット取得を避ける場合は `CACHE_ONLY=1` または各スクリプトの `--cache-only` を使う。
-- その後、`python3 scripts/fill_market_outcomes.py --date YYYY-MM-DD`、`python3 scripts/analyze_market_outcomes.py --date YYYY-MM-DD`、`python3 scripts/analyze_cross_factors.py --date YYYY-MM-DD`、`python3 scripts/rule_check_market_outcomes.py --date YYYY-MM-DD --min-count 8` の順で再集計する。
-- テクニカル指標も更新する場合は、`python3 scripts/fill_technical_context.py --date YYYY-MM-DD` を `fill_market_outcomes.py` の後に実行する。
+- その後、`python3 scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD`、`python3 scripts/investment/analysis/analyze_market_outcomes.py --date YYYY-MM-DD`、`python3 scripts/investment/analysis/analyze_cross_factors.py --date YYYY-MM-DD`、`python3 scripts/investment/analysis/rule_check_market_outcomes.py --date YYYY-MM-DD --min-count 8` の順で再集計する。
+- テクニカル指標も更新する場合は、`python3 scripts/investment/backtest/fill_technical_context.py --date YYYY-MM-DD` を `fill_market_outcomes.py` の後に実行する。
 
 テクニカル収集:
-- `python3 scripts/fill_technical_context.py --date YYYY-MM-DD`
+- `python3 scripts/investment/backtest/fill_technical_context.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-technical-context-data.json`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-technical-context-summary.md`
 - 取得項目: MA5/25/75、MA傾き、RSI14、MACD、ボリンジャー20、20日高値/安値ブレイク、テクニカルパターン。
 - short強化では `technical_short_bias`、`breakdown_short_watch`、`bearish_trend_continuation`、`overbought_reversal_watch` を優先確認する。
 
 short用途分離:
-- `python3 scripts/classify_short_use_cases.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/classify_short_use_cases.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-use-case-data.json`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-use-case-summary.md`
 - `short_entry_candidate`: 空売り検討候補。
@@ -235,12 +235,12 @@ short用途分離:
 - `exit_or_buy_avoid`: 既存Longの撤退/利確、または新規買い見送り。
 
 short監視準備度:
-- `python3 scripts/fill_borrow_context.py --date YYYY-MM-DD`
+- `python3 scripts/investment/backtest/fill_borrow_context.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-borrow-context-data.json`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-borrow-context-summary.md`
 - JPX公式の制度信用・貸借銘柄一覧を使い、`loan_margin` / `standardized_margin_only` / `not_in_jpx_current_list` を付与する。
 - 注意: JPX現時点/as-ofの区分であり、証券会社別の一般信用、日々の売り禁、逆日歩、過去時点の貸借可否は含まない。
-- `python3 scripts/classify_short_readiness.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/classify_short_readiness.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-readiness-data.json`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-readiness-summary.md`
 - `high`: 実監視の最優先。ただし売建可否、貸借、逆日歩、板確認は必須。
@@ -249,18 +249,18 @@ short監視準備度:
 - `avoid_short_rebound_risk`: 売られすぎで戻り警戒。戻り売りの再セットアップ待ち。
 
 short日次表示:
-- `python3 scripts/analyze_short_high_readiness.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/analyze_short_high_readiness.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-high-readiness-review.md`
-- `python3 scripts/generate_short_watch_report.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/generate_short_watch_report.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-watch-report.md`
-- `python3 scripts/analyze_short_chart_windows.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/analyze_short_chart_windows.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-chart-window-review.md`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-chart-window-data.json`
-- `python3 scripts/analyze_short_chart_window_stats.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/analyze_short_chart_window_stats.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-chart-window-stats.md`
-- `python3 scripts/analyze_short_rebound_risk.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/analyze_short_rebound_risk.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-rebound-risk-review.md`
-- `python3 scripts/classify_short_conviction.py --date YYYY-MM-DD`
+- `python3 scripts/investment/analysis/classify_short_conviction.py --date YYYY-MM-DD`
 - 出力: `topics/investment-research/inbox/YYYY-MM-DD-short-conviction-report.md`
 - daily本文では `Short Entry Watch` だけを空売り監視候補として出す。
 - `Low Liquidity Short Watch` はJPX貸借銘柄だけを表示し、原則として買い回避/警戒寄りに扱う。
@@ -277,7 +277,7 @@ short日次表示:
 market signals に軽量タグを付け、検索・集計・adaptive gate に使う。
 
 自動生成:
-- `python3 scripts/build_investment_tag_index.py`
+- `python3 scripts/investment/analysis/build_investment_tag_index.py`
 - 出力: `topics/investment-research/tag-index.md`
 - 出力: `topics/investment-research/tag-index.json`
 

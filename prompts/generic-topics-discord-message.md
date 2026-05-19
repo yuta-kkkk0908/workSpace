@@ -1,17 +1,19 @@
 ```text
-汎用トピック日次 2026-05-14
+汎用トピック日次 2026-05-18
 - トピック数: 3
-- 補完: 当日0件のため直近2日から繰越
 
-[ai-news-watch] - 米政権内でAI規制方針の調整遅れが報道され、連邦レベルの実装は継続監視。
-  出典: https://techcrunch.com/2026/05/04/anthropic-and-openai-are-both-launching-joint-ventures-for-enterprise-ai-services/
-  出典: https://www.axios.com/2026/05/13/ai-executive-action-white-house-infighting
+[ai-news-watch]
+  出典: https://news.google.com/rss/articles/CBMiZEFVX3lxTE94QXNZZXdBazFaUEN0QzI0UElSU3JMWGZRUDhBQ1J3N1NSdlZkVGdwYXdQRmwyekUzMVR0OUszUjJXVFFlUkxMRDREWHRUaXk4UEViWGVwdHA5aXJXUmtpSV9HdEg?oc=5
+  出典: https://news.google.com/rss/articles/CBMibEFVX3lxTE54Z05MLTg1d2NiSVNMQ3VlR0xzY1R0aVFZeExhc3JOa0Z6djhEUXdIb3FENjlPZFhiMGVCQmlKR1hZTEV0STYzTGJNUmphV2FjMDJ6cENqSkVEcXNpWl9QSEpsY0NsTmdQLWZzQw?oc=5
+  出典: https://news.google.com/rss/articles/CBMibEFVX3lxTFBncFI5dzYxamJJWlZpVV83NWRkQVkySnNZSVBXWWd1OVZpOU53Wkg1bVAtOVNDd3VPVVo0Y2RCUTljY3l2TUhvUlU2Z3VtSFgtQ1NHUjVoRU9MQVJySldQaVl5cE5KUFlSdzNlNw?oc=5
 
-[pokemon-card-watch] - 新パック起点の環境変化: N/C（確認済み）。
-  出典: https://www.pokemon-card.com/
-  出典: https://www.pokemoncenter-online.com/
+[pokemon-card-watch]
+  出典: https://news.google.com/rss/articles/CBMiTEFVX3lxTE5seVlPTjV1OTY1WjI1YTk0cjlJOGU0eTM5WEJyY3Q3REFHY2ppVmM5RDJpVkhOQ0RKVFczSEJJMk8yUXZWZHBiR2lOMjA?oc=5
+  出典: https://news.google.com/rss/articles/CBMiTEFVX3lxTE8xSXhJdWM2NWl2WUIwZU11QVVjMTdYa1RKNXlRM1BWZm9xejJmM3J1aS1YaHlNMndWc3ZNdWFpdXNUdXhidUZGU3Vuek4?oc=5
+  出典: https://news.google.com/rss/articles/CBMiTEFVX3lxTE9YMUh5cU9hQmZMeG90UllQd1k1dzR5VVZYOEYwZGlCaDBKUU1LV0ZEUzlWUHJ5TG1xcmNMTXJ6Wm4wNHB6VHhaVzJsN3E?oc=5
 
-[tech-stack-reads] - Agent PR review guide（運用改善に直結）
-  出典: https://github.blog/ai-and-ml/generative-ai/agent-pull-requests-are-everywhere-heres-how-to-review-them/
-  出典: https://github.blog/ai-and-ml/generative-ai/validating-agentic-behavior-when-correct-isnt-deterministic/
+[tech-stack-reads]
+  出典: https://news.google.com/rss/articles/CBMiVEFVX3lxTE5sNkR5SG9xdERld1hENmU3ZEs2Q1J3N185ajh4OEdmdHVVY05BcDA2VVBwWkM1X3ZCV3dVNk1jLVFBb2l6WlIybm9rcXNaWXNJUnIxRQ?oc=5
+  出典: https://news.google.com/rss/articles/CBMiZEFVX3lxTE1CTUtFazhQSGlLUHlka29MMU9wTTNTRkdNNmE3Z3ZueU9UV1VDNnozQlk0V3A2MjNvbG9FTkFQZlRCMTVkV3VvRkU1VUNtcnFhLVRQTEZqblJmSjIyZm9qWHd1dk0?oc=5
+  出典: https://news.google.com/rss/articles/CBMiZkFVX3lxTE82QmpsX2pXRE93cWRsbUUycEhjNDhReGhPSUZJZndmSV9CZHl1NHR0VjZiam1OSUJ4OG1WVHpwTXVTR3B2MXdGQVZDdmU2d3NXRTkySkxoZXJsdHhzcDNmWVZ6SmE2Zw?oc=5
 ```

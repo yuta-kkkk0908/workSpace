@@ -1,0 +1,5 @@
+Scheduler Health 2026-05-18 (daily)
+- status: OK
+- 推奨キーワード: 点検
+- 実行: python scripts/ops/keyword_action.py <推奨キーワード>
+- metrics: prompts/scheduler-health.json

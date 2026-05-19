@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-05-18T22:57:13+09:00",
+  "lookbackHours": 48,
+  "status": "OK",
+  "alerts": [],
+  "warnings": [],
+  "tasks": {
+    "AIOS-Night": {
+      "start_count": 5,
+      "ok_count": 6,
+      "error_count": 0,
+      "last_event": "[2026-05-18 21:00:42] [AIOS-Night] [END] elapsed_ms=39498"
+    },
+    "AIOS-Inv-Morning": {
+      "start_count": 1,
+      "ok_count": 1,
+      "error_count": 0,
+      "last_event": "[2026-05-18 07:30:33] [AIOS-Inv-Morning] [END] elapsed_ms=29118"
+    },
+    "AIOS-Inv-Noon": {
+      "start_count": 3,
+      "ok_count": 3,
+      "error_count": 0,
+      "last_event": "[2026-05-18 12:10:06] [AIOS-Inv-Noon] [END] elapsed_ms=2970"
+    },
+    "AIOS-Inv-Evening": {
+      "start_count": 4,
+      "ok_count": 4,
+      "error_count": 0,
+      "last_event": "[2026-05-18 21:10:36] [AIOS-Inv-Evening] [END] elapsed_ms=35420"
+    },
+    "AIOS-Inv-Scenario-0810": {
+      "start_count": 2,
+      "ok_count": 2,
+      "error_count": 0,
+      "last_event": "[2026-05-18 08:10:03] [AIOS-Inv-Scenario-0810] [END] elapsed_ms=1405"
+    }
+  },
+  "freshnessMinutes": {
+    "discord-signal.log": 106.63318684999999,
+    "discord-generic.log": 116.54011098333334,
+    "discord-scenario.log": 887.1699692833333,
+    "discord-paper-stats.log": 106.6193238
+  },
+  "taskLog": "logs/task-scheduler.log",
+  "recommendedKeyword": "点検"
+}

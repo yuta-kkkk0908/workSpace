@@ -47,6 +47,131 @@ make investment-backtest-expand DATE=YYYY-MM-DD SEED_LIST=rough_backtest_light C
 - ロング/ショート再分類
 - rule dashboard / rule history / tag-index 更新
 
+### rough backtest を継続拡張する運用手順
+`ticker + signalDate + signalType` の新規組を増やし続けるときの、実運用向けの最短手順。
+
+1. まず母集団を拡張側で実行する（通常は `extended`）。
+
+```bash
+python scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-config configs/investment-seeds-extended.json --seed-list rough_backtest_extended
+```
+
+2. `parsed / ok / failed` を確認する。
+- `ok` が増えていれば前進。
+- `--cache-only` で `failed` が固定する場合は、ネット取得あり（`--cache-only` なし）で再実行する。
+
+3. 同一日付で再実行して補完する。
+- このスクリプトは同じ出力ファイルを更新する前提。
+- 再開専用フラグはないため、同コマンド再実行で進める。
+
+4. `ok` が目標到達したら採用する。
+- 例: `ok >= 300` を採用基準にする。
+- `failed=0` まで追うかは運用判断（時間・ネット状況次第）。
+
+5. `failed` 内訳を別ファイル化して次回に回す（任意）。
+- 例: `inbox/{date}-rough-backtest-failed-23.md` に `ticker/signalDate/signalType/reason` を保存。
+- これで次回の補完対象を明示できる。
+
+6. DB に取り込む。
+
+```bash
+python scripts/data/ingest_investment_db.py --date YYYY-MM-DD
+```
+
+7. DB反映を確認する（推奨）。
+- `data/investment.db` の `backtest_outcomes` を `date=YYYY-MM-DD` で件数確認。
+- `source_path` が `topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md` になっていることを確認。
+
+注意:
+- `fill_market_outcomes.py` 自体はDB書き込みしない（Markdown出力 + cache更新のみ）。
+- DB件数の「純増」は `ok` 増分と一致しない。`ingest_investment_db.py` は upsert のため、既存キーは更新扱いになる。
+
+#### 実行テンプレート（コピペ用）
+```bash
+# 0) 3年窓のseedリストを自動更新（推奨）
+python scripts/investment/backtest/build_extended_seed_list.py --as-of YYYY-MM-DD --years 3
+
+# 1) outcome 補完（ネット取得あり）
+python scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-config configs/investment-seeds-extended.json --seed-list rough_backtest_extended
+
+# 2) cache-only で埋まるか確認（必要時）
+python scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-config configs/investment-seeds-extended.json --seed-list rough_backtest_extended --cache-only
+
+# 3) DB取り込み
+python scripts/data/ingest_investment_db.py --date YYYY-MM-DD
+```
+
+#### failed が残るときの判断
+- `--cache-only` で `failed` が固定する場合、キャッシュ不足が原因なので `--cache-only` なしで再実行する。
+- ネット取得ありでも `failed` が固定する場合、当該銘柄の価格欠損・非営業日・シンボル不一致の可能性が高い。
+- 運用上は `ok` が目標閾値（例: 300）を超えた時点で採用し、`failed` は別ファイルに分離して次回補完対象に回す。
+
+#### DB反映の確認（SQLite）
+```bash
+python - <<'PY'
+import sqlite3
+conn = sqlite3.connect("data/investment.db")
+cur = conn.cursor()
+date = "YYYY-MM-DD"
+print("date_count", cur.execute("select count(*) from backtest_outcomes where date=?", (date,)).fetchone()[0])
+for row in cur.execute("select count(*), source_path from backtest_outcomes where date=? group by source_path order by count(*) desc", (date,)):
+    print("source", row[0], row[1])
+conn.close()
+PY
+```
+
+#### `backtest_outcomes` の同一性仕様（重複防止）
+- 対象テーブル: `data/investment.db` の `backtest_outcomes`
+- 取り込みスクリプト: `scripts/data/ingest_investment_db.py` の `upsert_backtest`
+
+同一レコード判定の前提:
+- 必須項目は `sourceSignalId` / `signalDate` / `signalType` の3つ。
+- いずれかが欠ける行は malformed とみなし、DBに取り込まない。
+
+DB投入時の安定キー:
+- `outcome_id` は入力Markdown側の値をそのまま信用せず、以下の決定的IDに正規化して投入する。
+- `outcome_<sourceSignalId>_<signalDate>_<signalType>`
+- `signalType` は英数字・`_`・`-` 以外を `_` に置換して正規化する。
+
+運用上の意味:
+- 再取り込み・再実行時も同一シグナルは同じ `outcome_id` に upsert される。
+- `sourceSignalId` のみで取り込んでいた時期に起きた重複混入を再発させない。
+
+既存重複のクレンジング方針:
+- 重複判定キーは `source_signal_id + signal_date + signal_type`。
+- 同キーで複数行ある場合は `updated_at` 最新を残し、同値時は `rowid` の大きい行を残す。
+
+参考SQL（重複検出）:
+```sql
+SELECT source_signal_id, signal_date, signal_type, COUNT(*) AS c
+FROM backtest_outcomes
+WHERE COALESCE(source_signal_id,'')<>''
+  AND COALESCE(signal_date,'')<>''
+  AND COALESCE(signal_type,'')<>''
+GROUP BY source_signal_id, signal_date, signal_type
+HAVING COUNT(*) > 1
+ORDER BY c DESC;
+```
+
+参考SQL（重複削除）:
+```sql
+DELETE FROM backtest_outcomes
+WHERE rowid IN (
+  SELECT rowid FROM (
+    SELECT rowid,
+           ROW_NUMBER() OVER (
+             PARTITION BY source_signal_id, signal_date, signal_type
+             ORDER BY COALESCE(updated_at, '') DESC, rowid DESC
+           ) AS rn
+    FROM backtest_outcomes
+    WHERE COALESCE(source_signal_id,'')<>''
+      AND COALESCE(signal_date,'')<>''
+      AND COALESCE(signal_type,'')<>''
+  ) t
+  WHERE t.rn > 1
+);
+```
+
 ### seed list config
 バックテストの母集団は `configs/investment-seeds.json` で管理する。
 
@@ -57,8 +182,8 @@ make investment-backtest-expand DATE=YYYY-MM-DD SEED_LIST=rough_backtest_light C
 - seed list を複数持てば、軽量版/拡張版/ショート強化版の比較がしやすい
 
 ```bash
-python3 scripts/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full
-python3 scripts/analyze_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full
+python3 scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full
+python3 scripts/investment/analysis/analyze_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full
 ```
 
 現在の seed list:

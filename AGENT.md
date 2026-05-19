@@ -104,6 +104,7 @@
 ユーザーが「ニーズ収集」「不満収集」「開発アイディア収集」と依頼した場合は、`commands/need-watch.md` に従います。
 ユーザーが「投資情報の整理」「投資整理」「シグナルチェック」と依頼した場合は、`commands/investment-organize.md` に従います。
 ユーザーが「ニーズの整理」「ニーズ整理」「記事ネタ整理」と依頼した場合は、`commands/need-organize.md` に従います。
+ユーザーが「ニーズを分析」と依頼した場合は、未分析キューを対象に `needs-triage` を実行します。`prompts/needs-triage.prompt.md` の内容を内部的に適用し、貼り付け作業をユーザーに要求しません。
 ユーザーが「週間レポート」「週次レポート」「月間レポート」と依頼した場合は、`commands/report.md` に従います。
 ユーザーが「リマインダー」「daily漏れ確認」「取り忘れ確認」と依頼した場合は、`commands/reminder.md` に従います。
 

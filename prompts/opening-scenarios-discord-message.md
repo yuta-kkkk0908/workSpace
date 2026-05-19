@@ -1,31 +1,15 @@
 ```text
-寄り付きシナリオ 2026-05-14
-- 参照日: 2026-05-14
-- ルール参照日: 2026-05-11
+寄り付きシナリオ 2026-05-19
+- 参照日: 2026-05-19
+- ルール参照日: 2026-05-18
 - 1トレード想定リスク: 5000 円
-- 件数: 3
+- モード: watch_only
+- 件数内訳: long=0 / short=0
+- 件数: 0
 
-1. 8053 住友商事 [ロング]
-  トリガー: relative_strength / source=market breadth follow / session=before_open
-  再現性: strict_long_signal / status=active_rule / n=43 / T+1 37/6/0 n=43 wr=86.0% / T+5 25/5/2 n=32 wr=78.1% / T+20 14/2/0 n=16 wr=87.5%
-  勝率目安: T+20想定勝率=87.5%（50%超） / 推奨ホールド=T+20
-  行動設計: entry=4,022円（板気配ベース） / take=4,070円（第一利確） / stop=3,998円（損切） / hold=T+1〜T+3中心（デイトレ〜短期スイング）
-  見送り条件: 寄り後に下方向へ急変し、想定支持を割る場合は見送り/撤退 / 寄り直後の出来高が細い/気配が飛ぶ場合は見送り / 前提材料の否定ニュースが出た場合は見送り
-  補足: rank=B / expectedDirection=up / source=entry-candidates + market-signals / boardSnapshot=yes
+- 注意: 最低件数未達のため様子見優先（long=0/2, short=0/2）
+- 注意: 新規エントリーは見送り、監視継続と条件再確認を優先する。
+- 注意: 品質ゲート除外: 2件（score/ruleHits/winRate 条件未達）
+- 注意: サンプル不足のため品質ゲートを段階緩和（rounds=3, effective: hits>=3, score>=62, winRate>=47.0%）
 
-2. 7203 トヨタ自動車 [ショート]
-  トリガー: macro_policy / fx / source=fx context follow / session=before_open
-  再現性: return_short_wait_or_avoid / status=watch_rule / n=22 / T+1 10/9/3 pending=0 wr=45.5% / T+5 9/6/4 pending=3 wr=47.4% / T+20 6/4/1 pending=11 wr=54.5%
-  勝率目安: T+20想定勝率=54.5%（50%超） / 推奨ホールド=T+20
-  行動設計: entry=3,567円（板気配ベース） / take=3,524円（第一利確） / stop=3,588円（損切） / hold=T+1〜T+3中心（デイトレ〜短期スイング）
-  見送り条件: 寄り後に上方向へ急変し、想定抵抗を超える場合は見送り/撤退 / 寄り直後の出来高が細い/気配が飛ぶ場合は見送り / 前提材料の否定ニュースが出た場合は見送り
-  補足: rank=B / expectedDirection=down / source=entry-candidates + market-signals / boardSnapshot=yes
-
-3. 9984 ソフトバンクグループ [ショート]
-  トリガー: sell_the_news / source=index mover follow / session=intraday
-  再現性: return_short_wait_or_avoid / status=watch_rule / n=22 / T+1 10/9/3 pending=0 wr=45.5% / T+5 9/6/4 pending=3 wr=47.4% / T+20 6/4/1 pending=11 wr=54.5%
-  勝率目安: T+20想定勝率=54.5%（50%超） / 推奨ホールド=T+20
-  行動設計: entry=9,375円（板気配ベース） / take=9,262円（第一利確） / stop=9,431円（損切） / hold=T+1〜T+3中心（デイトレ〜短期スイング）
-  見送り条件: 寄り後に上方向へ急変し、想定抵抗を超える場合は見送り/撤退 / 寄り直後の出来高が細い/気配が飛ぶ場合は見送り / 前提材料の否定ニュースが出た場合は見送り
-  補足: rank=B / expectedDirection=down / source=entry-candidates + market-signals / boardSnapshot=yes
-```
+- 変化なし（N/C）```

@@ -34,16 +34,25 @@ def main() -> int:
 
     if args.mode in ('night', 'both'):
         rc |= run([py, 'scripts/check_daily_missing.py', '--date', 'today', '--days', '7'], allow_fail=True)
-        rc |= run([py, 'scripts/check_investment_signal_missing.py', '--date', d])
-        rc |= run([py, 'scripts/generate_entry_candidates.py', '--date', d])
-        rc |= run([py, 'scripts/init_investment_db.py'])
-        rc |= run([py, 'scripts/ingest_investment_db.py', '--date', d])
+        rc |= run([py, 'scripts/investment/collect/collect_generic_daily_topics.py', '--date', d, '--overwrite'], allow_fail=True)
+        rc |= run([py, 'scripts/data/init_topics_db.py'])
+        rc |= run([py, 'scripts/data/ingest_topics_db.py', '--date', d], allow_fail=True)
+        rc |= run([py, 'scripts/data/init_needs_db.py'])
+        rc |= run([py, 'scripts/data/ingest_needs_db.py', '--date', d], allow_fail=True)
+        rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d])
+        rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d])
+        rc |= run([py, 'scripts/data/init_investment_db.py'])
+        rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
 
     if args.mode in ('morning', 'both'):
         y = (date.fromisoformat(d) - timedelta(days=1)).isoformat()
         rc |= run([py, 'scripts/check_daily_missing.py', '--date', y, '--days', '1'], allow_fail=True)
-        rc |= run([py, 'scripts/init_investment_db.py'])
-        rc |= run([py, 'scripts/ingest_investment_db.py', '--date', y])
+        rc |= run([py, 'scripts/data/init_topics_db.py'])
+        rc |= run([py, 'scripts/data/ingest_topics_db.py', '--date', y], allow_fail=True)
+        rc |= run([py, 'scripts/data/init_needs_db.py'])
+        rc |= run([py, 'scripts/data/ingest_needs_db.py', '--date', y], allow_fail=True)
+        rc |= run([py, 'scripts/data/init_investment_db.py'])
+        rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', y])
 
     return rc
 

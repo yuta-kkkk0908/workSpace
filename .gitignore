@@ -25,3 +25,5 @@ prompts/today-topics-db-brief.md
 
 # Local secrets
 .env
+
+logs/*
