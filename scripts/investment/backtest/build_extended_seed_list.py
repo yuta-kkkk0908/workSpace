@@ -26,8 +26,7 @@ def parse_args() -> argparse.Namespace:
 
 def in_scope(name: str) -> bool:
     return (
-        name.endswith("-market-signals.md")
-        or "-backfill-" in name
+        "-backfill-" in name
         or "-april-backfill-signal-ranks.md" in name
         or "-six-month-rough-backtest-batch-" in name
     )

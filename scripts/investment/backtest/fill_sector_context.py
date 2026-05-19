@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -16,6 +17,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 JST = timezone(timedelta(hours=9))
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-sector-context-data.json"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402
@@ -149,6 +151,7 @@ def main() -> int:
     parser.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"))
     parser.add_argument("--outcome", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     args = parser.parse_args()
     output = args.output or Path(str(DEFAULT_OUTPUT).format(date=args.date))
     outcomes.OUTCOME = args.outcome or Path(str(outcomes.DEFAULT_OUTCOME).format(date=args.date))
@@ -178,6 +181,28 @@ def main() -> int:
         "caution": "セクター指数の実績ではなく、銘柄属性/地合い感応度の粗分類。売買助言ではない。",
         "rows": sorted(out_rows, key=lambda r: r["ticker"]),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute("DELETE FROM sector_context_rows WHERE date=?", (args.date,))
+        for r in out_rows:
+            conn.execute(
+                """
+                INSERT INTO sector_context_rows(
+                  date,ticker,sector_group,sector_profile,confidence,source_path,updated_at
+                ) VALUES(?,?,?,?,?,?,datetime('now'))
+                """,
+                (
+                    args.date,
+                    r.get("ticker", ""),
+                    r.get("sectorGroup", ""),
+                    r.get("sectorProfile", ""),
+                    r.get("confidence", ""),
+                    str(output.relative_to(ROOT)),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     print(f"wrote {output.relative_to(ROOT)} rows={len(out_rows)}")
     return 0
 

@@ -4,13 +4,16 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
+DATA_DIR = ROOT / "data"
 JST = timezone(timedelta(hours=9))
+DEFAULT_OPS_DB = DATA_DIR / "ops.db"
 
 DEFAULT_TASKS = [
     "AIOS-Night",
@@ -31,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--task-log", default=str((LOG_DIR / "task-scheduler.log").relative_to(ROOT)))
     p.add_argument("--out-json", default=str((PROMPTS_DIR / "scheduler-health.json").relative_to(ROOT)))
     p.add_argument("--out-status", default=str((PROMPTS_DIR / "scheduler-health.status.txt").relative_to(ROOT)))
+    p.add_argument("--ops-db", default=str(DEFAULT_OPS_DB.relative_to(ROOT)))
     return p.parse_args()
 
 
@@ -66,6 +70,32 @@ def load_task_events(path: Path, cutoff: datetime) -> list[dict]:
     return out
 
 
+def load_task_events_from_db(db_path: Path, cutoff: datetime) -> list[dict]:
+    if not db_path.exists():
+        return []
+    cutoff_s = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT ts,task_name,level,message
+            FROM task_log_events
+            WHERE ts >= ?
+            ORDER BY ts
+            """,
+            (cutoff_s,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        conn.close()
+        return []
+    finally:
+        conn.close()
+    out = []
+    for ts, task, level, msg in rows:
+        out.append({"ts": str(ts), "task": str(task), "kind": str(level), "line": f"[{ts}] [{task}] [{level}] {msg}"})
+    return out
+
+
 def latest_log_age_minutes(path: Path, now: datetime) -> float | None:
     if not path.exists():
         return None
@@ -78,11 +108,15 @@ def main() -> int:
     now = datetime.now(JST)
     cutoff = now - timedelta(hours=max(1, args.hours))
     task_log = ROOT / args.task_log
-    events = load_task_events(task_log, cutoff)
+    ops_db = ROOT / args.ops_db
+    events = load_task_events_from_db(ops_db, cutoff)
+    if not events:
+        events = load_task_events(task_log, cutoff)
 
     per_task: dict[str, dict] = {}
     alerts: list[str] = []
     warns: list[str] = []
+    db_alerts: list[str] = []
 
     for t in args.tasks:
         ev = [x for x in events if x["task"] == t]
@@ -100,6 +134,29 @@ def main() -> int:
         if errs:
             alerts.append(f"{t}: ERROR {len(errs)}件")
 
+    # DB integrity check for backtest_outcomes duplicate identity.
+    inv_db = DATA_DIR / "investment.db"
+    if inv_db.exists():
+        try:
+            conn = sqlite3.connect(inv_db)
+            dup_groups = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM (
+                  SELECT 1
+                  FROM backtest_outcomes
+                  WHERE COALESCE(source_signal_id,'')<>'' AND COALESCE(signal_date,'')<>'' AND COALESCE(signal_type,'')<>''
+                  GROUP BY source_signal_id, signal_date, signal_type
+                  HAVING COUNT(*) > 1
+                ) x
+                """
+            ).fetchone()[0]
+            conn.close()
+            if dup_groups > 0:
+                db_alerts.append(f"backtest_outcomes duplicate identity groups={dup_groups}")
+        except Exception as e:
+            warns.append(f"investment.db duplicate check failed: {type(e).__name__}")
+
     # Posting logs freshness checks (best-effort)
     log_targets = {
         "discord-signal.log": 24 * 60,
@@ -108,15 +165,40 @@ def main() -> int:
         "discord-paper-stats.log": 48 * 60,
     }
     freshness: dict[str, float | None] = {}
+    channel_map = {
+        "discord-signal.log": "signal",
+        "discord-generic.log": "generic",
+        "discord-scenario.log": "scenario",
+        "discord-paper-stats.log": "paper_stats",
+    }
+    db_fresh: dict[str, float | None] = {}
+    if ops_db.exists():
+        conn = sqlite3.connect(ops_db)
+        try:
+            for log_name, channel in channel_map.items():
+                row = conn.execute("SELECT max(ts) FROM discord_log_events WHERE channel=?", (channel,)).fetchone()
+                ts = row[0] if row else None
+                if ts:
+                    dt = parse_ts(str(ts))
+                    db_fresh[log_name] = ((now - dt).total_seconds() / 60.0) if dt else None
+                else:
+                    db_fresh[log_name] = None
+        except sqlite3.OperationalError:
+            db_fresh = {}
+        finally:
+            conn.close()
     for name, limit_min in log_targets.items():
-        p = LOG_DIR / name
-        age = latest_log_age_minutes(p, now)
+        age = db_fresh.get(name)
+        if age is None:
+            p = LOG_DIR / name
+            age = latest_log_age_minutes(p, now)
         freshness[name] = age
         if age is None:
-            warns.append(f"{name}: ファイルなし")
+            warns.append(f"{name}: データなし")
         elif age > limit_min:
             warns.append(f"{name}: 更新遅延 {age:.0f}分")
 
+    alerts.extend(db_alerts)
     status = "ALERT" if alerts else "OK"
 
     def choose_action() -> str:

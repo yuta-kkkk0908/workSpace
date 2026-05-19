@@ -3,27 +3,27 @@
 - 参照日: 2026-05-19
 - 件数: 6
 
-1. 7673 ダイコー通産 / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180006/
+1. 7777 スリー・ディー・マトリックス / 上昇 / L:A- S:該当なし
+  根拠: upward_revision_highest_profit / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190006/
 
-2. 186A アストロスケールホールディングス / 上昇 / L:B+ S:該当なし
-  根拠: upward_revision / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180001/
+2. 7946 光陽社 / 上昇 / L:B S:該当なし
+  根拠: unknown / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190004/
 
-3. 9913 日邦産業 / unclear / L:C S:C
-  根拠: 悪決算 / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180009/
+3. 4720 城南進学研究社 / 下落 / L:C S:B
+  根拠: downward_revision / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190005/
 
-4. 7084 Ｓｍｉｌｅ Ｈｏｌｄｉｎｇｓ / unclear / L:C S:C
-  根拠: 悪決算 / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180008/
+4. 5194 相模ゴム工業 / unclear / L:C S:C
+  根拠: 悪決算 / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190008/
 
-5. 4825 ウェザーニューズ / unclear / L:C S:C
-  根拠: unknown / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180007/
+5. 4443 Ｓａｎｓａｎ / unclear / L:C S:C
+  根拠: unknown / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190007/
 
-6. 7214 ＧＭＢ / unclear / L:C S:C
-  根拠: 悪決算 / ruleHits=4 / 種別=primary
-  材料日付: 2026-05-18 / 出典: https://s.kabutan.jp/news/k202605180004/
+6. 5363 ＴＹＫ / unclear / L:C S:C
+  根拠: 悪決算 / ruleHits=4
+  出典: https://s.kabutan.jp/news/k202605190003/
 ```

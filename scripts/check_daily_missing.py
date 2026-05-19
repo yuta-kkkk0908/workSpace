@@ -122,13 +122,7 @@ def expected_files(target: date) -> list[Path]:
         for topic in daily_watch_topics()
     ]
 
-    # Daily execution also updates these background logs unless explicitly skipped.
-    files.append(
-        TOPICS_DIR
-        / "investment-research"
-        / "inbox"
-        / f"{date_str}-market-signals.md"
-    )
+    # investment-research is DB-first; market-signals.md is audit artifact and is not required for completeness.
     files.append(
         TOPICS_DIR
         / "product-idea-watch"
@@ -157,27 +151,38 @@ def build_status_text(
     total_missing = sum(len(paths) for paths in missing_by_date.values())
     missing_dates = [target for target in targets if missing_by_date[target]]
 
+    data_hard = [w for w in (warnings or []) if w.startswith("[HARD]")]
+    delivery_soft = [w for w in (warnings or []) if w.startswith("[SOFT]")]
+
     if missing_dates:
         date_text = ", ".join(target.isoformat() for target in missing_dates)
         first_missing = missing_dates[0].isoformat()
-        base = (
+        lines = [
             f"AIOS daily missing: {len(missing_dates)}日 / {total_missing}ファイル不足\n"
             f"対象: {targets[0].isoformat()}..{targets[-1].isoformat()}\n"
             f"不足日: {date_text}\n"
             f"Codexに貼る: {first_missing} 分の今日の情報を補完して。"
-        )
-        if warnings:
-            base += "\n" + "\n".join(f"- WARN: {w}" for w in warnings)
-        return base
+        ]
+        if data_hard:
+            lines.append("DATA_INGEST(ERROR)")
+            lines.extend(f"- {w.replace('[HARD] ', '')}" for w in data_hard)
+        if delivery_soft:
+            lines.append("DELIVERY_SOFT(INFO)")
+            lines.extend(f"- {w.replace('[SOFT] ', '')}" for w in delivery_soft)
+        return "\n".join(lines)
 
-    base = (
+    lines = [
         "AIOS daily OK\n"
         f"対象: {targets[0].isoformat()}..{targets[-1].isoformat()}\n"
         f"{total_existing}/{total_expected} ファイル確認済み。"
-    )
-    if warnings:
-        base += "\n" + "\n".join(f"- WARN: {w}" for w in warnings)
-    return base
+    ]
+    if data_hard:
+        lines.append("DATA_INGEST(ERROR)")
+        lines.extend(f"- {w.replace('[HARD] ', '')}" for w in data_hard)
+    if delivery_soft:
+        lines.append("DELIVERY_SOFT(INFO)")
+        lines.extend(f"- {w.replace('[SOFT] ', '')}" for w in delivery_soft)
+    return "\n".join(lines)
 
 
 def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs_db: Path) -> tuple[list[str], list[str]]:

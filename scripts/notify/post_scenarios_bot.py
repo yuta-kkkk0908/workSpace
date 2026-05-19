@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-INBOX = ROOT / "topics" / "investment-research" / "inbox"
 DEFAULT_DB = ROOT / "data" / "investment.db"
 JST = timezone(timedelta(hours=9))
 
@@ -43,26 +42,6 @@ def load_dotenv() -> None:
             continue
         k, v = s.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip())
-
-
-def find_scenario_json(date_str: str, fallback_days: int) -> tuple[Path, str]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-opening-scenarios.json"
-        if p.exists():
-            return p, d
-    raise SystemExit(f"opening-scenarios not found for {date_str} (fallback_days={fallback_days})")
-
-
-def find_watch_promotion_json(date_str: str, fallback_days: int) -> tuple[Path | None, str | None]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-watch-promotion-candidates.json"
-        if p.exists():
-            return p, d
-    return None, None
 
 
 def load_env() -> tuple[str, str]:
@@ -246,11 +225,73 @@ def main() -> int:
     args = parse_args()
     load_dotenv()
     token, channel_id = load_env()
-    src, src_date = find_scenario_json(args.date, args.fallback_days)
-    promo_path, promo_date = find_watch_promotion_json(args.date, args.fallback_days)
-    data = json.loads(src.read_text(encoding="utf-8"))
+    db = Path(args.db)
+    if not db.exists():
+        raise SystemExit(f"db not found: {db}")
     max_posts = max(0, args.max_posts)
-    trade_rows = (data.get("scenarios", []) or [])[:max_posts]
+    conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(args.date, "%Y-%m-%d").date()
+        src_date = None
+        trade_rows: list[dict] = []
+        rejected_rows: list[dict] = []
+        for i in range(0, max(0, args.fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            trade_src = conn.execute(
+                """
+                SELECT scenario_index,ticker,company,direction,scenario_score,rule_hit_count,estimated_winrate_text,
+                       source_url,scenario_tier,signal_id
+                FROM opening_scenarios
+                WHERE scenario_date=? AND source_kind='scenario'
+                ORDER BY scenario_index
+                """,
+                (d,),
+            ).fetchall()
+            if not trade_src:
+                continue
+            src_date = d
+            for r in trade_src:
+                trade_rows.append(
+                    {
+                        "ticker": r["ticker"] or "",
+                        "company": r["company"] or "",
+                        "direction": r["direction"] or "",
+                        "scenarioScore": int(r["scenario_score"] or 0),
+                        "ruleHitCount": int(r["rule_hit_count"] or 0),
+                        "estimatedWinRate": r["estimated_winrate_text"] or "",
+                        "sourceUrl": r["source_url"] or "",
+                        "scenarioTier": "trade",
+                        "signalId": r["signal_id"] or "",
+                    }
+                )
+            rej_src = conn.execute(
+                """
+                SELECT ticker,company,direction,scenario_score,rule_hit_count,estimated_winrate_text
+                FROM opening_scenarios
+                WHERE scenario_date=? AND source_kind='rejected'
+                ORDER BY scenario_index
+                """,
+                (d,),
+            ).fetchall()
+            for r in rej_src:
+                rejected_rows.append(
+                    {
+                        "ticker": r["ticker"] or "",
+                        "company": r["company"] or "",
+                        "direction": r["direction"] or "",
+                        "scenarioScore": int(r["scenario_score"] or 0),
+                        "ruleHitCount": int(r["rule_hit_count"] or 0),
+                        "estimatedWinRate": r["estimated_winrate_text"] or "",
+                        "scenarioTier": "watch",
+                    }
+                )
+            break
+        if not src_date:
+            raise SystemExit(f"opening_scenarios not found in DB for {args.date} (fallback_days={args.fallback_days})")
+    finally:
+        conn.close()
+    trade_rows = trade_rows[:max_posts]
     for r in trade_rows:
         r["scenarioTier"] = "trade"
     trade_count = len(trade_rows)
@@ -261,7 +302,7 @@ def main() -> int:
     # Avoid overfill beyond total post cap.
     watch_cap = max(0, min(watch_cap, max_posts - trade_count))
     watch_rows = []
-    for r in (data.get("rejectedScenarios", []) or []):
+    for r in rejected_rows:
         if len(watch_rows) >= watch_cap:
             break
         x = dict(r)
@@ -269,42 +310,10 @@ def main() -> int:
         watch_rows.append(x)
 
     # Prioritize watch rows by ladder candidates (early > balanced > strict).
-    ladder_rank: dict[tuple[str, str], int] = {}
-    ladder_label: dict[tuple[str, str], str] = {}
-    if promo_path:
-        try:
-            promo = json.loads(promo_path.read_text(encoding="utf-8"))
-            ladder = promo.get("ladder", {}) or {}
-            for rank, key in enumerate(("early", "balanced", "strict")):
-                for row in (ladder.get(key, []) or []):
-                    tk = str(row.get("ticker", "")).strip()
-                    sd = str(row.get("side", "")).strip().lower()
-                    if not tk or sd not in {"long", "short"}:
-                        continue
-                    k = (tk, sd)
-                    if k not in ladder_rank:
-                        ladder_rank[k] = rank
-                        ladder_label[k] = key
-        except Exception:
-            ladder_rank = {}
-            ladder_label = {}
-    if ladder_rank:
-        watch_rows.sort(
-            key=lambda r: (
-                ladder_rank.get((str(r.get("ticker", "")).strip(), direction_to_side(str(r.get("direction", "")))), 99),
-                -(int(r.get("scenarioScore", 0) or 0)),
-            )
-        )
     for r in watch_rows:
-        k = (str(r.get("ticker", "")).strip(), direction_to_side(str(r.get("direction", ""))))
-        lb = ladder_label.get(k)
-        if lb:
-            r["watchLadder"] = lb
-        else:
-            r["watchLadder"] = bucket_none_ladder(r)
+        r["watchLadder"] = bucket_none_ladder(r)
     rows = (trade_rows + watch_rows)[:max_posts]
 
-    db = Path(args.db)
     conn = sqlite3.connect(db)
     try:
         posted = 0
@@ -337,7 +346,7 @@ def main() -> int:
                 channel_id=channel_id,
                 message_id=message_id,
                 row=row,
-                source_path=str(src.relative_to(ROOT)),
+                source_path="db:opening_scenarios",
             )
             posted += 1
         if not args.dry_run:
@@ -352,9 +361,9 @@ def main() -> int:
             watch_count=len(watch_rows),
             watch_cap=watch_cap,
             min_trade=int(args.min_trade_posts),
-            source=src.relative_to(ROOT),
+            source="db:opening_scenarios",
             source_date=src_date,
-            promo_date=(promo_date or ""),
+            promo_date="",
         )
     )
     return 0

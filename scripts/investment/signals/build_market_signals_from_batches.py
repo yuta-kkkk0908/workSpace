@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import argparse
 import re
+import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 HEAD_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$", re.M)
 FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
@@ -20,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-signals", type=int, default=6)
     p.add_argument("--max-long", type=int, default=3)
     p.add_argument("--max-short", type=int, default=3)
+    p.add_argument("--db", type=Path, default=DEFAULT_DB)
     return p.parse_args()
 
 
@@ -84,19 +87,47 @@ def signal_score(row: dict[str, str], target_date: str) -> int:
 
 
 def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
-    batch5 = INBOX / f"{args.date}-six-month-rough-backtest-batch-5-kabutan-surprise.md"
-    batch6 = INBOX / f"{args.date}-six-month-rough-backtest-batch-6-short-negative.md"
-    all_rows = parse_entries(batch5) + parse_entries(batch6)
+    if not args.db.exists():
+        raise SystemExit(f"db not found: {args.db}")
+    conn = sqlite3.connect(args.db)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(args.date, "%Y-%m-%d").date()
+        min_date = (d0 - timedelta(days=max(0, args.lookback_days))).isoformat()
+        src = conn.execute(
+            """
+            SELECT outcome_id,ticker,signal_date,signal_type,expected_direction,long_rank,short_rank,source_path
+            FROM backtest_outcomes
+            WHERE signal_date BETWEEN ? AND ?
+              AND COALESCE(ticker,'')<>''
+            ORDER BY signal_date DESC,outcome_id DESC
+            """,
+            (min_date, args.date),
+        ).fetchall()
+    finally:
+        conn.close()
+    all_rows: list[dict[str, str]] = []
+    for r in src:
+        all_rows.append(
+            {
+                "id": r["outcome_id"] or "",
+                "ticker": r["ticker"] or "",
+                "company": "",
+                "signalDate": r["signal_date"] or "",
+                "publishedAt": r["signal_date"] or "",
+                "signalType": r["signal_type"] or "",
+                "expectedDirection": r["expected_direction"] or "",
+                "longSignalRank": r["long_rank"] or "C",
+                "shortSignalRank": r["short_rank"] or "C",
+                "source": r["source_path"] or "",
+            }
+        )
     if not all_rows:
         return []
-    d0 = datetime.strptime(args.date, "%Y-%m-%d").date()
-    min_date = (d0 - timedelta(days=max(0, args.lookback_days))).isoformat()
     filtered: list[dict[str, str]] = []
     for r in all_rows:
         sd = normalize_date(r.get("signalDate", "")) or normalize_date(r.get("publishedAt", ""))
         if not sd:
-            continue
-        if not (min_date <= sd <= args.date):
             continue
         filtered.append(r)
 
@@ -199,10 +230,47 @@ def main() -> int:
     rows = build_rows(args)
     out = INBOX / f"{args.date}-market-signals.md"
     out.write_text(to_market_signal_markdown(args, rows), encoding="utf-8")
+    if args.db.exists():
+        conn = sqlite3.connect(args.db)
+        try:
+            conn.execute("DELETE FROM signals WHERE date=?", (args.date,))
+            ymd = args.date.replace("-", "")
+            for i, r in enumerate(rows, 1):
+                sid = f"signal_{ymd}_{i:03d}"
+                expected = (r.get("expectedDirection", "") or "unknown").lower()
+                conn.execute(
+                    """
+                    INSERT INTO signals(
+                      signal_id,date,ticker,company,signal_type,expected_direction,long_rank,short_rank,
+                      gate_status,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,
+                      source_path,updated_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    """,
+                    (
+                        sid,
+                        args.date,
+                        r.get("ticker", ""),
+                        r.get("company", ""),
+                        r.get("signalType", ""),
+                        expected,
+                        r.get("longSignalRank", "C"),
+                        r.get("shortSignalRank", "C"),
+                        "pass",
+                        r.get("source", ""),
+                        r.get("source", ""),
+                        "after_close",
+                        "yes",
+                        "yes",
+                        "yes",
+                        str(out.relative_to(ROOT)),
+                    ),
+                )
+            conn.commit()
+        finally:
+            conn.close()
     print(f"wrote {out.relative_to(ROOT)} signals={len(rows)}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

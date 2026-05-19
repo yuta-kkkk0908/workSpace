@@ -9,7 +9,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-INBOX = ROOT / "topics" / "investment-research" / "inbox"
 DEFAULT_DB = ROOT / "data" / "investment.db"
 JST = timezone(timedelta(hours=9))
 
@@ -20,16 +19,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--fallback-days", type=int, default=3)
     p.add_argument("--db", default=str(DEFAULT_DB))
     return p.parse_args()
-
-
-def find_scenarios_json(date_str: str, fallback_days: int) -> tuple[Path, str]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-opening-scenarios.json"
-        if p.exists():
-            return p, d
-    raise SystemExit(f"opening-scenarios not found for {date_str} (fallback_days={fallback_days})")
 
 
 def now_iso() -> str:
@@ -63,55 +52,56 @@ def compute_rr_ev(direction: str, entry: float | None, tp: float | None, sl: flo
 
 def main() -> int:
     args = parse_args()
-    src, src_date = find_scenarios_json(args.date, args.fallback_days)
-    payload = json.loads(src.read_text(encoding="utf-8"))
-    rows = payload.get("scenarios", []) or []
-    rejected = payload.get("rejectedScenarios", []) or []
-    merged = []
-    for r in rows:
-        x = dict(r)
-        x["scenarioTier"] = str(r.get("scenarioTier") or "trade")
-        merged.append(x)
-    for r in rejected:
-        x = dict(r)
-        x["scenarioTier"] = "watch"
-        merged.append(x)
-
     db = Path(args.db)
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
     try:
+        scenario_rows = conn.execute(
+            """
+            SELECT scenario_date, scenario_index, signal_id, ticker, company, direction, scenario_tier,
+                   scenario_score, rule_hit_count, estimated_winrate_text, estimated_winrate_value,
+                   entry_price, take_profit_price, stop_loss_price, source_url, source_path
+            FROM opening_scenarios
+            WHERE scenario_date=?
+            ORDER BY scenario_index
+            """,
+            (args.date,),
+        ).fetchall()
+        if not scenario_rows:
+            raise SystemExit(f"opening_scenarios not found in DB for {args.date}")
+
         inserted = 0
-        for idx, r in enumerate(merged, 1):
-            ticker = str(r.get("ticker", "")).strip()
+        for idx, r in enumerate(scenario_rows, 1):
+            ticker = str(r["ticker"] or "").strip()
             if not ticker:
                 continue
-            direction = str(r.get("direction", "")).strip().lower() or ("long" if str(r.get("expectedDirection", "")).startswith("up") else "short")
-            tier = str(r.get("scenarioTier", "trade")).strip() or "trade"
-            signal_id = str(r.get("signalId", "")).strip()
+            direction = str(r["direction"] or "").strip().lower() or "short"
+            tier = str(r["scenario_tier"] or "trade").strip() or "trade"
+            signal_id = str(r["signal_id"] or "").strip()
             plan_id = f"{args.date.replace('-', '')}_{ticker}_{direction}_{tier}_{idx:02d}"
-            entry = r.get("entryPrice")
-            tp = r.get("takeProfitPrice")
-            sl = r.get("stopLossPrice")
+            entry = r["entry_price"]
+            tp = r["take_profit_price"]
+            sl = r["stop_loss_price"]
             try:
                 entry_f = float(entry) if entry is not None else None
                 tp_f = float(tp) if tp is not None else None
                 sl_f = float(sl) if sl is not None else None
             except Exception:
                 entry_f = tp_f = sl_f = None
-            winrate_value = r.get("estimatedWinRateValue")
+            winrate_value = r["estimated_winrate_value"]
             try:
                 winrate_f = float(winrate_value) if winrate_value is not None else None
             except Exception:
                 winrate_f = None
             rr, ev = compute_rr_ev(direction, entry_f, tp_f, sl_f, winrate_f)
             reasons_obj = {
-                "trigger": r.get("trigger", ""),
-                "ruleReproducibility": r.get("ruleReproducibility", ""),
-                "estimatedWinRate": r.get("estimatedWinRate", ""),
-                "scenarioScore": r.get("scenarioScore", 0),
-                "ruleHitCount": r.get("ruleHitCount", 0),
-                "sourceUrl": r.get("sourceUrl", ""),
+                "trigger": "",
+                "ruleReproducibility": "",
+                "estimatedWinRate": r["estimated_winrate_text"] or "",
+                "scenarioScore": int(r["scenario_score"] or 0),
+                "ruleHitCount": int(r["rule_hit_count"] or 0),
+                "sourceUrl": r["source_url"] or "",
             }
             conn.execute(
                 """
@@ -139,19 +129,19 @@ def main() -> int:
                     plan_id,
                     args.date,
                     ticker,
-                    str(r.get("company", "")),
+                    str(r["company"] or ""),
                     direction,
                     entry_f,
                     tp_f,
                     sl_f,
                     rr,
                     ev,
-                    pick_rank(r),
+                    "",
                     json.dumps(reasons_obj, ensure_ascii=False),
                     tier,
                     "pending",
                     signal_id,
-                    str(src.relative_to(ROOT)),
+                    str(r["source_path"] or ""),
                     now_iso(),
                 ),
             )
@@ -160,11 +150,10 @@ def main() -> int:
     finally:
         conn.close()
 
-    print(f"sourceDate={src_date}")
+    print(f"sourceDate={args.date}")
     print(f"wrote execution_plan rows={inserted} db={db}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

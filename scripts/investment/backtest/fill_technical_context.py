@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sqlite3
 import statistics
 import sys
 import time
@@ -23,6 +24,7 @@ CACHE = ROOT / ".cache/market-outcomes/yahoo-chart-cache.json"
 JST = timezone(timedelta(hours=9))
 DEFAULT_OUTPUT_JSON = ROOT / "topics/investment-research/inbox/{date}-technical-context-data.json"
 DEFAULT_OUTPUT_MD = ROOT / "topics/investment-research/inbox/{date}-technical-context-summary.md"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402
@@ -356,6 +358,7 @@ def main() -> int:
     parser.add_argument("--cache-only", action="store_true", help="Use existing Yahoo cache only; do not fetch missing rows.")
     parser.add_argument("--output-json", type=Path, default=None)
     parser.add_argument("--output-md", type=Path, default=None)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     args = parser.parse_args()
     output_json = args.output_json or Path(str(DEFAULT_OUTPUT_JSON).format(date=args.date))
     output_md = args.output_md or Path(str(DEFAULT_OUTPUT_MD).format(date=args.date))
@@ -391,6 +394,39 @@ def main() -> int:
         "caution": "日足ベースの粗いテクニカル文脈。発表時刻、場中織り込み、分割補正、流動性は未精査。売買助言ではない。",
         "rows": out_rows,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute("DELETE FROM technical_context_rows WHERE date=?", (args.date,))
+        for r in out_rows:
+            conn.execute(
+                """
+                INSERT INTO technical_context_rows(
+                  date,ticker,signal_date,category,signal_type,expected,technical_status,technical_pattern,ma_trend,
+                  close_vs_ma25_bucket,rsi14_bucket,macd_bucket,bollinger_bucket,breakout20,payload_json,source_path,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                """,
+                (
+                    args.date,
+                    r.get("ticker", ""),
+                    r.get("signalDate", ""),
+                    r.get("category", ""),
+                    r.get("signalType", ""),
+                    r.get("expected", ""),
+                    r.get("technicalStatus", ""),
+                    r.get("technicalPattern", ""),
+                    r.get("maTrend", ""),
+                    r.get("closeVsMA25Bucket", ""),
+                    r.get("rsi14Bucket", ""),
+                    r.get("macdBucket", ""),
+                    r.get("bollingerBucket", ""),
+                    r.get("breakout20", ""),
+                    json.dumps(r, ensure_ascii=False),
+                    str(output_json.relative_to(ROOT)),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     lines = [
         f"# {args.date} Technical Context Summary",
         "",

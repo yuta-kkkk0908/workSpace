@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
-from datetime import datetime, timedelta
+import sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
-
-SIG_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$", re.MULTILINE)
-FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,43 +18,50 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-short", type=int, default=8)
     p.add_argument("--max-watch-long", type=int, default=12)
     p.add_argument("--max-watch-short", type=int, default=12)
-    p.add_argument("--fallback-days", type=int, default=0, help="if target date file is missing, look back N days")
+    p.add_argument("--db", type=Path, default=DEFAULT_DB)
     return p.parse_args()
 
 
-def resolve_source(date_str: str, fallback_days: int) -> tuple[Path, str]:
-    base = datetime.strptime(date_str, "%Y-%m-%d").date()
-    src = INBOX / f"{date_str}-market-signals.md"
-    if src.exists():
-        return src, date_str
-    for i in range(1, max(0, fallback_days) + 1):
-        d = (base - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-market-signals.md"
-        if p.exists():
-            return p, d
-    raise SystemExit(f"market-signals not found: {src} (fallback_days={fallback_days})")
-
-
-def parse_signals(text: str) -> list[dict[str, str]]:
-    starts = [m.start() for m in SIG_RE.finditer(text)]
-    if not starts:
-        return []
-    starts.append(len(text))
-    rows = []
-    for i in range(len(starts) - 1):
-        chunk = text[starts[i]:starts[i + 1]]
-        first = chunk.splitlines()[0]
-        m = SIG_RE.match(first)
-        if not m:
-            continue
-        signal_id, title = m.group(1).strip(), m.group(2).strip()
-        row = {"signalId": signal_id, "title": title}
-        for line in chunk.splitlines()[1:]:
-            f = FIELD_RE.match(line.strip())
-            if f:
-                row[f.group(1)] = f.group(2)
-        rows.append(row)
-    return rows
+def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
+    if not db_path.exists():
+        raise SystemExit(f"db not found: {db_path}")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT signal_id,ticker,company,expected_direction,long_rank,short_rank,url,gate_status,
+                   material_signal_checked,external_context_checked,technical_signal_checked,source
+            FROM signals
+            WHERE date=?
+            ORDER BY signal_id
+            """,
+            (date_str,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        raise SystemExit(f"signals not found in DB for {date_str}")
+    out: list[dict[str, str]] = []
+    for r in rows:
+        out.append(
+            {
+                "signalId": r["signal_id"] or "",
+                "ticker": r["ticker"] or "",
+                "company": r["company"] or "",
+                "expectedDirection": r["expected_direction"] or "",
+                "longSignalRank": r["long_rank"] or "",
+                "shortSignalRank": r["short_rank"] or "",
+                "tradeUse": "",
+                "url": r["url"] or "",
+                "gateStatus": r["gate_status"] or "",
+                "materialSignalChecked": r["material_signal_checked"] or "",
+                "externalContextChecked": r["external_context_checked"] or "",
+                "technicalSignalChecked": r["technical_signal_checked"] or "",
+                "source": r["source"] or "",
+            }
+        )
+    return out
 
 
 def to_entry(row: dict[str, str]) -> dict[str, str]:
@@ -194,9 +198,8 @@ def pick_watch_short(rows: list[dict[str, str]], max_n: int) -> list[dict[str, s
 
 def main() -> int:
     args = parse_args()
-    src, source_date = resolve_source(args.date, args.fallback_days)
-
-    rows = parse_signals(src.read_text(encoding="utf-8"))
+    source_date = args.date
+    rows = load_signals_from_db(args.db, args.date)
     long_entries = pick_long(rows, args.max_long)
     short_entries = pick_short(rows, args.max_short)
     watch_long_entries = pick_watch_long(rows, args.max_watch_long)
@@ -208,7 +211,7 @@ def main() -> int:
     data = {
         "date": args.date,
         "sourceDate": source_date,
-        "source": str(src.relative_to(ROOT)),
+        "source": "db:signals",
         "longEntryCandidates": long_entries,
         "shortEntryCandidates": short_entries,
         "longWatchCandidates": watch_long_entries,
@@ -232,7 +235,7 @@ def main() -> int:
         "",
         "- caution: 売買助言ではなく、監視候補の抽出結果。",
         f"- sourceDate: {source_date}",
-        f"- source: {src.relative_to(ROOT)}",
+        "- source: db:signals",
         f"- totalSignals: {len(rows)}",
         f"- longPrimaryCandidates: {len(long_entries)}",
         f"- shortPrimaryCandidates: {len(short_entries)}",
@@ -273,6 +276,49 @@ def main() -> int:
         lines.append("- N/C")
 
     out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    # DB-first: persist candidates directly.
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute("DELETE FROM entry_candidates WHERE date=?", (args.date,))
+        def upsert(side: str, ctype: str, items: list[dict[str, str]]) -> None:
+            for r in items:
+                conn.execute(
+                    """
+                    INSERT INTO entry_candidates(
+                      date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,
+                      trade_use,gate_status,material_signal_checked,external_context_checked,technical_signal_checked,score,url,source_path,updated_at
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    """,
+                    (
+                        args.date,
+                        side,
+                        ctype,
+                        r.get("signalId", ""),
+                        r.get("ticker", ""),
+                        r.get("company", ""),
+                        r.get("longSignalRank", "") if side == "long" else r.get("shortSignalRank", ""),
+                        r.get("longSignalRank", ""),
+                        r.get("shortSignalRank", ""),
+                        r.get("expectedDirection", ""),
+                        r.get("tradeUse", ""),
+                        r.get("gateStatus", ""),
+                        r.get("materialSignalChecked", ""),
+                        r.get("externalContextChecked", ""),
+                        r.get("technicalSignalChecked", ""),
+                        int(r.get("score", "0") or 0),
+                        r.get("url", ""),
+                        str(out_json.relative_to(ROOT)),
+                    ),
+                )
+        upsert("long", "primary", long_entries)
+        upsert("short", "primary", short_entries)
+        upsert("long", "watch", watch_long_entries)
+        upsert("short", "watch", watch_short_entries)
+        conn.commit()
+    finally:
+        conn.close()
+
     print(f"wrote {out_md.relative_to(ROOT)} and {out_json.relative_to(ROOT)}")
     return 0
 

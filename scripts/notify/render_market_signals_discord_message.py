@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import argparse
 import re
-from datetime import datetime, timedelta
+import sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
-
-HEAD_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$")
-FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 
 def expected_direction_ja(v: str) -> str:
@@ -46,16 +43,6 @@ def signal_type_ja(v: str) -> str:
         "rebound_long_candidate": "押し目ロング候補",
         "rebound_short_candidate": "戻り売りショート候補",
         "news_material": "ニュース材料",
-        "macro_policy": "マクロ政策",
-        "fx": "為替要因",
-        "relative_strength": "相対強度",
-        "sell_the_news": "材料出尽くし売り",
-        "momentum_breakout": "モメンタム上放れ",
-        "momentum_breakdown": "モメンタム下放れ",
-        "event_driven": "イベント駆動",
-        "risk_off": "リスクオフ",
-        "risk_on": "リスクオン",
-        "sector_rotation": "セクターローテーション",
     }
     raw = (v or "").strip()
     if not raw:
@@ -78,83 +65,65 @@ def gate_ja(v: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Render market-signals into Discord-ready message text")
+    p = argparse.ArgumentParser(description="Render market-signals into Discord-ready message text (DB-first)")
     p.add_argument("--date", required=True, help="YYYY-MM-DD")
-    p.add_argument("--fallback-days", type=int, default=3)
+    p.add_argument("--db", type=Path, default=DEFAULT_DB)
     return p.parse_args()
 
 
-def find_signals_file(date_str: str, fallback_days: int) -> tuple[Path, str]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-market-signals.md"
-        if p.exists():
-            return p, d
-    raise SystemExit(f"market-signals not found for {date_str} (fallback_days={fallback_days})")
+def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
+    if not db_path.exists():
+        raise SystemExit(f"db not found: {db_path}")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT signal_id,ticker,company,expected_direction,long_rank,short_rank,signal_type,url,gate_status,
+                   material_signal_checked,external_context_checked,technical_signal_checked
+            FROM signals
+            WHERE date=?
+            ORDER BY signal_id
+            """,
+            (date_str,),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        raise SystemExit(f"signals not found in DB for {date_str}")
+    return [dict(r) for r in rows]
 
 
-def parse_signals(text: str) -> list[dict[str, str]]:
-    rows = []
-    cur: dict[str, str] | None = None
-    for raw in text.splitlines():
-        line = raw.strip()
-        m = HEAD_RE.match(line)
-        if m:
-            if cur:
-                rows.append(cur)
-            cur = {"signalId": m.group(1).strip(), "title": m.group(2).strip()}
-            continue
-        if not cur:
-            continue
-        f = FIELD_RE.match(line)
-        if f:
-            cur[f.group(1)] = f.group(2)
-    if cur:
-        rows.append(cur)
-    return rows
-
-
-def build_message(date_str: str, source_date: str, rows: list[dict[str, str]]) -> str:
+def build_message(date_str: str, rows: list[dict[str, str]]) -> str:
     lines = [
         f"シグナル速報 {date_str}",
-        f"- 参照日: {source_date}",
+        f"- 参照日: {date_str}",
         f"- 件数: {len(rows)}",
         "",
     ]
-    if source_date != date_str:
-        lines.insert(3, f"- 注意: 当日新規ではなく、{source_date} の繰越を含みます")
     if not rows:
         lines.append("- 変化なし（N/C）")
         return "\n".join(lines)
     for i, r in enumerate(rows, 1):
-        ticker = r.get("ticker", "")
-        company = r.get("company", "")
-        exp = expected_direction_ja(r.get("expectedDirection", ""))
-        lr = rank_ja(r.get("longSignalRank", ""))
-        sr = rank_ja(r.get("shortSignalRank", ""))
-        stype = signal_type_ja(r.get("signalType", ""))
-        url = r.get("url", "")
-        published = r.get("publishedAt", "")
-        gate = gate_ja(r.get("gateStatus", ""))
-        material = r.get("materialSignalChecked", "")
-        external = r.get("externalContextChecked", "")
-        technical = r.get("technicalSignalChecked", "")
+        exp = expected_direction_ja(r.get("expected_direction", ""))
+        lr = rank_ja(r.get("long_rank", ""))
+        sr = rank_ja(r.get("short_rank", ""))
+        stype = signal_type_ja(r.get("signal_type", ""))
+        gate = gate_ja(r.get("gate_status", ""))
         hit = 0
         if gate == "通過":
             hit += 1
-        if (material or "").lower() == "yes":
+        if (r.get("material_signal_checked") or "").lower() == "yes":
             hit += 1
-        if (external or "").lower() == "yes":
+        if (r.get("external_context_checked") or "").lower() == "yes":
             hit += 1
-        if (technical or "").lower() == "yes":
+        if (r.get("technical_signal_checked") or "").lower() == "yes":
             hit += 1
-        source_type = r.get("candidateType", "primary")
         lines.extend(
             [
-                f"{i}. {ticker} {company} / {exp} / L:{lr} S:{sr}",
-                f"  根拠: {stype} / ruleHits={hit} / 種別={source_type}",
-                f"  材料日付: {published if published else '未記載'} / 出典: {url}",
+                f"{i}. {r.get('ticker','')} {r.get('company','')} / {exp} / L:{lr} S:{sr}",
+                f"  根拠: {stype} / ruleHits={hit}",
+                f"  出典: {r.get('url','')}",
                 "",
             ]
         )
@@ -163,9 +132,8 @@ def build_message(date_str: str, source_date: str, rows: list[dict[str, str]]) -
 
 def main() -> int:
     args = parse_args()
-    src, src_date = find_signals_file(args.date, args.fallback_days)
-    rows = parse_signals(src.read_text(encoding="utf-8"))
-    msg = build_message(args.date, src_date, rows)
+    rows = load_signals_from_db(args.db, args.date)
+    msg = build_message(args.date, rows)
 
     out_txt = OUT_DIR / "market-signals-discord-message.txt"
     out_md = OUT_DIR / "market-signals-discord-message.md"

@@ -145,3 +145,12 @@
 [2026-05-19 12:10:02] [AIOS-Inv-Noon] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot inv-noon --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_discord.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_quality_alert.ps1 }; $LASTEXITCODE
 [2026-05-19 12:10:04] [AIOS-Inv-Noon] [OK] exit_code=0
 [2026-05-19 12:10:04] [AIOS-Inv-Noon] [END] elapsed_ms=2795
+[2026-05-19 21:00:01] [AIOS-Night] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot night --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_generic_discord.ps1; if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_discord.ps1 } }; $LASTEXITCODE
+[2026-05-19 21:00:39] [AIOS-Night] [ERROR] exit_code=1
+[2026-05-19 21:00:39] [AIOS-Night] [END] elapsed_ms=37159
+[2026-05-19 21:10:01] [AIOS-Inv-Evening] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot inv-evening --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_discord.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_paper_stats_discord.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_quality_alert.ps1 }; $LASTEXITCODE
+[2026-05-19 21:12:00] [AIOS-Inv-Evening] [ERROR] exit_code=1
+[2026-05-19 21:12:00] [AIOS-Inv-Evening] [END] elapsed_ms=118669
+[2026-05-19 21:20:01] [AIOS-Alert-Healthcheck] [START] begin cmd=powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\ops\run_alert_healthcheck.ps1; $rc = $LASTEXITCODE; if ($rc -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_alert_discord.ps1; $rc = $LASTEXITCODE }; $rc
+[2026-05-19 21:20:03] [AIOS-Alert-Healthcheck] [OK] exit_code=0
+[2026-05-19 21:20:03] [AIOS-Alert-Healthcheck] [END] elapsed_ms=2169

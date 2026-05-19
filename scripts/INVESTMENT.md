@@ -206,12 +206,17 @@ make investment-seed-compare DATE=YYYY-MM-DD LEFT_SEED=rough_backtest_light RIGH
 - `seed-list-comparison`: light/full/short_focusでルール候補がどれだけ変わるか確認する
 
 ### generated output policy
-現時点では既存参照を壊さないため、生成物は従来どおり `topics/investment-research/inbox/` に出力する。
+生成物は従来どおり `topics/investment-research/inbox/` に出力するが、運用の正はDBとする（DB-first）。
 
-ただし運用上は次のように読む:
-- 人間が読む一次ログ: daily / market-signals / manually written backfill
-- 機械生成物: `rough-backtest-*`、`*-context-*`、`rule-check-*`、`short-*`、`tag-index.*`
-- 今後移動するなら、まず `sources.json` と各スクリプトの出力先を一括で `generated/` 対応にしてから行う
+運用ルール:
+- 正式な参照先: `data/investment.db`
+- `inbox` 生成物: 監査・再現用ログ（補助）
+- シナリオ生成/判定は、同等データがDBにある場合はDB優先で読む
+- `inbox` の機械生成物は保持日数で定期クリーンアップしてよい
+
+実装状況:
+- `build_opening_scenarios.py` は DB優先（`entry_candidates` / `signals` / `rule_dashboard_rows`）
+- `run_ops_scheduler.py --slot inv-scenario` で `cleanup_investment_inbox.py` を自動実行
 
 ## Script Groups
 ### 1. Framework / Topic Utilities

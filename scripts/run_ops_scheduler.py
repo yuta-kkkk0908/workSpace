@@ -38,14 +38,16 @@ def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
     # 3) Fallback only when builder could not produce a valid file
     rc |= run([py, 'scripts/investment/signals/prepare_morning_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
-    # 4) Validate/derive and persist
-    rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
+    # 4) Persist signals first (DB-first downstream)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
+    rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    # 5) Validate/derive and persist candidates
+    rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
     return rc
 
 
@@ -65,15 +67,8 @@ def run_rule_repro_refresh(py: str, d: str) -> int:
         ],
         allow_fail=True,
     )
-    outcome = ROOT / 'topics' / 'investment-research' / 'inbox' / f'{d}-rough-backtest-outcomes-batch-1.md'
-    if not outcome.exists():
-        print(f"[skip] rule-repro-refresh: outcome file not found for {d}")
-        return rc
     # 2) Build rule analysis artifacts
-    rc |= run(
-        [py, 'scripts/investment/analysis/analyze_market_outcomes.py', '--date', d, '--seed-list', 'rough_backtest_light'],
-        allow_fail=True,
-    )
+    rc |= run([py, 'scripts/investment/analysis/analyze_market_outcomes.py', '--date', d, '--db-only'], allow_fail=True)
     rc |= run(
         [
             py,
@@ -84,19 +79,15 @@ def run_rule_repro_refresh(py: str, d: str) -> int:
             'rough_backtest_light',
             '--min-count',
             '8',
+            '--db-only',
         ],
         allow_fail=True,
     )
-    rule_check_json = ROOT / 'topics' / 'investment-research' / 'inbox' / f'{d}-rule-check-data.json'
-    if not rule_check_json.exists():
-        print(f"[skip] rule-repro-refresh: rule-check-data not found for {d}")
-        return rc
-    rc |= run([py, 'scripts/investment/analysis/analyze_long_rule_reproducibility.py', '--date', d], allow_fail=True)
-    short_readiness = ROOT / 'topics' / 'investment-research' / 'inbox' / f'{d}-short-readiness-data.json'
-    if short_readiness.exists():
-        rc |= run([py, 'scripts/investment/analysis/classify_short_conviction.py', '--date', d], allow_fail=True)
-    else:
-        print(f"[skip] rule-repro-refresh: short-readiness-data not found for {d}")
+    rc |= run([py, 'scripts/investment/analysis/analyze_long_rule_reproducibility.py', '--date', d, '--min-count', '8'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/classify_short_readiness.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/analyze_short_chart_windows.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/analyze_short_rebound_risk.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/classify_short_conviction.py', '--date', d], allow_fail=True)
     # 3) Dashboard + history
     rc |= run([py, 'scripts/investment/analysis/generate_rule_dashboard.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/analysis/update_rule_history.py', '--date', d], allow_fail=True)
@@ -109,14 +100,15 @@ def run_investment_cycle_morning(py: str, d: str, backtest: bool = False) -> int
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_surprise_signals.py', '--date', d, '--discover-latest', '20', '--max-pages', '24'], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_short_signals.py', '--date', d, '--discover-latest', '20', '--max-pages', '24'], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
+    rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
     return rc
 
 
@@ -124,15 +116,16 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False) -> int:
     """Noon: avoid heavy recollection; focus on re-ranking/re-candidates from intraday state."""
     rc = 0
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
+    rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
     if not backtest and os.getenv('DISCORD_SCENARIOS_BOT_TOKEN') and os.getenv('DISCORD_SCENARIO_CHANNEL_ID'):
         rc |= run([py, 'scripts/notify/sync_scenario_replies_bot.py', '--limit', '100'], allow_fail=True)
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
     return rc
 
 
@@ -144,14 +137,11 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int
     # Daily backtest outcome refresh so DB is not dependent on weekly-only updates.
     rc |= run([py, 'scripts/investment/backtest/fill_market_outcomes.py', '--date', d, '--seed-list', 'rough_backtest_full'], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
-    outcome = ROOT / 'topics' / 'investment-research' / 'inbox' / f'{d}-rough-backtest-outcomes-batch-1.md'
-    if outcome.exists():
-        rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
-    else:
-        print(f"[skip] fill_technical_context: outcome file not found for {d}")
+    rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
+    rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
@@ -171,7 +161,7 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int
     if not backtest and os.getenv('DISCORD_SCENARIOS_BOT_TOKEN') and os.getenv('DISCORD_SCENARIO_CHANNEL_ID'):
         rc |= run([py, 'scripts/notify/sync_scenario_replies_bot.py', '--limit', '100'], allow_fail=True)
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
     return rc
 
 
@@ -183,6 +173,8 @@ def main() -> int:
 
     if args.slot == 'night':
         # Whole repository health + DB ingest for today.
+        rc |= run([py, 'scripts/data/init_ops_db.py'])
+        rc |= run([py, 'scripts/data/ingest_ops_logs.py'], allow_fail=True)
         if not args.backtest:
             rc |= run([py, 'scripts/check_daily_missing.py', '--date', 'today', '--days', '7'], allow_fail=True)
             rc |= run([py, 'scripts/investment/collect/collect_generic_daily_topics.py', '--date', d, '--overwrite'], allow_fail=True)
@@ -205,12 +197,13 @@ def main() -> int:
         rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
         # Night mandatory: technical check + rank re-evaluation, then refresh derived outputs.
         rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
-        rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
         rc |= run([py, 'scripts/data/init_investment_db.py'])
+        rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+        rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
         rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
         rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d], allow_fail=True)
         if not args.backtest:
-            rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
+            rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
 
     if args.slot == 'inv-morning':
         rc |= run_investment_cycle_morning(py, d, backtest=args.backtest)
@@ -236,6 +229,9 @@ def main() -> int:
                 '--fallback-days',
                 '3',
                 '--auto-relax-gate',
+                '--allow-unknown-winrate',
+                '--soft-gate',
+                '--adaptive-side-minimum',
             ],
             allow_fail=True,
         )
@@ -243,8 +239,9 @@ def main() -> int:
         # Persist scenario/execution artifacts to DB in the same slot.
         rc |= run([py, 'scripts/data/init_investment_db.py'])
         rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+        rc |= run([py, 'scripts/investment/analysis/cleanup_investment_inbox.py', '--date', d, '--keep-days', '14'], allow_fail=True)
         if not args.backtest:
-            rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
+            rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d], allow_fail=True)
             # If Bot credentials exist, post one-scenario-per-message directly.
             if os.getenv('DISCORD_SCENARIOS_BOT_TOKEN') and os.getenv('DISCORD_SCENARIO_CHANNEL_ID'):
                 rc |= run([py, 'scripts/notify/post_scenarios_bot.py', '--date', d, '--fallback-days', '3', '--max-posts', '12'], allow_fail=True)

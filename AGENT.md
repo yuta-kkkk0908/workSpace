@@ -117,6 +117,26 @@
 4. 「ファイルだけ読んで要約」は禁止。DB確認を省略してはならない。
 5. 回答では、DB確認の有無と、不足補完で読んだファイルの有無を明示する。
 
+## Global DB-First Contract
+全topic（汎用 topic / 投資 topic）で次を原則とする。
+
+1. 判定・要約・提示の一次参照はDBを正とする（topic DB / needs DB / investment DB / ops DB）。
+2. `topics/*/inbox` の生成ファイルは監査ログ・再現ログとして扱う。
+3. DBに同等データがある処理は、ファイル依存を避けてDB優先で読む。
+4. `inbox` 生成物は保持期間ベースで定期クリーンアップしてよい。
+
+補足:
+- `needs` 系（`product-idea-watch`）も同様に DB-first とし、`needs.db` の内容を優先参照する。
+- アラート/運用ログ系も同様に DB-first とし、`ops.db`（scheduler/discord logs）を優先参照する。
+
+## Investment DB-First Contract
+投資系（`investment-research`）は次を必須とする。
+
+1. 正式な判定・シナリオ生成・集計は `data/investment.db` を正とする。
+2. `topics/investment-research/inbox` の生成物（`entry-candidates`/`opening-scenarios`/`rule-*`/`rough-backtest-*` など）は監査ログとして扱う。
+3. 投資系スクリプトは、同等データがDBにある場合はDBを優先し、ファイル依存を避ける。
+4. 生成ファイルの長期保持は前提にせず、運用で定期クリーンアップしてよい。
+
 ### Safe Operation
 - 変更前に対象ファイルを読む
 - topic の目的を `index.md` で確認する

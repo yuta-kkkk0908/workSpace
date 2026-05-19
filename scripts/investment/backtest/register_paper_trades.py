@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-INBOX = ROOT / "topics" / "investment-research" / "inbox"
 DEFAULT_DB = ROOT / "data" / "investment.db"
 
 
@@ -27,38 +25,37 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def find_scenario(date_str: str) -> Path:
-    p = INBOX / f"{date_str}-opening-scenarios.json"
-    if not p.exists():
-        raise SystemExit(f"scenario file not found: {p}")
-    return p
-
-
 def side_to_sign(side: str) -> int:
     return 1 if side == "long" else -1
 
 
 def main() -> int:
     args = parse_args()
-    src = find_scenario(args.date)
-    data = json.loads(src.read_text(encoding="utf-8"))
-    rows = data.get("scenarios", [])[: args.max_trades]
-
     db = Path(args.db)
+    if not db.exists():
+        raise SystemExit(f"db not found: {db}")
     conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
     try:
+        rows = conn.execute(
+            """
+            SELECT ticker,company,direction,entry_price,signal_id,source_path
+            FROM opening_scenarios
+            WHERE scenario_date=? AND source_kind='scenario'
+            ORDER BY scenario_index
+            LIMIT ?
+            """,
+            (args.date, args.max_trades),
+        ).fetchall()
         inserted = 0
         for i, r in enumerate(rows, 1):
-            ticker = str(r.get("ticker", "")).strip()
-            side = str(r.get("direction", "")).strip()
-            company = str(r.get("company", "")).strip()
+            ticker = str(r["ticker"] or "").strip()
+            side = str(r["direction"] or "").strip()
+            company = str(r["company"] or "").strip()
             if not ticker or side not in {"long", "short"}:
                 continue
             trade_id = f"paper_{args.mode}_{args.date.replace('-','')}_{ticker}_{side}_{i:02d}"
-            signal_id = ""
-            for part in r.get("rationale", []):
-                if isinstance(part, str) and part.startswith("signalId="):
-                    signal_id = part.split("=", 1)[1]
+            signal_id = str(r["signal_id"] or "")
             conn.execute(
                 """
                 INSERT INTO paper_trades(
@@ -79,10 +76,10 @@ def main() -> int:
                     side,
                     args.lots,
                     args.entry_style,
-                    r.get("entryPrice"),
+                    r["entry_price"],
                     "open_pending_outcome",
                     signal_id,
-                    str(src.relative_to(ROOT)),
+                    str(r["source_path"] or "db:opening_scenarios"),
                     now(),
                 ),
             )
@@ -90,7 +87,7 @@ def main() -> int:
         conn.commit()
     finally:
         conn.close()
-    print(f"registered paper trades: {inserted} from {src.relative_to(ROOT)}")
+    print(f"registered paper trades: {inserted} from db:opening_scenarios")
     return 0
 
 

@@ -98,6 +98,30 @@ if ($todayDow -eq [System.DayOfWeek]::Monday) {
   }
 }
 
+# Weekly needs freshness report (run on Wednesday JST): notify only latest fetched date.
+if ($todayDow -eq [System.DayOfWeek]::Wednesday) {
+  $needsCmds = @(
+    @("py", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt"),
+    @("python", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt"),
+    @("python3", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt")
+  )
+  foreach ($c in $needsCmds) {
+    $exe = $c[0]
+    $args = $c[1..($c.Length-1)]
+    try {
+      & $exe @args *> $null
+      if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 1) {
+        Write-AlertHealthLog "OK" ("needs-freshness weekly ran via {0} exit={1}" -f $exe, $LASTEXITCODE)
+        break
+      } else {
+        Write-AlertHealthLog "WARN" ("needs-freshness weekly failed via {0} exit={1}" -f $exe, $LASTEXITCODE)
+      }
+    } catch {
+      Write-AlertHealthLog "WARN" ("needs-freshness weekly exception via {0}: {1}" -f $exe, $_.Exception.Message)
+    }
+  }
+}
+
 # ingest ops logs into SQLite for analysis (best-effort, non-blocking)
 $ingestCmds = @(
   @("py", "scripts/data/ingest_ops_logs.py"),

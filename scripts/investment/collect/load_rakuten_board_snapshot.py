@@ -4,17 +4,20 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sqlite3
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_IN = ROOT / "data" / "rakuten_rss" / "board_latest.csv"
 OUT_DIR = ROOT / "topics" / "investment-research" / "inbox"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Load Rakuten RSS board CSV into opening-scenario snapshot JSON")
     p.add_argument("--date", required=True, help="YYYY-MM-DD")
     p.add_argument("--input", default=str(DEFAULT_IN), help="CSV path")
+    p.add_argument("--db", default=str(DEFAULT_DB))
     return p.parse_args()
 
 
@@ -58,6 +61,30 @@ def main() -> int:
     }
     out_path = OUT_DIR / f"{args.date}-board-snapshot.json"
     out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    db = Path(args.db)
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("DELETE FROM board_snapshots WHERE date=?", (args.date,))
+        for r in rows:
+            conn.execute(
+                """
+                INSERT INTO board_snapshots(
+                  date,ticker,company,best_bid,best_ask,indicative_open,source_path,updated_at
+                ) VALUES(?,?,?,?,?,?,?,datetime('now'))
+                """,
+                (
+                    args.date,
+                    r.get("ticker", ""),
+                    r.get("company", ""),
+                    r.get("bestBid"),
+                    r.get("bestAsk"),
+                    r.get("indicativeOpen"),
+                    str(inp.relative_to(ROOT)) if inp.is_relative_to(ROOT) else str(inp),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     print(f"wrote {out_path.relative_to(ROOT)} rows={len(rows)}")
     return 0
 

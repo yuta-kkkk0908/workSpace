@@ -143,6 +143,18 @@ topic ごとに次の 5 つを管理します。
 
 重要なのは、「AI に覚えさせる」のではなく「AI が毎回読める構造にする」ことです。
 
+## Data Policy (DB-First)
+全系統（汎用 topic / needs / investment / alerts-ops）は DB-first で運用します。
+
+- 正式な参照先:
+- 汎用 topic: `data/topics.db`
+- needs: `data/needs.db`
+- investment: `data/investment.db`
+- alerts/ops: `data/ops.db`
+- `topics/*/inbox/*.md|*.json`: 監査・再現用ログ（補助）
+- 判定ロジックや要約処理は、DBに同等データがある場合はDBを優先
+- `inbox` 生成物は保持期間ベースで定期クリーンアップ可能（無制限保持を前提にしない）
+
 ## Ops Docs
 運用構想メモ（タスクスケジューラー / DB設計）:
 

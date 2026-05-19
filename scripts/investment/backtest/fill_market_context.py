@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sqlite3
 import sys
 import time
 import urllib.request
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[3]
 CACHE = ROOT / ".cache/market-outcomes/yahoo-index-context-cache.json"
 JST = timezone(timedelta(hours=9))
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-market-context-data.json"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402
@@ -159,6 +161,7 @@ def main() -> int:
     parser.add_argument("--outcome", type=Path, default=None)
     parser.add_argument("--cache-only", action="store_true", help="Use existing Yahoo index cache only; do not fetch network data.")
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     args = parser.parse_args()
     output = args.output or Path(str(DEFAULT_OUTPUT).format(date=args.date))
     outcomes.OUTCOME = args.outcome or Path(str(outcomes.DEFAULT_OUTCOME).format(date=args.date))
@@ -230,6 +233,37 @@ def main() -> int:
         "caution": "指数終値ベースの粗い地合い分類。個別銘柄の売買助言ではない。",
         "rows": out_rows,
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute("DELETE FROM market_context_rows WHERE date=?", (args.date,))
+        for r in out_rows:
+            conn.execute(
+                """
+                INSERT INTO market_context_rows(
+                  date,ticker,signal_date,session,reaction_date,market_context,context_source,confidence,
+                  nikkei225_pct,topix_pct,sp500_prev_pct,nasdaq_prev_pct,usdjpy_prev_pct,source_path,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                """,
+                (
+                    args.date,
+                    r.get("ticker", ""),
+                    r.get("signalDate", ""),
+                    r.get("session", ""),
+                    r.get("reactionDate", ""),
+                    r.get("marketContext", ""),
+                    r.get("contextSource", ""),
+                    r.get("confidence", ""),
+                    r.get("nikkei225Pct"),
+                    r.get("topixPct"),
+                    r.get("sp500PrevPct"),
+                    r.get("nasdaqPrevPct"),
+                    r.get("usdjpyPrevPct"),
+                    str(output.relative_to(ROOT)),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     print(f"wrote {output.relative_to(ROOT)} rows={len(out_rows)} uniqueReactionDates={len(context_by_reaction)}")
     return 0
 

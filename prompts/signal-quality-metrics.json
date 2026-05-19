@@ -1,28 +1,26 @@
 {
   "date": "2026-05-19",
-  "path": "topics\\investment-research\\inbox\\2026-05-19-market-signals.md",
+  "path": "db:signals",
   "exists": true,
   "signalCount": 6,
   "upCount": 2,
-  "downCount": 0,
+  "downCount": 1,
   "newMaterialCount": 0,
   "tickers": [
-    "7673",
-    "186A",
-    "9913",
-    "7084",
-    "4825",
-    "7214"
+    "7777",
+    "7946",
+    "4720",
+    "5194",
+    "4443",
+    "5363"
   ],
-  "openingScenariosPath": "topics\\investment-research\\inbox\\2026-05-19-opening-scenarios.json",
+  "openingScenariosPath": "db:opening_scenarios",
   "openingScenariosDate": "2026-05-19",
-  "tradeScenarioCount": 0,
-  "watchScenarioCount": 2,
-  "watchShare": 1.0,
+  "tradeScenarioCount": 2,
+  "watchScenarioCount": 0,
+  "watchShare": 0.0,
   "status": "ALERT",
   "alerts": [
-    "当日材料の新規シグナルが0件",
-    "tradeシナリオが0件（watch偏重）",
-    "watch比率が高い: watchShare=100% > 70%"
+    "当日材料の新規シグナルが0件"
   ]
 }

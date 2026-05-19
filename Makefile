@@ -161,13 +161,13 @@ ops-inv-scenario:
 	$(PYTHON) scripts/run_ops_scheduler.py --slot inv-scenario --date "$(if $(DATE),$(DATE),$(TODAY))" --python "$(PYTHON)"
 
 inv-scenario-message:
-	$(PYTHON) scripts/notify/render_opening_scenarios_discord_message.py --date "$(if $(DATE),$(DATE),$(TODAY))" --fallback-days 3
+	$(PYTHON) scripts/notify/render_opening_scenarios_discord_message.py --date "$(if $(DATE),$(DATE),$(TODAY))"
 
 build-execution-plan:
 	$(PYTHON) scripts/investment/signals/build_execution_plan.py --date "$(if $(DATE),$(DATE),$(TODAY))" --fallback-days "$(if $(FALLBACK_DAYS),$(FALLBACK_DAYS),3)"
 
 inv-signal-message:
-	$(PYTHON) scripts/notify/render_market_signals_discord_message.py --date "$(if $(DATE),$(DATE),$(TODAY))" --fallback-days 3
+	$(PYTHON) scripts/notify/render_market_signals_discord_message.py --date "$(if $(DATE),$(DATE),$(TODAY))"
 
 inv-paper-stats-message:
 	$(PYTHON) scripts/notify/render_paper_stats_discord_message.py --date "$(if $(DATE),$(DATE),$(TODAY))" --fallback-days "$(if $(FALLBACK_DAYS),$(FALLBACK_DAYS),3)"

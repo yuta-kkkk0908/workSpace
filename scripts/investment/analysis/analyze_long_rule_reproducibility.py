@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -17,6 +18,7 @@ JST = timezone(timedelta(hours=9))
 INPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-data.json"
 OUTPUT_MD = ROOT / "topics/investment-research/inbox/{date}-long-rule-reproducibility.md"
 OUTPUT_JSON = ROOT / "topics/investment-research/inbox/{date}-long-rule-reproducibility.json"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 RULE_DEFINITION = {
     "strict_long_signal": [
@@ -108,10 +110,27 @@ def period_from_examples(item: dict) -> tuple[str, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Analyze long-side rule reproducibility.")
     parser.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"))
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--min-count", type=int, default=8)
     args = parser.parse_args()
 
-    src = Path(str(INPUT).format(date=args.date))
-    data = json.loads(src.read_text(encoding="utf-8"))
+    conn = sqlite3.connect(args.db)
+    conn.row_factory = sqlite3.Row
+    try:
+        db_rows = conn.execute(
+            """
+            SELECT payload_json
+            FROM rule_check_candidates
+            WHERE date=? AND min_count=?
+            ORDER BY candidate_index
+            """,
+            (args.date, args.min_count),
+        ).fetchall()
+    finally:
+        conn.close()
+    if not db_rows:
+        raise SystemExit(f"rule_check_candidates not found in DB for {args.date} min_count={args.min_count}")
+    data = {"ruleCandidates": [json.loads(r["payload_json"]) for r in db_rows]}
     rows = []
     groups: dict[str, list[dict]] = {}
     for item in data.get("ruleCandidates", []):
@@ -143,7 +162,7 @@ def main() -> int:
     output_json.write_text(json.dumps({
         "createdAt": datetime.now(JST).replace(microsecond=0).isoformat(),
         "mode": "long-rule-reproducibility",
-        "source": src.relative_to(ROOT).as_posix(),
+        "source": "db:rule_check_candidates",
         "caution": "粗いルール再現性集計。売買助言ではない。",
         "ruleDefinition": RULE_DEFINITION,
         "rows": rows,
@@ -156,7 +175,7 @@ def main() -> int:
         "- slug: investment-research",
         f"- date: {args.date}",
         "- mode: long-rule-reproducibility",
-        f"- sourceLog: {src.relative_to(ROOT / 'topics/investment-research').as_posix()}",
+        f"- sourceLog: db:rule_check_candidates(min_count={args.min_count})",
         "- caution: 粗いルール再現性集計。売買助言ではない。",
         "",
         "## Reproducible Rule Definition",

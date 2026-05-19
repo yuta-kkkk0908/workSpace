@@ -4,11 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 HEAD_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$", re.M)
 FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
 
@@ -30,47 +32,174 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--relax-min-rule-hits-floor", type=int, default=3, help="lower bound of min-rule-hits during auto relax")
     p.add_argument("--relax-min-score-floor", type=int, default=62, help="lower bound of min-score during auto relax")
     p.add_argument("--relax-min-winrate-floor", type=float, default=46.0, help="lower bound of min-winrate during auto relax")
+    p.add_argument("--soft-gate", action="store_true", help="demote weak scenarios to watch instead of hard reject")
+    p.add_argument("--soft-min-score", type=int, default=55, help="minimum score to keep scenario as watch in soft gate")
+    p.add_argument("--soft-min-rule-hits", type=int, default=2, help="minimum rule hits to keep scenario as watch in soft gate")
+    p.add_argument("--adaptive-side-minimum", action="store_true", help="relax min long/short when one side has structurally low candidates")
+    p.add_argument("--db", type=Path, default=DEFAULT_DB, help="SQLite DB path (DB-first source)")
     return p.parse_args()
 
 
-def find_entry_json(date_str: str, fallback_days: int) -> tuple[Path, str]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-entry-candidates.json"
-        if p.exists():
-            return p, d
-    raise SystemExit(f"entry-candidates not found for {date_str} (fallback_days={fallback_days})")
+def load_entry_candidates_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[dict | None, str | None]:
+    if not db_path.exists():
+        return None, None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            rows = conn.execute(
+                """
+                SELECT side,candidate_type,signal_id,ticker,company,expected_direction,long_rank,short_rank,trade_use,url,gate_status,
+                       material_signal_checked,external_context_checked,technical_signal_checked,score
+                FROM entry_candidates
+                WHERE date=?
+                ORDER BY side,candidate_type,COALESCE(score,0) DESC,signal_id
+                """,
+                (d,),
+            ).fetchall()
+            if not rows:
+                continue
 
-
-def find_board_snapshot(date_str: str, fallback_days: int) -> tuple[Path | None, str | None]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-board-snapshot.json"
-        if p.exists():
-            return p, d
+            out = {
+                "date": d,
+                "sourceDate": d,
+                "source": "db:entry_candidates",
+                "longEntryCandidates": [],
+                "shortEntryCandidates": [],
+                "longWatchCandidates": [],
+                "shortWatchCandidates": [],
+            }
+            for r in rows:
+                item = {
+                    "signalId": r["signal_id"] or "",
+                    "ticker": r["ticker"] or "",
+                    "company": r["company"] or "",
+                    "expectedDirection": r["expected_direction"] or "",
+                    "longSignalRank": r["long_rank"] or "",
+                    "shortSignalRank": r["short_rank"] or "",
+                    "tradeUse": r["trade_use"] or "",
+                    "url": r["url"] or "",
+                    "gateStatus": r["gate_status"] or "",
+                    "materialSignalChecked": r["material_signal_checked"] or "",
+                    "externalContextChecked": r["external_context_checked"] or "",
+                    "technicalSignalChecked": r["technical_signal_checked"] or "",
+                    "candidateType": r["candidate_type"] or "primary",
+                    "score": str(r["score"] or 0),
+                }
+                side = r["side"] or ""
+                ctype = r["candidate_type"] or "primary"
+                if side == "long" and ctype == "primary":
+                    out["longEntryCandidates"].append(item)
+                elif side == "short" and ctype == "primary":
+                    out["shortEntryCandidates"].append(item)
+                elif side == "long":
+                    out["longWatchCandidates"].append(item)
+                elif side == "short":
+                    out["shortWatchCandidates"].append(item)
+            return out, d
+    finally:
+        conn.close()
     return None, None
 
 
-def find_rule_dashboard(date_str: str, fallback_days: int) -> tuple[Path | None, str | None]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-rule-dashboard.json"
-        if p.exists():
-            return p, d
-    return None, None
+def load_signal_map_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[dict[str, dict[str, str]], str | None]:
+    if not db_path.exists():
+        return {}, None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            rows = conn.execute(
+                """
+                SELECT signal_id,signal_type,source,session,url,gate_status,material_signal_checked,external_context_checked,technical_signal_checked
+                FROM signals
+                WHERE date=?
+                """,
+                (d,),
+            ).fetchall()
+            if not rows:
+                continue
+            out: dict[str, dict[str, str]] = {}
+            for r in rows:
+                sid = r["signal_id"] or ""
+                if not sid:
+                    continue
+                out[sid] = {
+                    "signalType": r["signal_type"] or "",
+                    "source": r["source"] or "",
+                    "session": r["session"] or "",
+                    "url": r["url"] or "",
+                    "gateStatus": r["gate_status"] or "",
+                    "materialSignalChecked": r["material_signal_checked"] or "",
+                    "externalContextChecked": r["external_context_checked"] or "",
+                    "technicalSignalChecked": r["technical_signal_checked"] or "",
+                }
+            return out, d
+    finally:
+        conn.close()
+    return {}, None
 
 
-def find_market_signals(date_str: str, fallback_days: int) -> tuple[Path | None, str | None]:
-    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
-    for i in range(0, max(0, fallback_days) + 1):
-        d = (d0 - timedelta(days=i)).isoformat()
-        p = INBOX / f"{d}-market-signals.md"
-        if p.exists():
-            return p, d
-    return None, None
+def load_rule_rows_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[list[dict], str | None]:
+    if not db_path.exists():
+        return [], None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            rows = conn.execute(
+                "SELECT side,bucket,status,appearances,t1,t5,t20 FROM rule_dashboard_rows WHERE date=?",
+                (d,),
+            ).fetchall()
+            if not rows:
+                continue
+            return [dict(r) for r in rows], d
+    finally:
+        conn.close()
+    return [], None
+
+
+def load_board_snapshot_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[dict[str, dict], str | None]:
+    if not db_path.exists():
+        return {}, None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            rows = conn.execute(
+                """
+                SELECT ticker,company,best_bid,best_ask,indicative_open
+                FROM board_snapshots
+                WHERE date=?
+                """,
+                (d,),
+            ).fetchall()
+            if not rows:
+                continue
+            out: dict[str, dict] = {}
+            for r in rows:
+                t = str(r["ticker"] or "").strip()
+                if not t:
+                    continue
+                out[t] = {
+                    "ticker": t,
+                    "company": r["company"] or "",
+                    "bestBid": r["best_bid"],
+                    "bestAsk": r["best_ask"],
+                    "indicativeOpen": r["indicative_open"],
+                }
+            return out, d
+    finally:
+        conn.close()
+    return {}, None
 
 
 def fmt_price(v: float) -> str:
@@ -333,23 +462,20 @@ def scenario_for_row(
 
 def main() -> int:
     args = parse_args()
-    src, src_date = find_entry_json(args.date, args.fallback_days)
-    data = json.loads(src.read_text(encoding="utf-8"))
-    board_path, board_date = find_board_snapshot(args.date, args.fallback_days)
-    rule_path, rule_date = find_rule_dashboard(args.date, args.fallback_days)
-    signal_path, signal_date = find_market_signals(args.date, args.fallback_days)
-    board_map: dict[str, dict] = {}
-    if board_path:
-        board_data = json.loads(board_path.read_text(encoding="utf-8"))
-        for r in board_data.get("rows", []):
-            board_map[str(r.get("ticker", "")).strip()] = r
-    rule_rows: list[dict] = []
-    if rule_path:
-        rule_data = json.loads(rule_path.read_text(encoding="utf-8"))
-        rule_rows = rule_data.get("rows", []) or []
-    signal_map: dict[str, dict[str, str]] = {}
-    if signal_path:
-        signal_map = parse_signal_map(signal_path.read_text(encoding="utf-8"))
+    data, src_date = load_entry_candidates_from_db(args.db, args.date, args.fallback_days)
+    if data is None:
+        raise SystemExit(f"entry_candidates not found in DB for {args.date} (fallback_days={args.fallback_days})")
+    src_rel = "db:entry_candidates"
+
+    board_map, board_date = load_board_snapshot_from_db(args.db, args.date, args.fallback_days)
+    rule_rows, rule_date = load_rule_rows_from_db(args.db, args.date, args.fallback_days)
+    signal_map, signal_date = load_signal_map_from_db(args.db, args.date, args.fallback_days)
+    if not signal_map:
+        raise SystemExit(f"signals not found in DB for {args.date} (fallback_days={args.fallback_days})")
+    if not rule_rows:
+        raise SystemExit(f"rule_dashboard_rows not found in DB for {args.date} (fallback_days={args.fallback_days})")
+    signal_source_path = "db:signals"
+    rule_source_path = "db:rule_dashboard_rows"
     long_rule_ctx = build_rule_context(rule_rows, "long")
     short_rule_ctx = build_rule_context(rule_rows, "short")
 
@@ -431,6 +557,7 @@ def main() -> int:
         rejected_local: list[dict] = []
         for s in raw_scenarios:
             reasons: list[str] = []
+            hard_fail = False
             if int(s.get("ruleHitCount") or 0) < min_rule_hits:
                 reasons.append(f"ruleHits<{min_rule_hits}")
             if int(s.get("scenarioScore") or 0) < min_score:
@@ -443,6 +570,19 @@ def main() -> int:
                 if not args.allow_unknown_winrate:
                     reasons.append("winRate_unknown")
             if reasons:
+                if args.soft_gate:
+                    score_now = int(s.get("scenarioScore") or 0)
+                    hits_now = int(s.get("ruleHitCount") or 0)
+                    if score_now >= args.soft_min_score and hits_now >= args.soft_min_rule_hits:
+                        x = dict(s)
+                        x["scenarioTier"] = "watch"
+                        x["softRejectReasons"] = reasons
+                        accepted_local.append(x)
+                        continue
+                    hard_fail = True
+                else:
+                    hard_fail = True
+            if hard_fail:
                 rejected_local.append(
                     {
                         "ticker": s.get("ticker", ""),
@@ -455,6 +595,8 @@ def main() -> int:
                     }
                 )
             else:
+                if "scenarioTier" not in s:
+                    s["scenarioTier"] = "trade"
                 accepted_local.append(s)
         return accepted_local, rejected_local
 
@@ -505,10 +647,19 @@ def main() -> int:
     plan_notes: list[str] = []
     accepted_long = sum(1 for x in scenarios if x.get("direction") == "long")
     accepted_short = sum(1 for x in scenarios if x.get("direction") == "short")
-    if accepted_long < args.min_long or accepted_short < args.min_short:
+    min_long_eff = int(args.min_long)
+    min_short_eff = int(args.min_short)
+    if args.adaptive_side_minimum:
+        raw_long = sum(1 for x in raw_scenarios if x.get("direction") == "long")
+        raw_short = sum(1 for x in raw_scenarios if x.get("direction") == "short")
+        if raw_long <= 1:
+            min_long_eff = min(min_long_eff, raw_long)
+        if raw_short <= 1:
+            min_short_eff = min(min_short_eff, raw_short)
+    if accepted_long < min_long_eff or accepted_short < min_short_eff:
         plan_mode = "watch_only"
         plan_notes.append(
-            f"最低件数未達のため様子見優先（long={accepted_long}/{args.min_long}, short={accepted_short}/{args.min_short}）"
+            f"最低件数未達のため様子見優先（long={accepted_long}/{min_long_eff}, short={accepted_short}/{min_short_eff}）"
         )
         plan_notes.append("新規エントリーは見送り、監視継続と条件再確認を優先する。")
     if rejected:
@@ -521,13 +672,13 @@ def main() -> int:
     out = {
         "date": args.date,
         "sourceDate": src_date,
-        "source": str(src.relative_to(ROOT)),
+        "source": src_rel,
         "boardSnapshotDate": board_date or "",
-        "boardSnapshotSource": str(board_path.relative_to(ROOT)) if board_path else "",
+        "boardSnapshotSource": "db:board_snapshots" if board_date else "",
         "ruleDashboardDate": rule_date or "",
-        "ruleDashboardSource": str(rule_path.relative_to(ROOT)) if rule_path else "",
+        "ruleDashboardSource": rule_source_path,
         "signalSourceDate": signal_date or "",
-        "signalSourcePath": str(signal_path.relative_to(ROOT)) if signal_path else "",
+        "signalSourcePath": signal_source_path,
         "riskPerTradeJpy": args.risk_per_trade_jpy,
         "planMode": plan_mode,
         "planNotes": plan_notes,
@@ -536,6 +687,8 @@ def main() -> int:
             "short": accepted_short,
             "minLong": args.min_long,
             "minShort": args.min_short,
+            "effectiveMinLong": min_long_eff,
+            "effectiveMinShort": min_short_eff,
             "rejected": len(rejected),
         },
         "qualityGate": {
@@ -563,7 +716,7 @@ def main() -> int:
         f"# {args.date} Opening Scenarios",
         "",
         f"- sourceDate: {src_date}",
-        f"- source: {src.relative_to(ROOT)}",
+        f"- source: {src_rel}",
         f"- riskPerTradeJpy: {args.risk_per_trade_jpy}",
         f"- planMode: {plan_mode}",
         "- caution: 売買助言ではなく、寄り前シナリオ整理。板・気配・売建可否の人手確認が必須。",
@@ -604,6 +757,80 @@ def main() -> int:
             )
 
     out_md.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+
+    # DB-first: persist scenario rows for downstream processing to avoid file dependency.
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute(
+            "DELETE FROM opening_scenarios WHERE scenario_date=?",
+            (args.date,),
+        )
+        idx = 0
+        for s in scenarios:
+            idx += 1
+            conn.execute(
+                """
+                INSERT INTO opening_scenarios(
+                  scenario_date, scenario_index, signal_id, ticker, company, direction, scenario_tier,
+                  scenario_score, rule_hit_count, estimated_winrate_text, estimated_winrate_value,
+                  entry_price, take_profit_price, stop_loss_price, source_url, source_kind, source_path, updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    args.date,
+                    idx,
+                    s.get("signalId", ""),
+                    s.get("ticker", ""),
+                    s.get("company", ""),
+                    s.get("direction", ""),
+                    s.get("scenarioTier", "trade"),
+                    int(s.get("scenarioScore") or 0),
+                    int(s.get("ruleHitCount") or 0),
+                    s.get("estimatedWinRate", ""),
+                    s.get("estimatedWinRateValue"),
+                    s.get("entryPrice"),
+                    s.get("takeProfitPrice"),
+                    s.get("stopLossPrice"),
+                    s.get("sourceUrl", ""),
+                    "scenario",
+                    str(out_json.relative_to(ROOT)),
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+        for r in rejected:
+            idx += 1
+            conn.execute(
+                """
+                INSERT INTO opening_scenarios(
+                  scenario_date, scenario_index, signal_id, ticker, company, direction, scenario_tier,
+                  scenario_score, rule_hit_count, estimated_winrate_text, estimated_winrate_value,
+                  entry_price, take_profit_price, stop_loss_price, source_url, source_kind, source_path, updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    args.date,
+                    idx,
+                    "",
+                    r.get("ticker", ""),
+                    r.get("company", ""),
+                    r.get("direction", ""),
+                    "watch",
+                    int(r.get("scenarioScore") or 0),
+                    int(r.get("ruleHitCount") or 0),
+                    r.get("estimatedWinRate", ""),
+                    None,
+                    None,
+                    None,
+                    None,
+                    "",
+                    "rejected",
+                    str(out_json.relative_to(ROOT)),
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     print(f"wrote {out_md.relative_to(ROOT)} and {out_json.relative_to(ROOT)}")
     return 0
 

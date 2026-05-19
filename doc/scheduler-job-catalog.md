@@ -158,8 +158,16 @@
 - 処理内容:
   - `scripts/check_daily_missing.py --date today --days 7 --check-db --check-discord-posts --warn-only-soft`
   - `scripts/check_scheduler_health.py --hours 48`
+  - `scripts/check_scheduler_health.py --mode weekly --hours 168`（月曜のみ）
+  - `scripts/check_needs_freshness.py`（水曜のみ）
   - `.env` から `DISCORD_ALERT_WEBHOOK_URL` を読込
   - `prompts/pending-daily/latest.status.txt` + `prompts/scheduler-health.status.txt` を POST
+  - 水曜のみ `prompts/needs-freshness.status.txt` を同梱して POST
+  - Alert本文セクション:
+    - `[DATA_INGEST / DAILY_COVERAGE]`
+    - `[SCHEDULER_RUNTIME]`
+    - `[SCHEDULER_WEEKLY]`（週次生成時）
+    - `[NEEDS_WEEKLY_FRESHNESS]`（水曜）
 
 ---
 

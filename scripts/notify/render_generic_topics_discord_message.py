@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sqlite3
 from pathlib import Path
 
@@ -18,45 +17,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--fallback-days", type=int, default=2, help="use latest rows within N days when same-day rows are absent")
     p.add_argument("--items-per-topic", type=int, default=3, help="how many headline/url items to show per topic (2-4 recommended)")
     return p.parse_args()
-
-
-def extract_headlines_from_markdown(path: Path, limit: int) -> list[tuple[str, str]]:
-    if not path.exists():
-        return []
-    text = path.read_text(encoding="utf-8")
-    lines = [ln.rstrip() for ln in text.splitlines()]
-    in_headlines = False
-    current_title = ""
-    out: list[tuple[str, str]] = []
-    seen: set[str] = set()
-    for raw in lines:
-        s = raw.strip()
-        if not s:
-            continue
-        if s.lower().startswith("## headlines"):
-            in_headlines = True
-            continue
-        if not in_headlines:
-            continue
-        m = re.match(r"^\d+\.\s+(.+)$", s)
-        if m:
-            current_title = m.group(1).strip()
-            continue
-        if s.startswith("- http") or s.startswith("http"):
-            url = s[1:].strip() if s.startswith("- ") else s.strip()
-            if url in seen:
-                continue
-            seen.add(url)
-            out.append((current_title or "(untitled)", url))
-            if len(out) >= limit:
-                break
-    return out
-
-
-def resolve_topic_path(raw_path: str) -> Path:
-    # DB may store Windows-style separators when ingested on Windows.
-    normalized = (raw_path or "").replace("\\", "/")
-    return ROOT / normalized
 
 
 def main() -> int:
@@ -153,23 +113,17 @@ def main() -> int:
                         first_line = s
                         break
             lines.append(f"[{topic}]")
-            md_items = extract_headlines_from_markdown(resolve_topic_path(_path), max(1, args.items_per_topic))
-            if md_items:
-                for idx, (title, url) in enumerate(md_items, 1):
-                    lines.append(f"  {idx}. {title}")
-                    lines.append(f"     出典: {url}")
-            else:
-                urls = []
-                seen_urls: set[str] = set()
-                for u in topic_links.get(topic, []):
-                    if u in seen_urls:
-                        continue
-                    seen_urls.add(u)
-                    urls.append(u)
-                    if len(urls) >= max(1, args.items_per_topic):
-                        break
-                for u in urls:
-                    lines.append(f"  出典: {u}")
+            urls = []
+            seen_urls: set[str] = set()
+            for u in topic_links.get(topic, []):
+                if u in seen_urls:
+                    continue
+                seen_urls.add(u)
+                urls.append(u)
+                if len(urls) >= max(1, args.items_per_topic):
+                    break
+            for u in urls:
+                lines.append(f"  出典: {u}")
             lines.append("")
 
     msg = "\n".join(lines).rstrip() + "\n"

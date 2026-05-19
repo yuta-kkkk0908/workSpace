@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
@@ -21,6 +22,7 @@ DEFAULT_MD_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-s
 DEFAULT_JSON_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-data.json"
 DEFAULT_OUTCOME = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md"
 WINDOWS = ("t1", "t5", "t20")
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402
@@ -286,6 +288,8 @@ def main() -> int:
     parser.add_argument("--technical-context-data", type=Path, default=None)
     parser.add_argument("--md-output", type=Path, default=None)
     parser.add_argument("--json-output", type=Path, default=None)
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--db-only", action="store_true")
     args = parser.parse_args()
 
     outcomes.OUTCOME = args.outcome or Path(str(DEFAULT_OUTCOME).format(date=args.date))
@@ -298,7 +302,10 @@ def main() -> int:
     outcomes.TECHNICAL_CONTEXT_DATA = args.technical_context_data or Path(str(outcomes.DEFAULT_TECHNICAL_CONTEXT_DATA).format(date=args.date))
     source_log = outcomes.OUTCOME.relative_to(ROOT / "topics/investment-research").as_posix()
 
-    rows = outcomes.parse_outcomes()
+    if args.db_only:
+        rows = outcomes.parse_outcomes_from_db(args.db, args.date)
+    else:
+        rows = outcomes.parse_outcomes()
     items = group_rules(rows, args.min_count)
     md_output = args.md_output or Path(str(DEFAULT_MD_OUTPUT).format(date=args.date))
     json_output = args.json_output or Path(str(DEFAULT_JSON_OUTPUT).format(date=args.date))
@@ -322,6 +329,32 @@ def main() -> int:
     print(f"wrote {display_path(md_output)}")
     print(f"wrote {display_path(json_output)}")
     print(f"rows={len(rows)} candidates={len(items)} min_count={args.min_count}")
+
+    conn = sqlite3.connect(args.db)
+    try:
+        conn.execute("DELETE FROM rule_check_candidates WHERE date=? AND min_count=?", (args.date, args.min_count))
+        for idx, item in enumerate(items, 1):
+            conn.execute(
+                """
+                INSERT INTO rule_check_candidates(
+                  date,min_count,candidate_index,rule_group,label,judgement,direction,row_count,payload_json,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,datetime('now'))
+                """,
+                (
+                    args.date,
+                    args.min_count,
+                    idx,
+                    item.get("ruleGroup", ""),
+                    item.get("label", ""),
+                    item.get("judgement", ""),
+                    item.get("direction", ""),
+                    int(item.get("rowCount") or 0),
+                    json.dumps(item, ensure_ascii=False),
+                ),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     return 0
 
 

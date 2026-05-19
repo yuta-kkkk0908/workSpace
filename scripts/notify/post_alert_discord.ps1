@@ -35,6 +35,7 @@ $statusPath = "E:\workSpace\prompts\pending-daily\latest.status.txt"
 $clipPath   = "E:\workSpace\prompts\pending-daily\latest.clipboard.txt"
 $schedPath  = "E:\workSpace\prompts\scheduler-health.status.txt"
 $schedWeeklyPath = "E:\workSpace\prompts\scheduler-health-weekly.status.txt"
+$needsWeeklyPath = "E:\workSpace\prompts\needs-freshness.status.txt"
 
 if (Test-Path $statusPath) {
   $status = [string](Get-Content $statusPath -Raw -Encoding UTF8)
@@ -50,10 +51,16 @@ $schedWeekly = ""
 if (Test-Path $schedWeeklyPath) {
   $schedWeekly = [string](Get-Content $schedWeeklyPath -Raw -Encoding UTF8)
 }
+$needsWeekly = ""
+if (Test-Path $needsWeeklyPath) {
+  $needsWeekly = [string](Get-Content $needsWeeklyPath -Raw -Encoding UTF8)
+}
 
 $dailyOk = ($status -match "missing:\s*0" -or $status -match "AIOS daily OK")
 $schedAlert = ($sched -match "status:\s*ALERT")
-if ($dailyOk -and -not $schedAlert) {
+$isWednesday = ((Get-Date).DayOfWeek -eq [System.DayOfWeek]::Wednesday)
+$needsWeeklyMode = ($isWednesday -and $needsWeekly)
+if ($dailyOk -and -not $schedAlert -and -not $needsWeeklyMode) {
   Write-AlertLog "SKIP" "no missing daily files and no scheduler alert"
   Write-Host "ALERT skipped (all healthy)"
   exit 0
@@ -64,12 +71,15 @@ if (Test-Path $clipPath) {
   $extra = "`n`nPrompt file: prompts/pending-daily/latest.clipboard.txt"
 }
 
-$msg = "AIOS Alert`n" + $status.Trim()
+$msg = "AIOS Alert`n`n[DATA_INGEST / DAILY_COVERAGE]`n" + $status.Trim()
 if ($sched) {
-  $msg += "`n`n---`n" + $sched.Trim()
+  $msg += "`n`n[SCHEDULER_RUNTIME]`n" + $sched.Trim()
 }
 if ($schedWeekly) {
-  $msg += "`n`n---`n" + $schedWeekly.Trim()
+  $msg += "`n`n[SCHEDULER_WEEKLY]`n" + $schedWeekly.Trim()
+}
+if ($needsWeeklyMode) {
+  $msg += "`n`n[NEEDS_WEEKLY_FRESHNESS]`n" + $needsWeekly.Trim()
 }
 $msg += $extra
 $body = @{ content = $msg } | ConvertTo-Json -Compress -Depth 3

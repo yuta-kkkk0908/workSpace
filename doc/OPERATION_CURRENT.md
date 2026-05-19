@@ -102,6 +102,7 @@
 - Alert通知:
   - 元データ: `prompts/pending-daily/latest.status.txt`
   - 追加データ: `prompts/scheduler-health.status.txt`
+  - 週次追加データ（水曜のみ）: `prompts/needs-freshness.status.txt`
   - 送信先: `DISCORD_ALERT_WEBHOOK_URL`
 - Generic Daily通知:
   - 元データ: `prompts/generic-topics-discord-message.txt`
@@ -111,6 +112,17 @@
 - `inv-scenario` は土日スキップ（休場のため）
 - `night` で `collect_generic_daily_topics.py` を実行し、汎用トピックの当日ファイルを自動生成
 - タスク再登録は `scripts/ops/register_tasks.ps1` を使用（`WakeToRun` / `StartWhenAvailable` を強制）
+
+## Alertメッセージ分類（2026-05）
+
+- Alert通知本文は次のセクションで分離して表示する。
+  - `[DATA_INGEST / DAILY_COVERAGE]`: daily欠損・DB未投入
+  - `[SCHEDULER_RUNTIME]`: 定期実行エラー（task runtime）
+  - `[SCHEDULER_WEEKLY]`: 週次ヘルス詳細（毎週月曜に生成）
+  - `[NEEDS_WEEKLY_FRESHNESS]`: ニーズ最終取得日（毎週水曜に生成）
+- `check_daily_missing.py` の警告は次で表記する。
+  - `DATA_INGEST(ERROR)`: 要対応（DB未投入など）
+  - `DELIVERY_SOFT(INFO)`: 監視情報（投稿ログ未検知など）
 
 ## 投資パイプライン（Python完結）
 
@@ -126,3 +138,20 @@
 4. DB投入
    - `ingest_investment_db.py --date YYYY-MM-DD`
    - 保存先: `data/investment.db`
+
+## backtest_outcomes 重複対策運用
+
+- 同一性キーは `source_signal_id + signal_date + signal_type`。
+- 取り込み時は上記3項目が必須。欠落行は取り込まない。
+- `outcome_id` は取り込み側で決定的に再生成する。
+
+### 既存DBマイグレーション手順
+
+1. 重複件数を確認する（0件でない場合は次へ進む）
+2. 同一性キー単位で `updated_at` 最新1件を残し重複削除する
+3. `python scripts/data/init_investment_db.py --db data/investment.db` を実行して一意インデックスを適用する
+4. `scripts/check_scheduler_health.py` の結果で duplicate alert がないことを確認する
+
+補足:
+- `fill_market_outcomes.py` 出力では `sourceSignalId` / `signalDate` / `signalType` を常に出力すること。
+- 監視で `backtest_outcomes duplicate identity groups=...` が出た場合は、再度クレンジングを実施する。

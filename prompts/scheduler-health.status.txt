@@ -1,5 +1,7 @@
-Scheduler Health 2026-05-18 (daily)
-- status: OK
-- 推奨キーワード: 点検
+Scheduler Health 2026-05-19 (daily)
+- status: ALERT
+- AIOS-Night: ERROR 1件
+- AIOS-Inv-Evening: ERROR 1件
+- 推奨キーワード: 投資補完
 - 実行: python scripts/ops/keyword_action.py <推奨キーワード>
 - metrics: prompts/scheduler-health.json

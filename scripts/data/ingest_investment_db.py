@@ -196,14 +196,17 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
     for r in rows:
         conn.execute(
             """
-            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,source_path,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,source_path,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(signal_id,date) DO UPDATE SET
             ticker=excluded.ticker,company=excluded.company,signal_type=excluded.signal_type,signal_type_label_ja=excluded.signal_type_label_ja,
             expected_direction=excluded.expected_direction,expected_direction_label_ja=excluded.expected_direction_label_ja,
             long_rank=excluded.long_rank,short_rank=excluded.short_rank,long_rank_label_ja=excluded.long_rank_label_ja,short_rank_label_ja=excluded.short_rank_label_ja,
             t1=excluded.t1,t5=excluded.t5,t20=excluded.t20,
-            gate_status=excluded.gate_status,gate_status_label_ja=excluded.gate_status_label_ja,source_path=excluded.source_path,updated_at=excluded.updated_at
+            gate_status=excluded.gate_status,gate_status_label_ja=excluded.gate_status_label_ja,
+            url=excluded.url,source=excluded.source,session=excluded.session,
+            material_signal_checked=excluded.material_signal_checked,external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,
+            source_path=excluded.source_path,updated_at=excluded.updated_at
             """,
             (
                 r.get("signal_id",""), date, r.get("ticker",""), r.get("company",""), r.get("signalType",""),
@@ -213,6 +216,8 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
                 rank_label_ja(r.get("longSignalRank","")), rank_label_ja(r.get("shortSignalRank","")),
                 r.get("t1",""), r.get("t5",""), r.get("t20",""), r.get("gateStatus",""),
                 gate_status_label_ja(r.get("gateStatus","")),
+                r.get("url",""), r.get("source",""), r.get("session",""),
+                r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),
                 str(path.relative_to(ROOT)), now(),
             ),
         )
@@ -223,17 +228,33 @@ def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
     data = json.loads(path.read_text(encoding="utf-8"))
     date = data.get("date", path.name[:10])
     rows = 0
-    for side, key, rank_field in (("long", "longEntryCandidates", "longSignalRank"), ("short", "shortEntryCandidates", "shortSignalRank")):
-        for r in data.get(key, []):
+    mappings = [
+        ("long", "longEntryCandidates", "primary", "longSignalRank"),
+        ("short", "shortEntryCandidates", "primary", "shortSignalRank"),
+        ("long", "longWatchCandidates", "watch", "longSignalRank"),
+        ("short", "shortWatchCandidates", "watch", "shortSignalRank"),
+    ]
+    for side, key, candidate_type, rank_field in mappings:
+        for r in data.get(key, []) or []:
             conn.execute(
                 """
-                INSERT INTO entry_candidates(date,side,signal_id,ticker,company,rank,expected_direction,trade_use,source_path,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?)
+                INSERT INTO entry_candidates(date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,trade_use,gate_status,material_signal_checked,external_context_checked,technical_signal_checked,score,url,source_path,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(date,side,signal_id) DO UPDATE SET
+                candidate_type=excluded.candidate_type,
                 ticker=excluded.ticker,company=excluded.company,rank=excluded.rank,expected_direction=excluded.expected_direction,
-                trade_use=excluded.trade_use,source_path=excluded.source_path,updated_at=excluded.updated_at
+                long_rank=excluded.long_rank,short_rank=excluded.short_rank,trade_use=excluded.trade_use,
+                gate_status=excluded.gate_status,material_signal_checked=excluded.material_signal_checked,
+                external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,
+                score=excluded.score,url=excluded.url,source_path=excluded.source_path,updated_at=excluded.updated_at
                 """,
-                (date, side, r.get("signalId",""), r.get("ticker",""), r.get("company",""), r.get(rank_field,""), r.get("expectedDirection",""), r.get("tradeUse",""), str(path.relative_to(ROOT)), now()),
+                (
+                    date, side, candidate_type, r.get("signalId",""), r.get("ticker",""), r.get("company",""),
+                    r.get(rank_field,""), r.get("longSignalRank",""), r.get("shortSignalRank",""),
+                    r.get("expectedDirection",""), r.get("tradeUse",""), r.get("gateStatus",""),
+                    r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),
+                    int(r.get("score", 0) or 0), r.get("url",""), str(path.relative_to(ROOT)), now(),
+                ),
             )
             rows += 1
     conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "entry_candidates", str(path.relative_to(ROOT)), rows))
@@ -264,6 +285,8 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
     text = path.read_text(encoding="utf-8")
     date = path.name[:10]
     rows = parse_outcome_chunks(text)
+    skipped_missing_identity = 0
+    upserted_rows = 0
     for r in rows:
         def judge_or_pending(key: str) -> str:
             v = (r.get(key) or "").strip()
@@ -280,6 +303,7 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
         signal_type = (r.get("signalType", "") or "").strip()
         if not source_signal_id or not signal_date or not signal_type:
             # Skip malformed rows without full stable identity.
+            skipped_missing_identity += 1
             continue
 
         # Force deterministic identity to prevent duplicate ingestion across reruns.
@@ -310,7 +334,14 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
                 str(path.relative_to(ROOT)), now(),
             ),
         )
-    conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "backtest_outcomes", str(path.relative_to(ROOT)), len(rows)))
+        upserted_rows += 1
+    conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "backtest_outcomes", str(path.relative_to(ROOT)), upserted_rows))
+    if skipped_missing_identity:
+        conn.execute(
+            "INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)",
+            (now(), "backtest_outcomes_skipped_missing_identity", str(path.relative_to(ROOT)), skipped_missing_identity),
+        )
+    print(f"[ingest_backtest] file={path.name} parsed={len(rows)} upserted={upserted_rows} skipped_missing_identity={skipped_missing_identity}")
 
 
 def upsert_paper_trade_report(conn: sqlite3.Connection, path: Path):

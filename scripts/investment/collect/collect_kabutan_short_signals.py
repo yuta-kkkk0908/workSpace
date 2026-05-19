@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import argparse
 import html
+import random
 import re
 import time
+import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -84,10 +86,32 @@ class Seed:
     article_date: str
 
 
-def fetch_text(url: str, timeout: float = 10.0) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8", "ignore")
+DEFAULT_USER_AGENT = "AIOSResearchBot/1.0 (+for research logging; contact: local operator)"
+
+
+def polite_sleep(base: float, jitter: float) -> None:
+    delay = max(0.0, base + random.uniform(0.0, max(0.0, jitter)))
+    time.sleep(delay)
+
+
+def fetch_text(url: str, timeout: float = 10.0, user_agent: str = DEFAULT_USER_AGENT, retries: int = 2, retry_wait: float = 2.0) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8", "ignore")
+            break
+        except urllib.error.HTTPError as e:
+            if attempt >= retries:
+                raise
+            if e.code in (429, 500, 502, 503, 504):
+                time.sleep(retry_wait * (2**attempt))
+                continue
+            raise
+        except Exception:
+            if attempt >= retries:
+                raise
+            time.sleep(retry_wait * (2**attempt))
     raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
     raw = re.sub(r"</(p|li|div|h[1-6]|tr)>", "\n", raw, flags=re.I)
     text = re.sub(r"<[^>]+>", " ", raw)
@@ -98,7 +122,7 @@ def fetch_text(url: str, timeout: float = 10.0) -> str:
     return text
 
 
-def discover_recent_urls(limit: int, timeout: float = 10.0) -> list[str]:
+def discover_recent_urls(limit: int, timeout: float = 10.0, user_agent: str = DEFAULT_USER_AGENT, sleep: float = 1.5, jitter: float = 0.5) -> list[str]:
     if limit <= 0:
         return []
     found: list[str] = []
@@ -106,7 +130,7 @@ def discover_recent_urls(limit: int, timeout: float = 10.0) -> list[str]:
     for page in DISCOVERY_PAGES:
         try:
             raw = urllib.request.urlopen(
-                urllib.request.Request(page, headers={"User-Agent": "Mozilla/5.0"}),
+                urllib.request.Request(page, headers={"User-Agent": user_agent}),
                 timeout=timeout,
             ).read().decode("utf-8", "ignore")
         except Exception:
@@ -119,6 +143,7 @@ def discover_recent_urls(limit: int, timeout: float = 10.0) -> list[str]:
             found.append(url)
             if len(found) >= limit:
                 return found
+        polite_sleep(sleep, jitter)
     return found
 
 
@@ -233,17 +258,25 @@ def parse_block(block: str, url: str, art_date: str) -> Seed | None:
     )
 
 
-def collect(urls: list[str], sleep: float, timeout: float) -> list[Seed]:
+def collect(
+    urls: list[str],
+    sleep: float,
+    timeout: float,
+    jitter: float,
+    user_agent: str,
+    retries: int,
+    retry_wait: float,
+) -> list[Seed]:
     seeds = []
     seen: set[tuple[str, str, str]] = set()
     total = len(urls)
     for i, url in enumerate(urls, 1):
         print(f"[collect-short] {i}/{total} {url}")
         try:
-            text = fetch_text(url, timeout=timeout)
+            text = fetch_text(url, timeout=timeout, user_agent=user_agent, retries=retries, retry_wait=retry_wait)
         except Exception as e:
             print(f"[collect-short] skip fetch error: {e}")
-            time.sleep(sleep)
+            polite_sleep(sleep, jitter)
             continue
         art_date = article_date(text, url)
         if not art_date:
@@ -257,7 +290,7 @@ def collect(urls: list[str], sleep: float, timeout: float) -> list[Seed]:
                 continue
             seen.add(key)
             seeds.append(seed)
-        time.sleep(sleep)
+        polite_sleep(sleep, jitter)
     return seeds
 
 
@@ -310,10 +343,14 @@ def main() -> int:
     parser.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"))
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--url", action="append", dest="urls")
-    parser.add_argument("--sleep", type=float, default=0.3)
-    parser.add_argument("--discover-latest", type=int, default=30, help="discover additional recent Kabutan URLs from index pages")
+    parser.add_argument("--sleep", type=float, default=1.5, help="Base delay (seconds) between requests")
+    parser.add_argument("--jitter", type=float, default=0.5, help="Random extra delay [0, jitter] seconds")
+    parser.add_argument("--discover-latest", type=int, default=12, help="discover additional recent Kabutan URLs from index pages")
     parser.add_argument("--timeout", type=float, default=8.0, help="HTTP timeout seconds per page")
-    parser.add_argument("--max-pages", type=int, default=36, help="max number of pages to scan after merge")
+    parser.add_argument("--max-pages", type=int, default=24, help="max number of pages to scan after merge")
+    parser.add_argument("--user-agent", default=DEFAULT_USER_AGENT)
+    parser.add_argument("--retries", type=int, default=2, help="HTTP retry count for transient errors")
+    parser.add_argument("--retry-wait", type=float, default=2.0, help="Base wait seconds before retry (exponential backoff)")
     parser.add_argument("--cache-only", action="store_true", help="Do not fetch Kabutan pages; keep existing output if present.")
     args = parser.parse_args()
     output = args.output or Path(str(DEFAULT_OUTPUT).format(date=args.date))
@@ -325,7 +362,13 @@ def main() -> int:
         print(f"cache-only: wrote empty {display_path(output)}")
         return 0
     urls = list(args.urls or DEFAULT_URLS)
-    extra = discover_recent_urls(args.discover_latest, timeout=args.timeout)
+    extra = discover_recent_urls(
+        args.discover_latest,
+        timeout=args.timeout,
+        user_agent=args.user_agent,
+        sleep=args.sleep,
+        jitter=args.jitter,
+    )
     if extra:
         known = set(urls)
         for u in extra:
@@ -335,7 +378,15 @@ def main() -> int:
     if args.max_pages > 0 and len(urls) > args.max_pages:
         urls = urls[: args.max_pages]
     print(f"[collect-short] pages={len(urls)} timeout={args.timeout}s sleep={args.sleep}s")
-    seeds = collect(urls, args.sleep, timeout=args.timeout)
+    seeds = collect(
+        urls,
+        args.sleep,
+        timeout=args.timeout,
+        jitter=args.jitter,
+        user_agent=args.user_agent,
+        retries=args.retries,
+        retry_wait=args.retry_wait,
+    )
     output.write_text(build_markdown(seeds, urls, args.date), encoding="utf-8")
     print(f"wrote {display_path(output)} seeds={len(seeds)} pages={len(urls)}")
     return 0
