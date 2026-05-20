@@ -154,3 +154,12 @@
 [2026-05-19 21:20:01] [AIOS-Alert-Healthcheck] [START] begin cmd=powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\ops\run_alert_healthcheck.ps1; $rc = $LASTEXITCODE; if ($rc -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_alert_discord.ps1; $rc = $LASTEXITCODE }; $rc
 [2026-05-19 21:20:03] [AIOS-Alert-Healthcheck] [OK] exit_code=0
 [2026-05-19 21:20:03] [AIOS-Alert-Healthcheck] [END] elapsed_ms=2169
+[2026-05-20 07:30:02] [AIOS-Inv-Morning] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot inv-morning --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_discord.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_quality_alert.ps1 }; $LASTEXITCODE
+[2026-05-20 07:31:38] [AIOS-Inv-Morning] [OK] exit_code=0
+[2026-05-20 07:31:38] [AIOS-Inv-Morning] [END] elapsed_ms=95804
+[2026-05-20 08:10:01] [AIOS-Inv-Scenario-0810] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot inv-scenario --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_scenario_discord.ps1 }; $LASTEXITCODE
+[2026-05-20 08:10:03] [AIOS-Inv-Scenario-0810] [OK] exit_code=0
+[2026-05-20 08:10:03] [AIOS-Inv-Scenario-0810] [END] elapsed_ms=1553
+[2026-05-20 12:10:02] [AIOS-Inv-Noon] [START] begin cmd=Set-Location E:\workSpace; py scripts/run_ops_scheduler.py --slot inv-noon --date (Get-Date -Format yyyy-MM-dd); if ($LASTEXITCODE -eq 0) { powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_discord.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\notify\post_signal_quality_alert.ps1 }; $LASTEXITCODE
+[2026-05-20 12:10:05] [AIOS-Inv-Noon] [OK] exit_code=0
+[2026-05-20 12:10:05] [AIOS-Inv-Noon] [END] elapsed_ms=3118

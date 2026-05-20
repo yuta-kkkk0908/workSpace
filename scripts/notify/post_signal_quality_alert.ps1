@@ -38,7 +38,7 @@ if ($hash -eq $last) {
   exit 0
 }
 
-$body = @{ content = ("AIOS Alert`n" + $msg) } | ConvertTo-Json -Compress
+$body = @{ content = ("AIOS Signal Quality Alert`n" + $msg) } | ConvertTo-Json -Compress
 Write-QualityAlertLog "START" ("msg_len={0}" -f $msg.Length)
 $maxAttempts = 3
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {

@@ -47,7 +47,7 @@ def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     return rc
 
 

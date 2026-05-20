@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-05-19T22:41:21+09:00",
-  "lookbackHours": 24,
+  "generatedAt": "2026-05-20T08:00:19+09:00",
+  "lookbackHours": 48,
   "status": "ALERT",
   "alerts": [
     "AIOS-Night: ERROR 1件",
@@ -9,41 +9,41 @@
   "warnings": [],
   "tasks": {
     "AIOS-Night": {
-      "start_count": 1,
-      "ok_count": 0,
+      "start_count": 2,
+      "ok_count": 1,
       "error_count": 1,
       "last_event": "[2026-05-19 21:00:39] [AIOS-Night] [ERROR] exit_code=1"
     },
     "AIOS-Inv-Morning": {
-      "start_count": 1,
-      "ok_count": 1,
+      "start_count": 2,
+      "ok_count": 2,
       "error_count": 0,
-      "last_event": "[2026-05-19 07:30:30] [AIOS-Inv-Morning] [OK] exit_code=0"
+      "last_event": "[2026-05-20 07:31:38] [AIOS-Inv-Morning] [OK] exit_code=0"
     },
     "AIOS-Inv-Noon": {
-      "start_count": 1,
-      "ok_count": 1,
+      "start_count": 2,
+      "ok_count": 2,
       "error_count": 0,
       "last_event": "[2026-05-19 12:10:04] [AIOS-Inv-Noon] [OK] exit_code=0"
     },
     "AIOS-Inv-Evening": {
-      "start_count": 1,
-      "ok_count": 0,
+      "start_count": 2,
+      "ok_count": 1,
       "error_count": 1,
       "last_event": "[2026-05-19 21:12:00] [AIOS-Inv-Evening] [ERROR] exit_code=1"
     },
     "AIOS-Inv-Scenario-0810": {
-      "start_count": 1,
-      "ok_count": 1,
+      "start_count": 2,
+      "ok_count": 2,
       "error_count": 0,
       "last_event": "[2026-05-19 08:10:04] [AIOS-Inv-Scenario-0810] [OK] exit_code=0"
     }
   },
   "freshnessMinutes": {
-    "discord-signal.log": 631.2915063166668,
-    "discord-generic.log": 1540.67483965,
-    "discord-scenario.log": 871.2888788500001,
-    "discord-paper-stats.log": 1530.75335655
+    "discord-signal.log": 28.704855916666666,
+    "discord-generic.log": 2099.63818925,
+    "discord-scenario.log": 1430.25222845,
+    "discord-paper-stats.log": 2089.71670615
   },
   "taskLog": "logs/task-scheduler.log",
   "recommendedKeyword": "投資補完"

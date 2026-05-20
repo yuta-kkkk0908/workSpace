@@ -62,18 +62,21 @@ def load_rows_from_db(db_path: Path, date_str: str) -> list[dict]:
     try:
         rows = conn.execute(
             """
-            SELECT scenario_index,ticker,company,direction,scenario_tier,scenario_score,rule_hit_count,
-                   estimated_winrate_text
-            FROM opening_scenarios
-            WHERE scenario_date=? AND source_kind='scenario'
+            SELECT os.scenario_index,os.ticker,os.company,os.direction,os.scenario_tier,os.scenario_score,os.rule_hit_count,
+                   os.estimated_winrate_text,
+                   (
+                     SELECT sc.sector_group FROM sector_context_rows sc
+                     WHERE sc.ticker=os.ticker
+                     ORDER BY sc.date DESC LIMIT 1
+                   ) AS sector_group
+            FROM opening_scenarios os
+            WHERE os.scenario_date=? AND os.source_kind='scenario'
             ORDER BY scenario_index
             """,
             (date_str,),
         ).fetchall()
     finally:
         conn.close()
-    if not rows:
-        raise SystemExit(f"opening_scenarios not found in DB for {date_str}")
     return [dict(r) for r in rows]
 
 
@@ -89,9 +92,10 @@ def build_message(date: str, rows: list[dict]) -> str:
         return "\n".join(lines)
 
     for i, r in enumerate(rows, 1):
+        sector = (r.get("sector_group", "") or "不明").strip() or "不明"
         lines.extend(
             [
-                f"{i}. {r.get('ticker','')} {r.get('company','')} [{direction_ja(r.get('direction',''))}]",
+                f"{i}. {r.get('ticker','')} {r.get('company','')} ({sector}) [{direction_ja(r.get('direction',''))}]",
                 f"  方向: {direction_ja(r.get('direction',''))}",
                 f"  品質: score={r.get('scenario_score',0)} / ruleHits={r.get('rule_hit_count',0)} / {r.get('estimated_winrate_text','')}",
                 f"  補足: 種別={r.get('scenario_tier','trade')}",

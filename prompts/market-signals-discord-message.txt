@@ -1,27 +1,33 @@
-シグナル速報 2026-05-19
-- 参照日: 2026-05-19
+シグナル速報 2026-05-20
+- 参照日: 2026-05-20
 - 件数: 6
+- 信用取引不可除外: 0件
 
-1. 7777 スリー・ディー・マトリックス / 上昇 / L:A- S:該当なし
+1. 7777  (不明) / 上昇 / L:A- S:該当なし
   根拠: upward_revision_highest_profit / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190006/
+  出典: 一次情報URL未設定
 
-2. 7946 光陽社 / 上昇 / L:B S:該当なし
+2. 7673  (不明) / 上昇 / L:A- S:該当なし
+  根拠: highest_profit_guidance_dividend_revision / ruleHits=4
+  出典: 一次情報URL未設定
+
+3. 7946  (不明) / 上昇 / L:B S:該当なし
   根拠: unknown / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190004/
+  出典: 一次情報URL未設定
 
-3. 4720 城南進学研究社 / 下落 / L:C S:B
-  根拠: downward_revision / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190005/
+4. 1847  (不明) / 下落 / L:C S:A-
+  根拠: downward_revision_to_loss / ruleHits=4
+  出典: 一次情報URL未設定
 
-4. 5194 相模ゴム工業 / unclear / L:C S:C
-  根拠: 悪決算 / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190008/
+5. 7214  (不明) / 下落 / L:C S:A-
+  根拠: downward_revision_to_loss / ruleHits=4
+  出典: 一次情報URL未設定
 
-5. 4443 Ｓａｎｓａｎ / unclear / L:C S:C
-  根拠: unknown / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190007/
+6. 7084  (不明) / 下落 / L:C S:A-
+  根拠: downward_revision_to_loss / ruleHits=4
+  出典: 一次情報URL未設定
 
-6. 5363 ＴＹＫ / unclear / L:C S:C
-  根拠: 悪決算 / ruleHits=4
-  出典: https://s.kabutan.jp/news/k202605190003/
+VWAP運用（昼）:
+- ロング: 価格がVWAPを下回ったら継続見直し/撤退候補
+- ショート: 価格がVWAPを上回ったら継続見直し/撤退候補
+- VWAP逆行中の追撃・ナンピンは禁止

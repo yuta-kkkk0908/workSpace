@@ -1,26 +1,28 @@
 {
-  "date": "2026-05-19",
+  "date": "2026-05-20",
   "path": "db:signals",
   "exists": true,
   "signalCount": 6,
-  "upCount": 2,
-  "downCount": 1,
+  "upCount": 3,
+  "downCount": 3,
   "newMaterialCount": 0,
   "tickers": [
     "7777",
+    "7673",
     "7946",
-    "4720",
-    "5194",
-    "4443",
-    "5363"
+    "1847",
+    "7214",
+    "7084"
   ],
   "openingScenariosPath": "db:opening_scenarios",
-  "openingScenariosDate": "2026-05-19",
-  "tradeScenarioCount": 2,
-  "watchScenarioCount": 0,
-  "watchShare": 0.0,
+  "openingScenariosDate": "2026-05-20",
+  "tradeScenarioCount": 0,
+  "watchScenarioCount": 1,
+  "watchShare": 1.0,
   "status": "ALERT",
   "alerts": [
-    "当日材料の新規シグナルが0件"
+    "当日材料の新規シグナルが0件",
+    "tradeシナリオが0件（watch偏重）",
+    "watch比率が高い: watchShare=100% > 70%"
   ]
 }

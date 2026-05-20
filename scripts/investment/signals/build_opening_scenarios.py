@@ -144,6 +144,49 @@ def load_signal_map_from_db(db_path: Path, date_str: str, fallback_days: int) ->
     return {}, None
 
 
+def load_ticker_context_from_db(db_path: Path, date_str: str, fallback_days: int) -> dict[str, dict[str, str]]:
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(db_path)
+    try:
+        out: dict[str, dict[str, str]] = {}
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            sec_rows = conn.execute(
+                "SELECT ticker, sector_group FROM sector_context_rows WHERE date=?",
+                (d,),
+            ).fetchall()
+            for t, sec in sec_rows:
+                tt = str(t or "").strip()
+                if not tt:
+                    continue
+                out.setdefault(tt, {})["sector"] = str(sec or "").strip()
+
+            bor_rows = conn.execute(
+                "SELECT ticker, borrow_status FROM short_readiness_rows WHERE date=?",
+                (d,),
+            ).fetchall()
+            for t, bor in bor_rows:
+                tt = str(t or "").strip()
+                if not tt:
+                    continue
+                out.setdefault(tt, {})["borrow_status"] = str(bor or "").strip()
+            if out:
+                break
+        return out
+    finally:
+        conn.close()
+
+
+def is_non_marginable(borrow_status: str) -> bool:
+    s = (borrow_status or "").strip().lower()
+    if not s or s == "unknown":
+        return True
+    bad_tokens = ["不可", "対象外", "なし", "no", "ng", "×", "✕", "x"]
+    return any(tok in s for tok in bad_tokens)
+
+
 def load_rule_rows_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[list[dict], str | None]:
     if not db_path.exists():
         return [], None
@@ -435,6 +478,7 @@ def scenario_for_row(
         "signalId": row.get("signalId", ""),
         "ticker": ticker,
         "company": company,
+        "sector": row.get("sector", ""),
         "direction": direction,
         "entryLimitRule": entry_rule,
         "takeProfitRule": take_rule,
@@ -476,6 +520,7 @@ def main() -> int:
         raise SystemExit(f"rule_dashboard_rows not found in DB for {args.date} (fallback_days={args.fallback_days})")
     signal_source_path = "db:signals"
     rule_source_path = "db:rule_dashboard_rows"
+    ticker_ctx = load_ticker_context_from_db(args.db, args.date, args.fallback_days)
     long_rule_ctx = build_rule_context(rule_rows, "long")
     short_rule_ctx = build_rule_context(rule_rows, "short")
 
@@ -530,6 +575,9 @@ def main() -> int:
 
     raw_scenarios = []
     for r in long_rows:
+        ctx = ticker_ctx.get(str(r.get("ticker", "")).strip(), {})
+        r["sector"] = ctx.get("sector", "")
+        r["borrowStatus"] = ctx.get("borrow_status", "")
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -541,6 +589,9 @@ def main() -> int:
             )
         )
     for r in short_rows:
+        ctx = ticker_ctx.get(str(r.get("ticker", "")).strip(), {})
+        r["sector"] = ctx.get("sector", "")
+        r["borrowStatus"] = ctx.get("borrow_status", "")
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -642,6 +693,36 @@ def main() -> int:
 
     scenarios = accepted
 
+    # Exclude non-marginable tickers from both long/short scenarios.
+    margin_rejected = []
+    filtered_scenarios = []
+    for s in scenarios:
+        sid = str(s.get("signalId", "")).strip()
+        ticker = str(s.get("ticker", "")).strip()
+        src_row = signal_map.get(sid, {}) if sid else {}
+        # borrow status is attached via row at scenario creation path; fallback to context map.
+        borrow_status = str(src_row.get("borrowStatus", "")).strip()
+        if not borrow_status:
+            borrow_status = ticker_ctx.get(ticker, {}).get("borrow_status", "")
+        if is_non_marginable(borrow_status):
+            margin_rejected.append(
+                {
+                    "ticker": ticker,
+                    "company": s.get("company", ""),
+                    "direction": s.get("direction", ""),
+                    "scenarioScore": s.get("scenarioScore", 0),
+                    "ruleHitCount": s.get("ruleHitCount", 0),
+                    "estimatedWinRate": s.get("estimatedWinRate", ""),
+                    "rejectReasons": [f"credit_unavailable:{borrow_status}"],
+                }
+            )
+            continue
+        filtered_scenarios.append(s)
+    scenarios = filtered_scenarios
+    had_margin_rejected = len(margin_rejected)
+    if margin_rejected:
+        rejected.extend(margin_rejected)
+
     # 3) 最低件数ガード
     plan_mode = "trade"
     plan_notes: list[str] = []
@@ -662,6 +743,8 @@ def main() -> int:
             f"最低件数未達のため様子見優先（long={accepted_long}/{min_long_eff}, short={accepted_short}/{min_short_eff}）"
         )
         plan_notes.append("新規エントリーは見送り、監視継続と条件再確認を優先する。")
+    if had_margin_rejected > 0:
+        plan_notes.append(f"信用取引不可のため除外: {had_margin_rejected}件")
     if rejected:
         plan_notes.append(f"品質ゲート除外: {len(rejected)}件（score/ruleHits/winRate 条件未達）")
     if relax_applied:
@@ -744,6 +827,7 @@ def main() -> int:
                     f"- rationale: {' / '.join(s['rationale'])}",
                     f"- invalidation: {s.get('invalidationCondition','')}",
                     f"- sourceUrl: {s['sourceUrl']}",
+                    f"- sector: {s.get('sector','') or '不明'}",
                     "",
                 ]
             )

@@ -242,14 +242,11 @@ def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs
     if needs_db.exists():
         try:
             conn = sqlite3.connect(needs_db)
-            for ds in dates:
-                row_need = conn.execute(
-                    "select count(1) from need_items where date=?",
-                    (ds,),
-                ).fetchone()
-                cnt_need = int(row_need[0]) if row_need and row_need[0] is not None else 0
-                if cnt_need == 0:
-                    hard.append(f"needs.db need_items 未投入: {ds}")
+            row_last = conn.execute("select max(date) from need_items").fetchone()
+            last_need_date = str(row_last[0]) if row_last and row_last[0] else ""
+            target_end = targets[-1].isoformat()
+            if (not last_need_date) or (last_need_date < target_end):
+                hard.append(f"needs.db 最終投入日: {last_need_date or '(none)'}")
             conn.close()
         except Exception as exc:
             hard.append(f"needs.db チェック失敗: {exc}")

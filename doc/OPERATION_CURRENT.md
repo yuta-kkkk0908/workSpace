@@ -139,6 +139,10 @@
    - `ingest_investment_db.py --date YYYY-MM-DD`
    - 保存先: `data/investment.db`
 
+## 明日以降タスク（投資重点 / 採用済み）
+
+- 詳細タスク一覧は `doc/task/20260519-investment-priority-tasks.md` を参照。
+
 ## backtest_outcomes 重複対策運用
 
 - 同一性キーは `source_signal_id + signal_date + signal_type`。

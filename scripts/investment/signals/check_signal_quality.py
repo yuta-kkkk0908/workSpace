@@ -148,7 +148,9 @@ def main() -> int:
         lines = [f"Signal Quality Alert {args.date}", f"- status: {status}"]
         for a in alerts:
             lines.append(f"- {a}")
-        lines.append(f"- metrics: {out_json.relative_to(ROOT)}")
+        lines.append(
+            f"- summary: signals={len(rows)} new={new_count} trade={trade_count} watch={watch_count} watchShare={watch_share:.0%}"
+        )
         out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"ALERT: {out_alert}")
         return 2
