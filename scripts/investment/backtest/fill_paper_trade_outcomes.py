@@ -74,6 +74,24 @@ def fetch_prices(ticker: str, start: str, end: str, cache: dict) -> list[dict]:
     return []
 
 
+def fetch_prices_from_db(conn: sqlite3.Connection, ticker: str, start: str, end: str) -> list[dict]:
+    rows = conn.execute(
+        """
+        select date, close
+          from facts_price_daily
+         where ticker=?
+           and date between ? and ?
+           and close is not null
+         order by date
+        """,
+        (ticker, start, end),
+    ).fetchall()
+    out: list[dict] = []
+    for r in rows:
+        out.append({"date": r["date"], "close": float(r["close"])})
+    return out
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -91,7 +109,7 @@ def judge(ret: float | None, threshold: float) -> str | None:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fill T+1/T+5/T+20 outcomes for paper_trades")
     p.add_argument("--date", help="entry date YYYY-MM-DD (optional)")
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "all"])
+    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch", "paper", "all"])
     p.add_argument("--db", default=str(DEFAULT_DB))
     p.add_argument("--as-of", default=date.today().isoformat(), help="only use prices up to this date")
     p.add_argument("--shares-per-lot", type=int, default=100)
@@ -127,7 +145,9 @@ def main() -> int:
             entry_date = t["entry_date"]
             start = (datetime.strptime(entry_date, "%Y-%m-%d").date() - timedelta(days=7)).strftime("%Y-%m-%d")
             end = (datetime.strptime(entry_date, "%Y-%m-%d").date() + timedelta(days=45)).strftime("%Y-%m-%d")
-            rows = fetch_prices(t["ticker"], start, end, cache)
+            rows = fetch_prices_from_db(conn, t["ticker"], start, end)
+            if not rows:
+                rows = fetch_prices(t["ticker"], start, end, cache)
             if not rows:
                 continue
             rows = [r for r in rows if datetime.strptime(r["date"], "%Y-%m-%d").date() <= as_of]

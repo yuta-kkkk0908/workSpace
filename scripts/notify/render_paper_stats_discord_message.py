@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
 
-SECTION_RE = re.compile(r"^###\s+(backtest|watch|live|all)\s*$")
+SECTION_RE = re.compile(r"^###\s+(backtest|watch|live|paper|all)\s*$")
 SAMPLE_RE = re.compile(r"^- sampleTrades:\s*(\d+)\s*$")
 T5_RE = re.compile(r"^- T\+5:\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
 SIDE_RE = re.compile(r"^- (long|short):\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
@@ -167,7 +167,7 @@ def build_message(
     if source_date != target_date:
         lines.insert(2, f"- 注意: 当日未生成のため {source_date} を参照")
     lines.append("【モード比較（T+5中心）】")
-    for mode in ("backtest", "watch", "live"):
+    for mode in ("backtest", "watch", "live", "paper"):
         lines.append(to_line(mode, rows.get(mode, {})))
     lines.append("")
     lines.append("【補足】")

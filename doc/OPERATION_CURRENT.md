@@ -97,8 +97,15 @@
   - 元データ: `prompts/paper-stats-discord-message.txt`
   - 送信先: `DISCORD_STATS_WEBHOOK_URL`（未設定時は `DISCORD_SIGNAL_WEBHOOK_URL`）
 - Scenario通知:
-  - 元データ: `prompts/opening-scenarios-discord-message.txt`
-  - 送信先: `DISCORD_WEBHOOK_URL`
+  - 送信先: `DISCORD_SCENARIO_CHANNEL_ID`（Bot投稿 / `1508104046030880899`）
+  - 実装: `scripts/notify/post_scenarios_bot.py`
+  - 運用:
+    - チャンネル `シナリオスレッド` では 1シナリオ = 1アンカー投稿 + 1スレッド
+    - エントリー/イグジット/credit 応答は各スレッド内で受ける
+    - シナリオ解決は `scenario_messages.thread_id` で行う
+    - `trade` シナリオは投稿時に `paper_trades.mode='paper'` へ自動登録して事後成績を追跡する
+    - 手動 `entry paper` / `entry 机上` は補助用途（watchや個別観測用）
+    - 返信同期は `scripts/notify/sync_scenario_replies_bot.py` が active threads を読んで DB 反映する
 - Alert通知:
   - 元データ: `prompts/pending-daily/latest.status.txt`
   - 追加データ: `prompts/scheduler-health.status.txt`
@@ -106,7 +113,26 @@
   - 送信先: `DISCORD_ALERT_WEBHOOK_URL`
 - Generic Daily通知:
   - 元データ: `prompts/generic-topics-discord-message.txt`
-  - 送信先: `DISCORD_GENERIC_WEBHOOK_URL`
+  - 送信先:
+    - 既定: `DISCORD_GENERIC_CHANNEL_ID`（Bot投稿 / thread互換）
+    - forum運用時: `DISCORD_GENERIC_FORUM_CHANNEL_ID=1508808144753791006`
+  - 実装:
+    - thread互換: `scripts/notify/post_generic_threads_bot.py`
+    - forum: `scripts/notify/post_generic_forum_bot.py`
+  - 投稿経路メモ:
+    - `PowerShell + Invoke-RestMethod` の Discord Bot POST は `40333 internal network error` で不安定
+    - Bot投稿は `Python + urllib.request` 経路を優先する
+  - 運用:
+    - forum ID が設定されている場合は `AIOS-Night` が forum 経路を優先する
+    - topicは `ai-news-watch` / `pokemon-card-watch` / `tech-stack-reads`
+    - forum では topic ごとに固定 forum post を1本持ち、日次内容を追記する
+    - thread互換では固定アンカーを毎日編集しない
+    - 同日同内容は再投稿しない
+    - 同日の内容更新時は同一スレッドへ `updated` 付きで追記する
+  - 障害メモ:
+    - 2026-05-26 夜の `AIOS-Night` は generic 投稿で失敗
+    - 原因は Discord `429 / code=30046`（1時間以上前の古いメッセージ編集制限）
+    - thread互換運用の古いアンカー `PATCH` を止めて回避済み
 ## 2026-05 運用修正
 
 - `inv-scenario` は土日スキップ（休場のため）

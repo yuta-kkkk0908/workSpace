@@ -21,6 +21,7 @@ JST = timezone(timedelta(hours=9))
 DEFAULT_MD_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-summary.md"
 DEFAULT_JSON_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-data.json"
 DEFAULT_OUTCOME = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md"
+DEFAULT_SEED_CONFIG = ROOT / "configs" / "investment" / "rough_backtest_seed_lists.json"
 WINDOWS = ("t1", "t5", "t20")
 DEFAULT_DB = ROOT / "data" / "investment.db"
 
@@ -278,7 +279,7 @@ def main() -> int:
     parser.add_argument("--min-count", type=int, default=4, help="minimum judged rows required per candidate")
     parser.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"), help="output date prefix")
     parser.add_argument("--outcome", type=Path, default=None)
-    parser.add_argument("--seed-config", type=Path, default=outcomes.DEFAULT_CONFIG)
+    parser.add_argument("--seed-config", type=Path, default=DEFAULT_SEED_CONFIG)
     parser.add_argument("--seed-list", default=None)
     parser.add_argument("--margin-data", type=Path, default=None)
     parser.add_argument("--session-data", type=Path, default=None)
@@ -292,20 +293,20 @@ def main() -> int:
     parser.add_argument("--db-only", action="store_true")
     args = parser.parse_args()
 
-    outcomes.OUTCOME = args.outcome or Path(str(DEFAULT_OUTCOME).format(date=args.date))
-    outcomes.BATCH_FILES = outcomes.load_seed_paths(args.seed_config, args.seed_list)
-    outcomes.MARGIN_DATA = args.margin_data or Path(str(outcomes.DEFAULT_MARGIN_DATA).format(date=args.date))
-    outcomes.SESSION_DATA = args.session_data or Path(str(outcomes.DEFAULT_SESSION_DATA).format(date=args.date))
-    outcomes.MARKET_CONTEXT_DATA = args.market_context_data or Path(str(outcomes.DEFAULT_MARKET_CONTEXT_DATA).format(date=args.date))
-    outcomes.SECTOR_CONTEXT_DATA = args.sector_context_data or Path(str(outcomes.DEFAULT_SECTOR_CONTEXT_DATA).format(date=args.date))
-    outcomes.SECTOR_MARKET_CONTEXT_DATA = args.sector_market_context_data or Path(str(outcomes.DEFAULT_SECTOR_MARKET_CONTEXT_DATA).format(date=args.date))
-    outcomes.TECHNICAL_CONTEXT_DATA = args.technical_context_data or Path(str(outcomes.DEFAULT_TECHNICAL_CONTEXT_DATA).format(date=args.date))
-    source_log = outcomes.OUTCOME.relative_to(ROOT / "topics/investment-research").as_posix()
-
     if args.db_only:
         rows = outcomes.parse_outcomes_from_db(args.db, args.date)
+        source_log = "db:backtest_outcomes"
     else:
+        outcomes.OUTCOME = args.outcome or Path(str(DEFAULT_OUTCOME).format(date=args.date))
+        outcomes.BATCH_FILES = outcomes.load_seed_paths(args.seed_config, args.seed_list)
+        outcomes.MARGIN_DATA = args.margin_data or Path(str(outcomes.DEFAULT_MARGIN_DATA).format(date=args.date))
+        outcomes.SESSION_DATA = args.session_data or Path(str(outcomes.DEFAULT_SESSION_DATA).format(date=args.date))
+        outcomes.MARKET_CONTEXT_DATA = args.market_context_data or Path(str(outcomes.DEFAULT_MARKET_CONTEXT_DATA).format(date=args.date))
+        outcomes.SECTOR_CONTEXT_DATA = args.sector_context_data or Path(str(outcomes.DEFAULT_SECTOR_CONTEXT_DATA).format(date=args.date))
+        outcomes.SECTOR_MARKET_CONTEXT_DATA = args.sector_market_context_data or Path(str(outcomes.DEFAULT_SECTOR_MARKET_CONTEXT_DATA).format(date=args.date))
+        outcomes.TECHNICAL_CONTEXT_DATA = args.technical_context_data or Path(str(outcomes.DEFAULT_TECHNICAL_CONTEXT_DATA).format(date=args.date))
         rows = outcomes.parse_outcomes()
+        source_log = outcomes.OUTCOME.relative_to(ROOT / "topics/investment-research").as_posix()
     items = group_rules(rows, args.min_count)
     md_output = args.md_output or Path(str(DEFAULT_MD_OUTPUT).format(date=args.date))
     json_output = args.json_output or Path(str(DEFAULT_JSON_OUTPUT).format(date=args.date))

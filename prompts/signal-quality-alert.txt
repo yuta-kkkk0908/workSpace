@@ -1,6 +1,5 @@
-Signal Quality Alert 2026-05-20
+Signal Quality Alert 2026-05-27
 - status: ALERT
 - 当日材料の新規シグナルが0件
-- tradeシナリオが0件（watch偏重）
-- watch比率が高い: watchShare=100% > 70%
-- summary: signals=6 new=0 trade=0 watch=1 watchShare=100%
+- summary: signals=6 new=0 trade=0 watch=0 watchShare=0%
+- hold内訳: hold_credit_unknown=4

@@ -11,102 +11,19 @@ function Write-AlertLog([string]$level, [string]$message) {
 }
 
 Write-AlertLog "START" "post_alert_discord begin"
-
-$envFile = Join-Path $repo ".env"
-if (Test-Path $envFile) {
-  Get-Content $envFile | ForEach-Object {
-    if ($_ -match "^\s*#") { return }
-    if ($_ -match "^\s*$") { return }
-    if ($_ -notmatch "=") { return }
-    $k,$v = $_.Split("=",2)
-    $v = $v.Trim().Trim('"').Trim("'")
-    [Environment]::SetEnvironmentVariable($k.Trim(), $v, "Process")
-  }
+$python = "C:\msys64\usr\bin\python.exe"
+if (-not (Test-Path $python)) {
+  $python = Join-Path $repo ".venv\Scripts\python.exe"
+}
+if (-not (Test-Path $python)) {
+  throw "python runtime not found"
 }
 
-$u = $env:DISCORD_ALERT_WEBHOOK_URL
-if (-not $u) {
-  Write-AlertLog "SKIP" "DISCORD_ALERT_WEBHOOK_URL is empty"
-  Write-Host "ALERT skipped (webhook empty)"
-  exit 0
-}
-
-$statusPath = "E:\workSpace\prompts\pending-daily\latest.status.txt"
-$clipPath   = "E:\workSpace\prompts\pending-daily\latest.clipboard.txt"
-$schedPath  = "E:\workSpace\prompts\scheduler-health.status.txt"
-$schedWeeklyPath = "E:\workSpace\prompts\scheduler-health-weekly.status.txt"
-$needsWeeklyPath = "E:\workSpace\prompts\needs-freshness.status.txt"
-
-if (Test-Path $statusPath) {
-  $status = [string](Get-Content $statusPath -Raw -Encoding UTF8)
+& $python -X utf8 (Join-Path $repo "scripts\notify\post_alert_discord.py")
+$rc = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+if ($rc -eq 0) {
+  Write-AlertLog "OK" "python alert runner rc=0"
 } else {
-  $status = "AIOS alert: status file not found."
+  Write-AlertLog "ERROR" ("python alert runner rc=" + $rc)
 }
-
-$sched = ""
-if (Test-Path $schedPath) {
-  $sched = [string](Get-Content $schedPath -Raw -Encoding UTF8)
-}
-$schedWeekly = ""
-if (Test-Path $schedWeeklyPath) {
-  $schedWeekly = [string](Get-Content $schedWeeklyPath -Raw -Encoding UTF8)
-}
-$needsWeekly = ""
-if (Test-Path $needsWeeklyPath) {
-  $needsWeekly = [string](Get-Content $needsWeeklyPath -Raw -Encoding UTF8)
-}
-
-$dailyOk = ($status -match "missing:\s*0" -or $status -match "AIOS daily OK")
-$schedAlert = ($sched -match "status:\s*ALERT")
-$isWednesday = ((Get-Date).DayOfWeek -eq [System.DayOfWeek]::Wednesday)
-$needsWeeklyMode = ($isWednesday -and $needsWeekly)
-if ($dailyOk -and -not $schedAlert -and -not $needsWeeklyMode) {
-  Write-AlertLog "SKIP" "no missing daily files and no scheduler alert"
-  Write-Host "ALERT skipped (all healthy)"
-  exit 0
-}
-
-$extra = ""
-if (Test-Path $clipPath) {
-  $extra = "`n`nPrompt file: prompts/pending-daily/latest.clipboard.txt"
-}
-
-$msg = "AIOS Alert`n`n[DATA_INGEST / DAILY_COVERAGE]`n" + $status.Trim()
-if ($sched) {
-  $msg += "`n`n[SCHEDULER_RUNTIME]`n" + $sched.Trim()
-}
-if ($schedWeekly) {
-  $msg += "`n`n[SCHEDULER_WEEKLY]`n" + $schedWeekly.Trim()
-}
-if ($needsWeeklyMode) {
-  $msg += "`n`n[NEEDS_WEEKLY_FRESHNESS]`n" + $needsWeekly.Trim()
-}
-$msg += $extra
-$body = @{ content = $msg } | ConvertTo-Json -Compress -Depth 3
-
-try {
-  $maxAttempts = 3
-  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-    try {
-      Invoke-RestMethod -Method Post -Uri $u -ContentType "application/json; charset=utf-8" -Body $body | Out-Null
-      Write-AlertLog "OK" ("posted attempt={0}" -f $attempt)
-      Write-Host "ALERT posted"
-      exit 0
-    } catch {
-      $respBody = ""
-      if ($_.Exception.Response -and $_.Exception.Response.GetResponseStream()) {
-        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $respBody = $reader.ReadToEnd()
-        $reader.Close()
-      }
-      Write-AlertLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $maxAttempts, $_.Exception.Message, $respBody)
-      if ($attempt -lt $maxAttempts) {
-        Start-Sleep -Seconds (2 * $attempt)
-        continue
-      }
-      throw
-    }
-  }
-} catch {
-  throw
-}
+exit $rc

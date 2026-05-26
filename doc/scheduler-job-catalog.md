@@ -108,17 +108,12 @@
 - 目的:
   - 人手注文前の寄り前シナリオを生成する
 - 処理内容:
-  - `scripts/investment/collect/load_rakuten_board_snapshot.py --date YYYY-MM-DD`（任意。CSVがあれば板スナップショット化）
   - `scripts/investment/signals/build_opening_scenarios.py --date YYYY-MM-DD --fallback-days 3`
   - `scripts/notify/render_opening_scenarios_discord_message.py --date YYYY-MM-DD --fallback-days 3`
   - 出力:
-    - `topics/investment-research/inbox/YYYY-MM-DD-board-snapshot.json`（CSVがある場合）
     - `topics/investment-research/inbox/YYYY-MM-DD-opening-scenarios.md`
     - `topics/investment-research/inbox/YYYY-MM-DD-opening-scenarios.json`
     - `prompts/opening-scenarios-discord-message.txt`
-  - 入力CSV（楽天RSS想定）:
-    - `data/rakuten_rss/board_latest.csv`
-    - ヘッダ例: `ticker,company,best_bid,best_ask,indicative_open`
 
 ---
 
@@ -141,10 +136,31 @@
 - schedule: 08:11（Scenario生成直後）
 - entrypoint: `scripts/notify/post_scenario_discord.ps1`（Windowsローカル）
 - 目的:
-  - 寄り前シナリオ通知文を Discord に投稿する
+  - 寄り前シナリオを `シナリオスレッド` チャンネルへスレッド形式で投稿する
 - 処理内容:
-  - `.env` から `DISCORD_WEBHOOK_URL` を読込
-  - `prompts/opening-scenarios-discord-message.txt` を POST
+  - `.env` から `DISCORD_SCENARIO_CHANNEL_ID` と Bot token を読込
+  - `scripts/notify/post_scenarios_bot.py --date YYYY-MM-DD` を実行
+  - 1シナリオごとに:
+    - 親チャンネルへアンカー投稿
+    - その投稿から public thread を作成
+    - thread 内へ詳細本文を投稿
+  - `scenario_messages` に `thread_id / anchor_message_id / message_id` を記録
+
+---
+
+## Job: AIOS-Scenario-Replies-Sync
+
+- status: active
+- schedule: 定期poll（Task Scheduler 登録値に従う）
+- entrypoint: `scripts/ops/run_sync_scenario_replies.ps1`
+- 目的:
+  - シナリオスレッド内の `entry / exit / cancel / credit` 指示を DB に反映する
+- 処理内容:
+  - `.env` から `DISCORD_SCENARIO_CHANNEL_ID` と Bot token を読込
+  - 親チャンネルの active threads を列挙
+  - 各スレッドの最新メッセージを取得
+  - `scenario_messages.thread_id` で対象シナリオを解決
+  - `paper_trades` / `credit_status_rows` / `scenario_reply_events` を更新
 
 ---
 
@@ -175,12 +191,19 @@
 
 - status: active（`AIOS-Night` 内で実行）
 - schedule: Night直後（例: 21:05）
-- entrypoint: `scripts/notify/post_generic_discord.ps1`（Windowsローカル）
+- entrypoint:
+  - forum優先: `scripts/notify/post_generic_forum_discord.ps1`
+  - fallback: `scripts/notify/post_generic_threads_discord.ps1`
 - 目的:
-  - 汎用トピックの日次要約を Discord に投稿する
+  - 汎用トピックの日次要約を Discord の固定topic forum post へ蓄積する
 - 処理内容:
-  - `.env` から `DISCORD_GENERIC_WEBHOOK_URL` を読込
-  - `prompts/generic-topics-discord-message.txt` を POST
+  - `.env` から `DISCORD_GENERIC_FORUM_CHANNEL_ID` または `DISCORD_GENERIC_CHANNEL_ID` と `DISCORD_TASKS_BOT_TOKEN` を読込
+  - `prompts/generic-topics-discord-message.txt` を解析
+  - forum運用時は topic固定 forum post (`ai-news-watch` / `pokemon-card-watch` / `tech-stack-reads`) を維持
+  - 各topicへ `YYYY-MM-DD` 日次内容を追記
+  - 状態は `prompts/generic-forum-state.json` で管理
+  - fallback の thread互換運用では `prompts/generic-threads-state.json` を使用
+  - 2026-05-26: 古いアンカー編集で Discord `429 code=30046` が発生したため、forum優先に変更
 
 ---
 
@@ -216,6 +239,26 @@
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
   - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
   - `scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date YYYY-MM-DD`
+
+---
+
+## Job: AIOS-Data-Harvest
+
+- status: active
+- schedule: 毎日 23:40
+- entrypoint: `scripts/ops/run_data_harvest.ps1`
+- 目的:
+  - 収集を手動依存から外し、日次で母数を増やし続ける
+  - TDnet/Kabutan/結果補完/DB取り込みを1ジョブで連続実行する
+- 処理内容:
+  - `scripts/investment/collect/run_harvest_backfill.py --end-date YYYY-MM-DD --days 21 --discover-latest 120 --max-pages 120 --tdnet-max-items 800 --seed-list rough_backtest_full`
+  - 内部で以下を日付ループ実行:
+    - `scripts/investment/collect/collect_tdnet_disclosures.py`
+    - `scripts/investment/collect/collect_kabutan_surprise_signals.py`
+    - `scripts/investment/collect/collect_kabutan_short_signals.py`
+    - `scripts/investment/backtest/fill_market_outcomes.py`
+    - `scripts/investment/signals/build_market_signals_from_batches.py`
+    - `scripts/data/ingest_investment_db.py`
 
 ## 再登録ポリシー（重要）
 

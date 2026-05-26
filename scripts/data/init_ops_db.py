@@ -43,6 +43,46 @@ SCHEMA = [
     CREATE INDEX IF NOT EXISTS idx_discord_log_events_channel_ts
       ON discord_log_events(channel, ts)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS discord_task_events (
+      message_id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      raw_content TEXT NOT NULL,
+      command_name TEXT,
+      command_args_json TEXT,
+      status TEXT NOT NULL,
+      result_json TEXT,
+      processed_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_discord_task_events_processed_at
+      ON discord_task_events(processed_at)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS agent_memory_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      memory_date TEXT NOT NULL,
+      topic TEXT NOT NULL,
+      memory_type TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      source_channel_id TEXT,
+      source_message_id TEXT,
+      source_author_id TEXT,
+      payload_json TEXT,
+      updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_agent_memory_topic_date
+      ON agent_memory_events(topic, memory_date, updated_at)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_agent_memory_source_message
+      ON agent_memory_events(source_channel_id, source_message_id)
+    """,
 ]
 
 

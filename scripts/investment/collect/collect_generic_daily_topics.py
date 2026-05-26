@@ -38,6 +38,23 @@ def clean_text(s: str, max_len: int = 180) -> str:
     return s
 
 
+def repair_mojibake_title(s: str) -> str:
+    t = (s or "").strip()
+    if not t:
+        return t
+    # Typical UTF-8 -> latin1/cp1252 mojibake fragments.
+    if ("Ã" not in t) and ("ã" not in t) and ("â" not in t):
+        return t
+    for src_enc in ("latin-1", "cp1252"):
+        try:
+            repaired = t.encode(src_enc, errors="strict").decode("utf-8", errors="strict")
+            if repaired:
+                return repaired
+        except Exception:
+            continue
+    return t
+
+
 def fetch_rss_items(query: str, max_items: int) -> list[tuple[str, str, str, str]]:
     q = urllib.parse.quote_plus(query)
     url = f"https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
@@ -47,7 +64,7 @@ def fetch_rss_items(query: str, max_items: int) -> list[tuple[str, str, str, str
     root = ET.fromstring(raw)
     rows: list[tuple[str, str, str, str]] = []
     for item in root.findall(".//item"):
-        title = (item.findtext("title") or "").strip()
+        title = repair_mojibake_title((item.findtext("title") or "").strip())
         link = (item.findtext("link") or "").strip()
         desc = clean_text(item.findtext("description") or "")
         pub = clean_text(item.findtext("pubDate") or "", max_len=80)
@@ -57,6 +74,22 @@ def fetch_rss_items(query: str, max_items: int) -> list[tuple[str, str, str, str
         if len(rows) >= max_items:
             break
     return rows
+
+
+def parse_pubdate(pub: str) -> datetime:
+    s = (pub or "").strip()
+    if not s:
+        return datetime(1970, 1, 1, tzinfo=timezone.utc)
+    # Typical RFC2822 from Google News RSS
+    for fmt in ("%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z"):
+        try:
+            dt = datetime.strptime(s, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    return datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 def clean_title(t: str) -> str:
@@ -102,7 +135,7 @@ def main() -> int:
     args = parse_args()
     written = 0
     for topic, queries in TOPIC_QUERIES.items():
-        merged: list[tuple[str, str, str, str]] = []
+        merged_all: list[tuple[str, str, str, str]] = []
         seen: set[str] = set()
         for q in queries:
             try:
@@ -113,13 +146,11 @@ def main() -> int:
                 if link in seen:
                     continue
                 seen.add(link)
-                merged.append((title, link, desc, pub))
-                if len(merged) >= args.max_items:
-                    break
-            if len(merged) >= args.max_items:
-                break
-        path = write_topic_daily(topic, args.date, merged[: args.max_items], args.overwrite)
-        print(f"wrote {path.relative_to(ROOT)} items={min(len(merged), args.max_items)}")
+                merged_all.append((title, link, desc, pub))
+        merged_all.sort(key=lambda x: parse_pubdate(x[3]), reverse=True)
+        merged = merged_all[: args.max_items]
+        path = write_topic_daily(topic, args.date, merged, args.overwrite)
+        print(f"wrote {path.relative_to(ROOT)} items={len(merged)}")
         written += 1
     print(f"topics_written={written}")
     return 0

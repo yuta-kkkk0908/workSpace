@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sqlite3
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -49,6 +50,7 @@ def load_env() -> tuple[str, str]:
         os.getenv("DISCORD_SCENARIOS_BOT_TOKEN", "").strip()
         or os.getenv("DISCORD_SCENARIO_BOT_TOKEN", "").strip()
         or os.getenv("DISCORD_BOT_TOKEN", "").strip()
+        or os.getenv("DISCORD_TASKS_BOT_TOKEN", "").strip()
     )
     channel_id = os.getenv("DISCORD_SCENARIO_CHANNEL_ID", "").strip()
     if not token:
@@ -60,6 +62,16 @@ def load_env() -> tuple[str, str]:
 
 def direction_ja(v: str) -> str:
     return {"long": "ロング", "short": "ショート"}.get((v or "").strip(), v or "")
+
+
+def clean_company_name(v: str) -> str:
+    s = (v or "").strip()
+    if not s:
+        return "不明"
+    s = s.replace("ロング", "").replace("ショート", "")
+    s = s.replace("[", " ").replace("]", " ")
+    s = " ".join(s.split()).strip()
+    return s or "不明"
 
 
 def hold_days_ja(v: str) -> str:
@@ -87,7 +99,19 @@ def rationale(row: dict) -> str:
         str(row.get("estimatedWinRate", "") or ""),
     ]
     parts = [p for p in parts if p]
-    return " / ".join(parts) if parts else "根拠情報不足"
+    if parts:
+        return " / ".join(parts)
+    score = row.get("scenarioScore", "")
+    hits = row.get("ruleHitCount", "")
+    src = row.get("candidateSource", "")
+    fallback = []
+    if score != "":
+        fallback.append(f"score={score}")
+    if hits != "":
+        fallback.append(f"ruleHits={hits}")
+    if src:
+        fallback.append(f"source={src}")
+    return " / ".join(fallback) if fallback else "根拠情報不足"
 
 
 def to_message(date_str: str, idx: int, row: dict) -> str:
@@ -97,8 +121,9 @@ def to_message(date_str: str, idx: int, row: dict) -> str:
     entry = row.get("entryLimitRule", "") or "条件未設定（watch観測用）"
     take = row.get("takeProfitRule", "") or "条件未設定（watch観測用）"
     stop = row.get("stopLossRule", "") or "条件未設定（watch観測用）"
+    company = clean_company_name(row.get("company", ""))
     lines = [
-        f"【{date_str} シナリオ #{idx} / {tier_label}】{row.get('ticker','')} {row.get('company','')}",
+        f"【{date_str} シナリオ #{idx} / {tier_label}】{row.get('ticker','')} {company}",
         f"方向: {direction_ja(row.get('direction',''))}",
         f"品質: score={row.get('scenarioScore',0)} / ruleHits={row.get('ruleHitCount',0)} / {row.get('estimatedWinRate','')}",
         f"根拠: {rationale(row)}",
@@ -108,7 +133,7 @@ def to_message(date_str: str, idx: int, row: dict) -> str:
         f"想定保有日数: {hold_days_ja(hold_code)}（{hold_code or 'N/A'}）",
         f"無効化条件: {invalidation(row)}",
         f"補足: ruleHits={row.get('ruleHitCount',0)} / source={row.get('candidateSource','primary')}",
-        "返信コマンド例: entry 100 4022 / entry lots=100 price=4022 / exit tp 4070 / exit reason=sl / cancel",
+        "返信例: entry 100 4022 / entry paper 100 4022 / entry 机上 100 4022 / exit tp 4070 / cancel / credit ng|ok|unknown",
     ]
     if tier != "trade":
         ladder = str(row.get("watchLadder", "") or "").strip()
@@ -118,33 +143,86 @@ def to_message(date_str: str, idx: int, row: dict) -> str:
     return msg[:1900]
 
 
-def post_message(token: str, channel_id: str, content: str) -> dict:
-    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-    body = json.dumps({"content": content}, ensure_ascii=False).encode("utf-8")
+def to_anchor_message(date_str: str, idx: int, row: dict) -> str:
+    tier = str(row.get("scenarioTier", "trade")).upper()
+    side = direction_ja(row.get("direction", ""))
+    company = clean_company_name(row.get("company", ""))
+    score = int(row.get("scenarioScore", 0) or 0)
+    return f"【{date_str} #{idx} / {tier}】{row.get('ticker','')} {company}\n方向: {side} / score={score}\n詳細はスレッド"
+
+
+def to_thread_name(date_str: str, idx: int, row: dict) -> str:
+    tier = str(row.get("scenarioTier", "trade")).upper()
+    company = clean_company_name(row.get("company", ""))
+    base = f"{date_str} #{idx} {row.get('ticker','')} {company} {tier}"
+    return base[:100]
+
+
+def discord_request(token: str, method: str, url: str, payload: dict | None = None) -> dict:
+    body = None
+    headers = {
+        "Authorization": f"Bot {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "aios-scenario-bot/1.0",
+    }
+    if payload is not None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url,
         data=body,
-        method="POST",
-        headers={
-            "Authorization": f"Bot {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "aios-scenario-bot/1.0",
-        },
+        method=method,
+        headers=headers,
     )
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Discord API {method} {url} failed: {e.code} {detail}") from e
 
 
-def upsert_scenario_message(conn: sqlite3.Connection, *, scenario_date: str, scenario_index: int, channel_id: str, message_id: str, row: dict, source_path: str) -> None:
+def post_message(token: str, channel_id: str, content: str) -> dict:
+    return discord_request(
+        token,
+        "POST",
+        f"https://discord.com/api/v10/channels/{channel_id}/messages",
+        {"content": content, "allowed_mentions": {"parse": []}},
+    )
+
+
+def start_thread_from_message(token: str, channel_id: str, message_id: str, name: str) -> dict:
+    return discord_request(
+        token,
+        "POST",
+        f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/threads",
+        {"name": name[:100], "auto_archive_duration": 1440},
+    )
+
+
+def upsert_scenario_message(
+    conn: sqlite3.Connection,
+    *,
+    scenario_date: str,
+    scenario_index: int,
+    channel_id: str,
+    thread_id: str,
+    anchor_message_id: str,
+    message_id: str,
+    row: dict,
+    source_path: str,
+) -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     conn.execute(
         """
         INSERT INTO scenario_messages(
-          scenario_date, scenario_index, channel_id, message_id, ticker, company, direction, scenario_tier, watch_ladder, signal_id, source_path, posted_at, updated_at
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+          scenario_date, scenario_index, channel_id, thread_id, anchor_message_id, message_id, ticker, company, direction, scenario_tier, watch_ladder, signal_id, source_path, posted_at, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ON CONFLICT(message_id) DO UPDATE SET
           scenario_date=excluded.scenario_date,
           scenario_index=excluded.scenario_index,
+          channel_id=excluded.channel_id,
+          thread_id=excluded.thread_id,
+          anchor_message_id=excluded.anchor_message_id,
           ticker=excluded.ticker,
           company=excluded.company,
           direction=excluded.direction,
@@ -158,6 +236,8 @@ def upsert_scenario_message(conn: sqlite3.Connection, *, scenario_date: str, sce
             scenario_date,
             scenario_index,
             channel_id,
+            thread_id,
+            anchor_message_id,
             message_id,
             str(row.get("ticker", "")),
             str(row.get("company", "")),
@@ -172,10 +252,51 @@ def upsert_scenario_message(conn: sqlite3.Connection, *, scenario_date: str, sce
     )
 
 
+def upsert_auto_paper_trade(conn: sqlite3.Connection, row: dict) -> None:
+    if str(row.get("scenarioTier", "trade")) != "trade":
+        return
+    scenario_date = str(row.get("scenarioDate", "") or "")
+    scenario_index = int(row.get("scenarioIndex", 0) or 0)
+    ticker = str(row.get("ticker", "") or "").strip()
+    side = direction_to_side(str(row.get("direction", "") or ""))
+    if not scenario_date or not ticker or scenario_index <= 0:
+        return
+    trade_id = f"paper_auto_{scenario_date.replace('-', '')}_{ticker}_{side}_{scenario_index:02d}"
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    conn.execute(
+        """
+        INSERT INTO paper_trades(
+          trade_id, mode, entry_date, ticker, company, side, lots, entry_style,
+          planned_entry_price, status, signal_id, source_path, updated_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(trade_id) DO UPDATE SET
+          company=excluded.company,
+          planned_entry_price=COALESCE(excluded.planned_entry_price, paper_trades.planned_entry_price),
+          signal_id=excluded.signal_id,
+          source_path=excluded.source_path,
+          updated_at=excluded.updated_at
+        """,
+        (
+            trade_id,
+            "paper",
+            scenario_date,
+            ticker,
+            str(row.get("company", "") or ""),
+            side,
+            1,
+            "auto_scenario",
+            row.get("entryPrice"),
+            "open_pending_outcome",
+            str(row.get("signalId", "") or ""),
+            str(row.get("sourcePath", "") or "db:opening_scenarios"),
+            now,
+        ),
+    )
+
+
 def is_recent_duplicate(
     conn: sqlite3.Connection,
     *,
-    channel_id: str,
     ticker: str,
     direction: str,
     scenario_tier: str,
@@ -187,12 +308,11 @@ def is_recent_duplicate(
         """
         select posted_at
         from scenario_messages
-        where channel_id=?
-          and ticker=?
+        where ticker=?
           and direction=?
           and scenario_tier=?
         """,
-        (channel_id, ticker, direction, scenario_tier),
+        (ticker, direction, scenario_tier),
     ).fetchall()
     if not rows:
         return False
@@ -240,9 +360,29 @@ def main() -> int:
             d = (d0 - timedelta(days=i)).isoformat()
             trade_src = conn.execute(
                 """
-                SELECT scenario_index,ticker,company,direction,scenario_score,rule_hit_count,estimated_winrate_text,
-                       source_url,scenario_tier,signal_id
-                FROM opening_scenarios
+                SELECT scenario_index,ticker,
+                       COALESCE(
+                         NULLIF(TRIM(company),''),
+                         (
+                           SELECT NULLIF(TRIM(s.company),'') FROM signals s
+                           WHERE s.ticker=os.ticker
+                           ORDER BY s.date DESC, s.signal_id DESC LIMIT 1
+                         ),
+                         (
+                           SELECT NULLIF(TRIM(t.company),'') FROM tdnet_disclosures t
+                           WHERE t.ticker=os.ticker AND COALESCE(NULLIF(TRIM(t.company),''),'')<>''
+                           ORDER BY t.date DESC, t.disclosed_at DESC LIMIT 1
+                         ),
+                         (
+                           SELECT NULLIF(TRIM(i.name),'') FROM instruments i
+                           WHERE i.ticker=os.ticker
+                           LIMIT 1
+                         ),
+                         ''
+                       ) AS company,
+                       direction,scenario_score,rule_hit_count,estimated_winrate_text,
+                       entry_price, source_url,scenario_tier,signal_id
+                FROM opening_scenarios os
                 WHERE scenario_date=? AND source_kind='scenario'
                 ORDER BY scenario_index
                 """,
@@ -254,6 +394,8 @@ def main() -> int:
             for r in trade_src:
                 trade_rows.append(
                     {
+                        "scenarioDate": d,
+                        "scenarioIndex": int(r["scenario_index"] or 0),
                         "ticker": r["ticker"] or "",
                         "company": r["company"] or "",
                         "direction": r["direction"] or "",
@@ -261,14 +403,36 @@ def main() -> int:
                         "ruleHitCount": int(r["rule_hit_count"] or 0),
                         "estimatedWinRate": r["estimated_winrate_text"] or "",
                         "sourceUrl": r["source_url"] or "",
+                        "entryPrice": r["entry_price"],
                         "scenarioTier": "trade",
                         "signalId": r["signal_id"] or "",
+                        "sourcePath": "db:opening_scenarios",
                     }
                 )
             rej_src = conn.execute(
                 """
-                SELECT ticker,company,direction,scenario_score,rule_hit_count,estimated_winrate_text
-                FROM opening_scenarios
+                SELECT ticker,
+                       COALESCE(
+                         NULLIF(TRIM(company),''),
+                         (
+                           SELECT NULLIF(TRIM(s.company),'') FROM signals s
+                           WHERE s.ticker=os.ticker
+                           ORDER BY s.date DESC, s.signal_id DESC LIMIT 1
+                         ),
+                         (
+                           SELECT NULLIF(TRIM(t.company),'') FROM tdnet_disclosures t
+                           WHERE t.ticker=os.ticker AND COALESCE(NULLIF(TRIM(t.company),''),'')<>''
+                           ORDER BY t.date DESC, t.disclosed_at DESC LIMIT 1
+                         ),
+                         (
+                           SELECT NULLIF(TRIM(i.name),'') FROM instruments i
+                           WHERE i.ticker=os.ticker
+                           LIMIT 1
+                         ),
+                         ''
+                       ) AS company,
+                       direction,scenario_score,rule_hit_count,estimated_winrate_text
+                FROM opening_scenarios os
                 WHERE scenario_date=? AND source_kind='rejected'
                 ORDER BY scenario_index
                 """,
@@ -277,6 +441,7 @@ def main() -> int:
             for r in rej_src:
                 rejected_rows.append(
                     {
+                        "scenarioDate": d,
                         "ticker": r["ticker"] or "",
                         "company": r["company"] or "",
                         "direction": r["direction"] or "",
@@ -318,9 +483,10 @@ def main() -> int:
     try:
         posted = 0
         for idx, row in enumerate(rows, 1):
+            if not args.dry_run:
+                upsert_auto_paper_trade(conn, row)
             if is_recent_duplicate(
                 conn,
-                channel_id=channel_id,
                 ticker=str(row.get("ticker", "")),
                 direction=str(row.get("direction", "")),
                 scenario_tier=str(row.get("scenarioTier", "trade")),
@@ -331,12 +497,24 @@ def main() -> int:
                 )
                 continue
             content = to_message(args.date, idx, row)
+            anchor = to_anchor_message(args.date, idx, row)
+            thread_name = to_thread_name(args.date, idx, row)
             if args.dry_run:
                 print("----")
+                print(anchor)
+                print("---- thread ----")
                 print(content)
                 continue
-            resp = post_message(token, channel_id, content)
-            message_id = str(resp.get("id", ""))
+            anchor_resp = post_message(token, channel_id, anchor)
+            anchor_message_id = str(anchor_resp.get("id", ""))
+            if not anchor_message_id:
+                continue
+            thread_resp = start_thread_from_message(token, channel_id, anchor_message_id, thread_name)
+            thread_id = str(thread_resp.get("id", ""))
+            if not thread_id:
+                continue
+            detail_resp = post_message(token, thread_id, content)
+            message_id = str(detail_resp.get("id", ""))
             if not message_id:
                 continue
             upsert_scenario_message(
@@ -344,6 +522,8 @@ def main() -> int:
                 scenario_date=args.date,
                 scenario_index=idx,
                 channel_id=channel_id,
+                thread_id=thread_id,
+                anchor_message_id=anchor_message_id,
                 message_id=message_id,
                 row=row,
                 source_path="db:opening_scenarios",

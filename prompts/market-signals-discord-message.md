@@ -1,35 +1,29 @@
 ```text
-シグナル速報 2026-05-20
-- 参照日: 2026-05-20
-- 件数: 6
-- 信用取引不可除外: 0件
+シグナル速報 2026-05-27
+- 参照日: 2026-05-27
+- 件数: 0
+- 信用取引不可除外: 6件
 
-1. 7777  (不明) / 上昇 / L:A- S:該当なし
-  根拠: upward_revision_highest_profit / ruleHits=4
+- 変化なし（N/C）
+
+補完候補（entry_candidates上位）:
+1. 3282 (不明) / long / score=13
+  補完理由: signal不足時の候補提示 / L:A- S:該当なし
+  出典: https://www.release.tdnet.info/inbs/140120260522544935.pdf
+
+2. 6062 (不明) / long / score=13
+  補完理由: signal不足時の候補提示 / L:A- S:該当なし
   出典: 一次情報URL未設定
 
-2. 7673  (不明) / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=4
-  出典: 一次情報URL未設定
+3. 7590 (不明) / short / score=11
+  補完理由: signal不足時の候補提示 / L:C S:A-
+  出典: https://www.release.tdnet.info/inbs/140120260525546529.pdf
 
-3. 7946  (不明) / 上昇 / L:B S:該当なし
-  根拠: unknown / ruleHits=4
-  出典: 一次情報URL未設定
 
-4. 1847  (不明) / 下落 / L:C S:A-
-  根拠: downward_revision_to_loss / ruleHits=4
+参考（信用取引不可で除外）:
+1. 3282 / 除外理由: 信用取引不可
+  出典: https://www.release.tdnet.info/inbs/140120260522544935.pdf
+2. 6062 / 除外理由: 信用取引不可
   出典: 一次情報URL未設定
-
-5. 7214  (不明) / 下落 / L:C S:A-
-  根拠: downward_revision_to_loss / ruleHits=4
-  出典: 一次情報URL未設定
-
-6. 7084  (不明) / 下落 / L:C S:A-
-  根拠: downward_revision_to_loss / ruleHits=4
-  出典: 一次情報URL未設定
-
-VWAP運用（昼）:
-- ロング: 価格がVWAPを下回ったら継続見直し/撤退候補
-- ショート: 価格がVWAPを上回ったら継続見直し/撤退候補
-- VWAP逆行中の追撃・ナンピンは禁止
-```
+3. 7590 / 除外理由: 信用取引不可
+  出典: https://www.release.tdnet.info/inbs/140120260525546529.pdf```

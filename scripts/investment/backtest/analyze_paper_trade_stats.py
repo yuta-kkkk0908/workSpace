@@ -13,7 +13,7 @@ OUT = ROOT / "topics" / "investment-research" / "inbox"
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Analyze paper trade stats by rank/side/horizon")
     p.add_argument("--db", default=str(DEFAULT_DB))
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch", "all"])
+    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch", "paper", "all"])
     p.add_argument("--start-date")
     p.add_argument("--end-date")
     p.add_argument("--out-date", required=True, help="label date for output file")
@@ -139,7 +139,7 @@ def main() -> int:
     if args.mode == "all":
         lines.append("## Mode Comparison")
         lines.append("")
-        for mode in ("backtest", "watch", "live"):
+        for mode in ("backtest", "watch", "live", "paper"):
             subset = [r for r in rows if r["mode"] == mode]
             add_metric_lines(lines, subset, mode)
         lines.append("## Combined")

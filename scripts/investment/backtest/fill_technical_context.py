@@ -362,15 +362,10 @@ def main() -> int:
     args = parser.parse_args()
     output_json = args.output_json or Path(str(DEFAULT_OUTPUT_JSON).format(date=args.date))
     output_md = args.output_md or Path(str(DEFAULT_OUTPUT_MD).format(date=args.date))
-    outcomes.OUTCOME = args.outcome or Path(str(outcomes.DEFAULT_OUTCOME).format(date=args.date))
-    if not outcomes.OUTCOME.exists():
-        print(
-            "[warn] skip fill_technical_context: outcome file not found "
-            f"({outcomes.OUTCOME.relative_to(ROOT)})"
-        )
+    rows = outcomes.parse_outcomes_from_db(args.db, args.date)
+    if not rows:
+        print(f"[warn] skip fill_technical_context: no backtest rows in DB for {args.date}")
         return 0
-
-    rows = outcomes.parse_outcomes()
     price_index = load_price_index()
     price_index = extend_price_index(rows, price_index, cache_only=args.cache_only)
     out_rows = []
@@ -385,6 +380,18 @@ def main() -> int:
             "expected": row.get("expected", "unknown"),
             **ctx,
         })
+    # Deduplicate by (ticker, signalDate) to match DB uniqueness.
+    dedup: dict[tuple[str, str], dict] = {}
+    for r in out_rows:
+        k = (str(r.get("ticker", "")), str(r.get("signalDate", "")))
+        prev = dedup.get(k)
+        if prev is None:
+            dedup[k] = r
+            continue
+        if prev.get("technicalStatus") != "ok" and r.get("technicalStatus") == "ok":
+            dedup[k] = r
+    out_rows = list(dedup.values())
+
     counts = Counter(r.get("technicalPattern", r.get("technicalStatus", "unknown")) for r in out_rows)
     status_counts = Counter(r.get("technicalStatus", "unknown") for r in out_rows)
     output_json.write_text(json.dumps({

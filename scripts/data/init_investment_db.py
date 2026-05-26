@@ -10,6 +10,141 @@ DEFAULT_DB = ROOT / "data" / "investment.db"
 
 SCHEMA = [
     """
+    CREATE TABLE IF NOT EXISTS instruments (
+      ticker TEXT PRIMARY KEY,
+      name TEXT,
+      market TEXT,
+      sector TEXT,
+      credit_eligible TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'derived',
+      updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS facts_price_daily (
+      date TEXT NOT NULL,
+      ticker TEXT NOT NULL,
+      open REAL,
+      high REAL,
+      low REAL,
+      close REAL,
+      volume INTEGER,
+      source_kind TEXT NOT NULL,
+      source_url TEXT,
+      fetched_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(date, ticker)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_facts_price_daily_ticker_date
+      ON facts_price_daily(ticker, date)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS collection_progress (
+      source TEXT NOT NULL,
+      partition_key TEXT NOT NULL,
+      last_date TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      bars_collected INTEGER NOT NULL DEFAULT 0,
+      target_bars INTEGER NOT NULL DEFAULT 0,
+      last_run_at TEXT,
+      error_message TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(source, partition_key)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_collection_progress_source_status
+      ON collection_progress(source, status, updated_at)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS collection_artifacts (
+      artifact_key TEXT NOT NULL,
+      artifact_date TEXT NOT NULL,
+      artifact_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(artifact_key, artifact_date)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_collection_artifacts_type_date
+      ON collection_artifacts(artifact_type, artifact_date)
+    """,
+    """
+    CREATE VIEW IF NOT EXISTS v_price_daily AS
+    SELECT date,ticker,open,high,low,close,volume,source_kind,source_url,fetched_at,updated_at
+    FROM facts_price_daily
+    """,
+    """
+    CREATE VIEW IF NOT EXISTS v_signal_candidates AS
+    SELECT
+      s.date,
+      s.signal_id,
+      s.ticker,
+      s.company,
+      s.signal_type,
+      s.expected_direction,
+      s.long_rank,
+      s.short_rank,
+      s.gate_status,
+      e.side,
+      e.candidate_type,
+      e.score
+    FROM signals s
+    LEFT JOIN entry_candidates e
+      ON e.date=s.date AND e.signal_id=s.signal_id
+    """,
+    """
+    CREATE VIEW IF NOT EXISTS v_collection_status AS
+    SELECT source,partition_key,last_date,status,bars_collected,target_bars,last_run_at,error_message,updated_at
+    FROM collection_progress
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS raw_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_hash TEXT NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_url TEXT,
+      event_time TEXT,
+      ticker TEXT,
+      ingest_date TEXT NOT NULL,
+      fetched_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      source_path TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(source_kind, event_hash)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_raw_events_ingest_date
+      ON raw_events(ingest_date)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_raw_events_ticker_date
+      ON raw_events(ticker, ingest_date)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS observations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      obs_date TEXT NOT NULL,
+      obs_time TEXT,
+      ticker TEXT,
+      sector TEXT,
+      tag TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'manual_observation',
+      source_url TEXT,
+      note TEXT NOT NULL,
+      payload_json TEXT,
+      updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_observations_date_ticker
+      ON observations(obs_date, ticker)
+    """,
+    """
     CREATE TABLE IF NOT EXISTS ingest_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       run_at TEXT NOT NULL,
@@ -53,6 +188,7 @@ SCHEMA = [
       material_signal_checked TEXT,
       external_context_checked TEXT,
       technical_signal_checked TEXT,
+      payload_json TEXT,
       source_path TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY(signal_id, date)
@@ -77,6 +213,7 @@ SCHEMA = [
       technical_signal_checked TEXT,
       score INTEGER,
       url TEXT,
+      payload_json TEXT,
       source_path TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY(date, side, candidate_type, signal_id)
@@ -112,6 +249,10 @@ SCHEMA = [
     CREATE UNIQUE INDEX IF NOT EXISTS ux_backtest_outcomes_identity
       ON backtest_outcomes(source_signal_id, signal_date, signal_type)
       WHERE COALESCE(source_signal_id,'')<>'' AND COALESCE(signal_date,'')<>'' AND COALESCE(signal_type,'')<>''
+    """,
+    """
+    CREATE UNIQUE INDEX IF NOT EXISTS ux_entry_candidates_identity
+      ON entry_candidates(date, side, candidate_type, signal_id)
     """,
     """
     CREATE TABLE IF NOT EXISTS rule_dashboard_rows (
@@ -191,6 +332,8 @@ SCHEMA = [
       scenario_date TEXT NOT NULL,
       scenario_index INTEGER NOT NULL,
       channel_id TEXT NOT NULL,
+      thread_id TEXT,
+      anchor_message_id TEXT,
       message_id TEXT NOT NULL,
       ticker TEXT,
       company TEXT,
@@ -258,6 +401,26 @@ SCHEMA = [
       source_path TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY(scenario_date, scenario_index, source_kind)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS scenario_gate_diagnostics (
+      scenario_date TEXT NOT NULL,
+      signal_id TEXT NOT NULL DEFAULT '',
+      ticker TEXT NOT NULL,
+      direction TEXT NOT NULL,
+      candidate_source TEXT,
+      scenario_tier TEXT,
+      scenario_score INTEGER,
+      rule_hit_count INTEGER,
+      estimated_winrate_value REAL,
+      gate_result TEXT NOT NULL,
+      reject_reasons_json TEXT,
+      gate_thresholds_json TEXT,
+      payload_json TEXT,
+      source_path TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(scenario_date, ticker, direction, gate_result, signal_id)
     )
     """,
     """
@@ -445,6 +608,61 @@ SCHEMA = [
       PRIMARY KEY(date,ticker,signal_date)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS tdnet_disclosures (
+      date TEXT NOT NULL,
+      disclosed_at TEXT,
+      ticker TEXT NOT NULL,
+      company TEXT,
+      title TEXT,
+      category TEXT,
+      tdnet_url TEXT,
+      source_kind TEXT NOT NULL DEFAULT 'tdnet_web',
+      source_path TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(date,ticker,title,tdnet_url)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS credit_status_rows (
+      date TEXT NOT NULL,
+      ticker TEXT NOT NULL,
+      credit_status TEXT NOT NULL,
+      buy_status TEXT,
+      sell_status TEXT,
+      source_kind TEXT NOT NULL,
+      source_detail TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(date,ticker)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS signal_type_coverage_rows (
+      date TEXT NOT NULL,
+      window_days INTEGER NOT NULL,
+      signal_type TEXT NOT NULL,
+      signal_count INTEGER NOT NULL,
+      is_material INTEGER NOT NULL DEFAULT 0,
+      is_shortage INTEGER NOT NULL DEFAULT 0,
+      min_material_count INTEGER NOT NULL DEFAULT 0,
+      source_path TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(date, window_days, signal_type)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS discord_task_events (
+      message_id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL,
+      author_id TEXT NOT NULL,
+      raw_content TEXT NOT NULL,
+      command_name TEXT,
+      command_args_json TEXT,
+      status TEXT NOT NULL,
+      result_json TEXT,
+      processed_at TEXT NOT NULL
+    )
+    """,
 ]
 
 
@@ -475,6 +693,7 @@ def main() -> int:
             ("signals", "material_signal_checked", "TEXT"),
             ("signals", "external_context_checked", "TEXT"),
             ("signals", "technical_signal_checked", "TEXT"),
+            ("signals", "payload_json", "TEXT"),
             ("entry_candidates", "candidate_type", "TEXT"),
             ("entry_candidates", "long_rank", "TEXT"),
             ("entry_candidates", "short_rank", "TEXT"),
@@ -484,6 +703,7 @@ def main() -> int:
             ("entry_candidates", "technical_signal_checked", "TEXT"),
             ("entry_candidates", "score", "INTEGER"),
             ("entry_candidates", "url", "TEXT"),
+            ("entry_candidates", "payload_json", "TEXT"),
             ("backtest_outcomes", "disclosure_category_label_ja", "TEXT"),
             ("backtest_outcomes", "signal_type_label_ja", "TEXT"),
             ("backtest_outcomes", "expected_direction_label_ja", "TEXT"),
@@ -502,6 +722,14 @@ def main() -> int:
             ("paper_trades", "exit_reason", "TEXT"),
             ("scenario_messages", "scenario_tier", "TEXT"),
             ("scenario_messages", "watch_ladder", "TEXT"),
+            ("scenario_messages", "thread_id", "TEXT"),
+            ("scenario_messages", "anchor_message_id", "TEXT"),
+            ("collection_progress", "bars_collected", "INTEGER NOT NULL DEFAULT 0"),
+            ("collection_progress", "target_bars", "INTEGER NOT NULL DEFAULT 0"),
+            ("collection_progress", "last_run_at", "TEXT"),
+            ("collection_progress", "error_message", "TEXT"),
+            ("credit_status_rows", "buy_status", "TEXT"),
+            ("credit_status_rows", "sell_status", "TEXT"),
         ]
         for table, col, typ in migrations:
             try:

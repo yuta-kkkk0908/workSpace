@@ -13,7 +13,7 @@ OUT = ROOT / "topics" / "investment-research" / "inbox"
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Analyze practical exit timing hints from paper_trades")
     p.add_argument("--db", default=str(DEFAULT_DB))
-    p.add_argument("--mode", default="all", choices=["backtest", "live", "watch", "all"])
+    p.add_argument("--mode", default="all", choices=["backtest", "live", "watch", "paper", "all"])
     p.add_argument("--start-date")
     p.add_argument("--end-date")
     p.add_argument("--out-date", required=True)
@@ -104,7 +104,7 @@ def main() -> int:
     ]
     if args.mode == "all":
         lines.extend(["## Mode Comparison", ""])
-        for m in ("backtest", "watch", "live"):
+        for m in ("backtest", "watch", "live", "paper"):
             append_mode_block(lines, m, [r for r in rows if r["mode"] == m])
         lines.extend(["## Combined", ""])
         append_mode_block(lines, "all", rows)

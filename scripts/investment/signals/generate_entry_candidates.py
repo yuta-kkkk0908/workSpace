@@ -89,15 +89,42 @@ def gate_pass(v: str) -> bool:
     return (v or "").strip().lower() == "pass"
 
 
+def gate_hold(v: str) -> bool:
+    s = (v or "").strip().lower()
+    return s.startswith("hold")
+
+
+def gate_watch_block(v: str) -> bool:
+    s = (v or "").strip().lower()
+    # Keep watch candidates when credit status is just unknown.
+    if s in {"hold_credit_unknown", "hold_borrow_unknown"}:
+        return False
+    # Hard block for clearly non-tradable statuses.
+    hard_tokens = ("non_margin", "credit_unavailable", "borrow_unavailable")
+    return any(tok in s for tok in hard_tokens)
+
+
+def rank_bucket(v: str) -> str:
+    r = (v or "").strip().upper()
+    if not r:
+        return ""
+    if r.startswith("A"):
+        return "A"
+    if r.startswith("B"):
+        return "B"
+    if r.startswith("C"):
+        return "C"
+    return r
+
+
 def score_long(row: dict[str, str]) -> int:
     s = 0
-    if row.get("longSignalRank") == "A":
+    rb = rank_bucket(row.get("longSignalRank", ""))
+    if rb == "A":
         s += 6
-    elif row.get("longSignalRank", "").startswith("A"):
-        s += 5
-    elif row.get("longSignalRank") == "B":
+    elif rb == "B":
         s += 4
-    elif row.get("longSignalRank") == "C":
+    elif rb == "C":
         s += 2
     if row.get("expectedDirection") in {"up", "up_watch"}:
         s += 2
@@ -114,13 +141,12 @@ def score_long(row: dict[str, str]) -> int:
 
 def score_short(row: dict[str, str]) -> int:
     s = 0
-    if row.get("shortSignalRank") == "A":
+    rb = rank_bucket(row.get("shortSignalRank", ""))
+    if rb == "A":
         s += 6
-    elif row.get("shortSignalRank", "").startswith("A"):
-        s += 5
-    elif row.get("shortSignalRank") == "B":
+    elif rb == "B":
         s += 4
-    elif row.get("shortSignalRank") == "C":
+    elif rb == "C":
         s += 2
     if row.get("expectedDirection") in {"down", "down_watch"}:
         s += 2
@@ -138,7 +164,9 @@ def score_short(row: dict[str, str]) -> int:
 def pick_long(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for r in rows:
-        if r.get("longSignalRank") in {"A", "B"} and r.get("expectedDirection") in {"up", "up_watch"}:
+        if gate_hold(r.get("gateStatus", "")):
+            continue
+        if rank_bucket(r.get("longSignalRank", "")) in {"A", "B"} and r.get("expectedDirection") in {"up", "up_watch"}:
             e = to_entry(r)
             e["candidateType"] = "primary"
             e["score"] = str(score_long(r))
@@ -150,7 +178,9 @@ def pick_long(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
 def pick_short(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for r in rows:
-        if r.get("shortSignalRank") in {"A", "B"} and r.get("expectedDirection") in {"down", "down_watch"}:
+        if gate_hold(r.get("gateStatus", "")):
+            continue
+        if rank_bucket(r.get("shortSignalRank", "")) in {"A", "B"} and r.get("expectedDirection") in {"down", "down_watch"}:
             e = to_entry(r)
             e["candidateType"] = "primary"
             e["score"] = str(score_short(r))
@@ -162,10 +192,12 @@ def pick_short(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
 def pick_watch_long(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for r in rows:
+        if gate_watch_block(r.get("gateStatus", "")):
+            continue
         # Relaxed: allow C when confirmation/gate exists.
         if r.get("expectedDirection") not in {"up", "up_watch"}:
             continue
-        lr = r.get("longSignalRank", "")
+        lr = rank_bucket(r.get("longSignalRank", ""))
         if lr not in {"A", "B", "C"}:
             continue
         if lr == "C" and not (gate_pass(r.get("gateStatus", "")) or yes(r.get("materialSignalChecked", ""))):
@@ -181,9 +213,11 @@ def pick_watch_long(rows: list[dict[str, str]], max_n: int) -> list[dict[str, st
 def pick_watch_short(rows: list[dict[str, str]], max_n: int) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for r in rows:
+        if gate_watch_block(r.get("gateStatus", "")):
+            continue
         if r.get("expectedDirection") not in {"down", "down_watch"}:
             continue
-        sr = r.get("shortSignalRank", "")
+        sr = rank_bucket(r.get("shortSignalRank", ""))
         if sr not in {"A", "B", "C"}:
             continue
         if sr == "C" and not (gate_pass(r.get("gateStatus", "")) or yes(r.get("materialSignalChecked", ""))):
@@ -308,7 +342,7 @@ def main() -> int:
                         r.get("technicalSignalChecked", ""),
                         int(r.get("score", "0") or 0),
                         r.get("url", ""),
-                        str(out_json.relative_to(ROOT)),
+                        "db:signals",
                     ),
                 )
         upsert("long", "primary", long_entries)

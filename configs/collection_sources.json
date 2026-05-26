@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-21T00:00:00+09:00",
+  "sources": [
+    {
+      "source": "tdnet",
+      "purpose": "disclosure_events",
+      "priority": 1,
+      "freshness_sla": "same_day",
+      "daily_limit": 1000,
+      "retry_max": 3,
+      "notes": "primary for disclosure metadata"
+    },
+    {
+      "source": "jpx_daily",
+      "purpose": "exchange_daily_stats_manifest",
+      "priority": 2,
+      "freshness_sla": "daily",
+      "daily_limit": 300,
+      "retry_max": 3,
+      "notes": "collect HTML manifest links; CSV/Excel preferred, PDF backfill lane"
+    },
+    {
+      "source": "kabutan_surprise",
+      "purpose": "secondary_signal_discovery",
+      "priority": 3,
+      "freshness_sla": "daily",
+      "daily_limit": 200,
+      "retry_max": 3,
+      "notes": "secondary source for event-driven seed discovery"
+    },
+    {
+      "source": "kabutan_short",
+      "purpose": "secondary_short_signal_discovery",
+      "priority": 4,
+      "freshness_sla": "daily",
+      "daily_limit": 200,
+      "retry_max": 3,
+      "notes": "secondary source for short-side seed discovery"
+    },
+    {
+      "source": "price_backfill_yahoo",
+      "purpose": "daily_ohlcv_history",
+      "priority": 5,
+      "freshness_sla": "daily",
+      "daily_limit": 1000,
+      "retry_max": 3,
+      "notes": "populate facts_price_daily with progress-based backfill"
+    },
+    {
+      "source": "manual_observation",
+      "purpose": "qualitative_context",
+      "priority": 6,
+      "freshness_sla": "ad_hoc",
+      "daily_limit": 100,
+      "retry_max": 1,
+      "notes": "manual notes ingestion to observations table"
+    }
+  ]
+}
+

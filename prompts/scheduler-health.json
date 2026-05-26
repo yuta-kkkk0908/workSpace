@@ -1,50 +1,55 @@
 {
-  "generatedAt": "2026-05-20T08:00:19+09:00",
+  "generatedAt": "2026-05-26T21:20:04+09:00",
   "lookbackHours": 48,
   "status": "ALERT",
   "alerts": [
-    "AIOS-Night: ERROR 1件",
-    "AIOS-Inv-Evening: ERROR 1件"
+    "AIOS-Inv-Morning: ERROR 2件",
+    "AIOS-Inv-Noon: ERROR 2件",
+    "AIOS-Inv-Evening: ERROR 1件",
+    "AIOS-Inv-Scenario-0810: ERROR 1件"
   ],
-  "warnings": [],
+  "warnings": [
+    "discord-generic.log: 更新遅延 2896分",
+    "discord-scenario.log: 更新遅延 5697分"
+  ],
   "tasks": {
     "AIOS-Night": {
-      "start_count": 2,
+      "start_count": 1,
       "ok_count": 1,
-      "error_count": 1,
-      "last_event": "[2026-05-19 21:00:39] [AIOS-Night] [ERROR] exit_code=1"
+      "error_count": 0,
+      "last_event": "[2026-05-26 21:00:01] [AIOS-Night] [START] begin file=E:\\workSpace\\scripts\\ops\\do_night_and_post_generic.ps1"
     },
     "AIOS-Inv-Morning": {
       "start_count": 2,
-      "ok_count": 2,
-      "error_count": 0,
-      "last_event": "[2026-05-20 07:31:38] [AIOS-Inv-Morning] [OK] exit_code=0"
+      "ok_count": 0,
+      "error_count": 2,
+      "last_event": "[2026-05-26 07:33:22] [AIOS-Inv-Morning] [ERROR] exit_code=1"
     },
     "AIOS-Inv-Noon": {
-      "start_count": 2,
-      "ok_count": 2,
-      "error_count": 0,
-      "last_event": "[2026-05-19 12:10:04] [AIOS-Inv-Noon] [OK] exit_code=0"
+      "start_count": 1,
+      "ok_count": 0,
+      "error_count": 2,
+      "last_event": "[2026-05-26 19:16:02] [AIOS-Inv-Noon] [ERROR] exit_code=1"
     },
     "AIOS-Inv-Evening": {
-      "start_count": 2,
-      "ok_count": 1,
+      "start_count": 0,
+      "ok_count": 0,
       "error_count": 1,
-      "last_event": "[2026-05-19 21:12:00] [AIOS-Inv-Evening] [ERROR] exit_code=1"
+      "last_event": "[2026-05-26 00:53:28] [AIOS-Inv-Evening] [ERROR] exit_code=1"
     },
     "AIOS-Inv-Scenario-0810": {
       "start_count": 2,
-      "ok_count": 2,
-      "error_count": 0,
-      "last_event": "[2026-05-19 08:10:04] [AIOS-Inv-Scenario-0810] [OK] exit_code=0"
+      "ok_count": 1,
+      "error_count": 1,
+      "last_event": "[2026-05-26 08:10:06] [AIOS-Inv-Scenario-0810] [ERROR] exit_code=1"
     }
   },
   "freshnessMinutes": {
-    "discord-signal.log": 28.704855916666666,
-    "discord-generic.log": 2099.63818925,
-    "discord-scenario.log": 1430.25222845,
-    "discord-paper-stats.log": 2089.71670615
+    "discord-signal.log": 124.05549575,
+    "discord-generic.log": 2896.10549575,
+    "discord-scenario.log": 5696.92227135,
+    "discord-paper-stats.log": 5.959883416666667
   },
-  "taskLog": "logs/task-scheduler.log",
+  "taskLog": "logs\\task-scheduler.log",
   "recommendedKeyword": "投資補完"
 }

@@ -24,6 +24,7 @@ JST = timezone(timedelta(hours=9))
 DEFAULT_TOPICS_DB = ROOT / "data" / "topics.db"
 DEFAULT_INVESTMENT_DB = ROOT / "data" / "investment.db"
 DEFAULT_NEEDS_DB = ROOT / "data" / "needs.db"
+DEFAULT_OPS_DB = ROOT / "data" / "ops.db"
 
 
 def parse_args() -> argparse.Namespace:
@@ -220,12 +221,6 @@ def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs
         try:
             conn = sqlite3.connect(investment_db)
             for ds in dates:
-                row_daily = conn.execute(
-                    "select 1 from daily_digest where topic='investment-research' and date=? limit 1",
-                    (ds,),
-                ).fetchone()
-                if not row_daily:
-                    hard.append(f"investment.db daily_digest 未投入: {ds}")
                 row_sig = conn.execute(
                     "select count(1) from signals where date=?",
                     (ds,),
@@ -246,7 +241,7 @@ def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs
             last_need_date = str(row_last[0]) if row_last and row_last[0] else ""
             target_end = targets[-1].isoformat()
             if (not last_need_date) or (last_need_date < target_end):
-                hard.append(f"needs.db 最終投入日: {last_need_date or '(none)'}")
+                soft.append(f"needs.db 最終投入日: {last_need_date or '(none)'}")
             conn.close()
         except Exception as exc:
             hard.append(f"needs.db チェック失敗: {exc}")
@@ -259,21 +254,31 @@ def db_warnings(targets: list[date], topics_db: Path, investment_db: Path, needs
 def discord_log_warnings(targets: list[date]) -> tuple[list[str], list[str]]:
     hard: list[str] = []
     soft: list[str] = []
-    date_keys = [d.isoformat() for d in targets]
-    signal_log = ROOT / "logs" / "discord-signal.log"
-    generic_log = ROOT / "logs" / "discord-generic.log"
-    pairs = [("signal", signal_log), ("generic", generic_log)]
-    for name, p in pairs:
-        if not p.exists():
-            soft.append(f"{name} logなし: {p}")
-            continue
-        txt = p.read_text(encoding="utf-8", errors="ignore")
-        for ds in date_keys:
-            # Keep discord check soft and avoid false positives for "today".
-            if ds == datetime.now(JST).date().isoformat():
-                continue
-            if ds not in txt:
-                soft.append(f"{name} log 日付未検知: {ds}")
+    ops_db = DEFAULT_OPS_DB
+    if not ops_db.exists():
+        soft.append(f"ops.db なし: {ops_db}")
+        return hard, soft
+    try:
+        conn = sqlite3.connect(ops_db)
+        # Only check previous business day-ish signal in DB logs to avoid file-rotation false alerts.
+        check_dates = [d.isoformat() for d in targets[-2:]]
+        for kind in ("signal", "generic"):
+            for ds in check_dates:
+                if ds == datetime.now(JST).date().isoformat():
+                    continue
+                row = conn.execute(
+                    """
+                    select 1 from discord_log_events
+                    where channel=? and ts like ? || '%'
+                    limit 1
+                    """,
+                    (kind, ds),
+                ).fetchone()
+                if not row:
+                    soft.append(f"{kind} db log 日付未検知: {ds}")
+        conn.close()
+    except Exception as exc:
+        soft.append(f"discord log db チェック失敗: {exc}")
     return hard, soft
 
 

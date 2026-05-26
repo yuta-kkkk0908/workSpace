@@ -18,6 +18,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--date", default=datetime.now(JST).strftime("%Y-%m-%d"))
     p.add_argument("--db", type=Path, default=DEFAULT_DB)
     p.add_argument("--output", type=Path, default=None)
+    # Backward compatibility: older schedulers pass this flag.
+    p.add_argument("--db-only", action="store_true")
     return p.parse_args()
 
 

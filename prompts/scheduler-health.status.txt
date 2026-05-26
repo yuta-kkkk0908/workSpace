@@ -1,7 +1,11 @@
-Scheduler Health 2026-05-20 (daily)
+Scheduler Health 2026-05-26 (daily)
 - status: ALERT
-- AIOS-Night: ERROR 1件
+- AIOS-Inv-Morning: ERROR 2件
+- AIOS-Inv-Noon: ERROR 2件
 - AIOS-Inv-Evening: ERROR 1件
+- AIOS-Inv-Scenario-0810: ERROR 1件
+- discord-generic.log: 更新遅延 2896分
+- discord-scenario.log: 更新遅延 5697分
 - 推奨キーワード: 投資補完
 - 実行: python scripts/ops/keyword_action.py <推奨キーワード>
-- metrics: prompts/scheduler-health.json
+- metrics: prompts\scheduler-health.json

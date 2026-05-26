@@ -1,28 +1,35 @@
 {
-  "date": "2026-05-20",
+  "date": "2026-05-27",
   "path": "db:signals",
   "exists": true,
   "signalCount": 6,
-  "upCount": 3,
-  "downCount": 3,
+  "upCount": 2,
+  "downCount": 4,
   "newMaterialCount": 0,
   "tickers": [
-    "7777",
-    "7673",
-    "7946",
-    "1847",
-    "7214",
-    "7084"
+    "3282",
+    "6062",
+    "7590",
+    "2590",
+    "6034",
+    "3823"
   ],
+  "gatePassCount": 2,
+  "gateHoldCount": 4,
+  "gateHoldBreakdown": {
+    "hold_credit_unknown": 4
+  },
+  "longABCount": 2,
+  "shortABCount": 4,
+  "quality3YesCount": 6,
   "openingScenariosPath": "db:opening_scenarios",
-  "openingScenariosDate": "2026-05-20",
+  "openingScenariosDate": "2026-05-27",
   "tradeScenarioCount": 0,
-  "watchScenarioCount": 1,
-  "watchShare": 1.0,
+  "watchScenarioCount": 0,
+  "watchShare": 0.0,
   "status": "ALERT",
   "alerts": [
-    "当日材料の新規シグナルが0件",
-    "tradeシナリオが0件（watch偏重）",
-    "watch比率が高い: watchShare=100% > 70%"
-  ]
+    "当日材料の新規シグナルが0件"
+  ],
+  "inferredRootCause": "OK"
 }

@@ -26,6 +26,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-rule-hits", type=int, default=5, help="minimum rule hit count for publish gate")
     p.add_argument("--min-score", type=int, default=70, help="minimum scenarioScore for publish gate")
     p.add_argument("--min-winrate", type=float, default=50.0, help="minimum estimated winrate for publish gate")
+    p.add_argument("--min-winrate-samples", type=int, default=1, help="minimum sample count required for trade tier")
+    p.add_argument("--min-winrate-samples-soft", type=int, default=3, help="sample count where winrate is treated as stable (display/penalty use)")
+    p.add_argument("--n1-min-score", type=int, default=90, help="minimum score for n=1 trade allowance")
+    p.add_argument("--n1-min-winrate", type=float, default=70.0, help="minimum winrate for n=1 trade allowance")
     p.add_argument("--allow-unknown-winrate", action="store_true", help="allow scenarios with unknown winrate (for testing/backfill phases)")
     p.add_argument("--auto-relax-gate", action="store_true", help="auto relax quality gate only when accepted scenarios are insufficient")
     p.add_argument("--auto-relax-steps", type=int, default=3, help="max relax attempts when auto-relax-gate is enabled")
@@ -163,6 +167,18 @@ def load_ticker_context_from_db(db_path: Path, date_str: str, fallback_days: int
                     continue
                 out.setdefault(tt, {})["sector"] = str(sec or "").strip()
 
+            credit_rows = conn.execute(
+                "SELECT ticker, credit_status, buy_status, sell_status FROM credit_status_rows WHERE date=?",
+                (d,),
+            ).fetchall()
+            for t, cs, buy_s, sell_s in credit_rows:
+                tt = str(t or "").strip()
+                if not tt:
+                    continue
+                out.setdefault(tt, {})["borrow_status"] = str(cs or "").strip()
+                out.setdefault(tt, {})["buy_status"] = str(buy_s or "").strip()
+                out.setdefault(tt, {})["sell_status"] = str(sell_s or "").strip()
+
             bor_rows = conn.execute(
                 "SELECT ticker, borrow_status FROM short_readiness_rows WHERE date=?",
                 (d,),
@@ -170,6 +186,10 @@ def load_ticker_context_from_db(db_path: Path, date_str: str, fallback_days: int
             for t, bor in bor_rows:
                 tt = str(t or "").strip()
                 if not tt:
+                    continue
+                cur = out.setdefault(tt, {}).get("borrow_status", "")
+                # Keep manual credit feedback as highest priority.
+                if str(cur).startswith("manual_"):
                     continue
                 out.setdefault(tt, {})["borrow_status"] = str(bor or "").strip()
             if out:
@@ -179,12 +199,29 @@ def load_ticker_context_from_db(db_path: Path, date_str: str, fallback_days: int
         conn.close()
 
 
-def is_non_marginable(borrow_status: str) -> bool:
-    s = (borrow_status or "").strip().lower()
+def _is_blocked_status(v: str) -> bool:
+    s = (v or "").strip().lower()
     if not s or s == "unknown":
+        return True
+    if s in {"ok", "manual_marginable"}:
+        return False
+    if s in {"ng", "manual_non_marginable", "manual_unknown"}:
         return True
     bad_tokens = ["不可", "対象外", "なし", "no", "ng", "×", "✕", "x"]
     return any(tok in s for tok in bad_tokens)
+
+
+def is_non_marginable_for_direction(direction: str, borrow_status: str, buy_status: str = "", sell_status: str = "") -> bool:
+    dir_s = (direction or "").strip().lower()
+    if dir_s == "short":
+        # Short must satisfy sell availability.
+        if (sell_status or "").strip():
+            return _is_blocked_status(sell_status)
+        return _is_blocked_status(borrow_status)
+    # Long should be judged by buy availability.
+    if (buy_status or "").strip():
+        return _is_blocked_status(buy_status)
+    return _is_blocked_status(borrow_status)
 
 
 def load_rule_rows_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[list[dict], str | None]:
@@ -279,6 +316,7 @@ def build_rule_context(rule_rows: list[dict], side: str) -> dict:
         "summary": f"{top.get('bucket','')} / status={top.get('status','')} / n={top.get('appearances','')} / T+1 {top.get('t1','')} / T+5 {top.get('t5','')} / T+20 {top.get('t20','')}",
         "status": top.get("status", ""),
         "bucket": top.get("bucket", ""),
+        "appearances": int(top.get("appearances") or 0),
         "t1": top.get("t1", ""),
         "t5": top.get("t5", ""),
         "t20": top.get("t20", ""),
@@ -317,7 +355,8 @@ def parse_wr(text: str) -> float | None:
         return None
 
 
-def pick_horizon_by_wr(rule_ctx: dict) -> tuple[str, str, float | None]:
+def pick_horizon_by_wr(rule_ctx: dict, min_samples: int = 3) -> tuple[str, str, float | None]:
+    n = int(rule_ctx.get("appearances") or 0)
     wr1 = parse_wr(rule_ctx.get("t1", ""))
     wr5 = parse_wr(rule_ctx.get("t5", ""))
     wr20 = parse_wr(rule_ctx.get("t20", ""))
@@ -327,6 +366,8 @@ def pick_horizon_by_wr(rule_ctx: dict) -> tuple[str, str, float | None]:
         return ("T+1", "勝率目安データ不足", None)
     best = max(cand, key=lambda x: x[1])
     verdict = "50%超" if best[1] >= 50.0 else "50%未満"
+    if n < max(1, min_samples):
+        return (best[0], f"{best[0]}想定勝率={best[1]:.1f}%（参考値 n={n}）", float(best[1]))
     return (best[0], f"{best[0]}想定勝率={best[1]:.1f}%（{verdict}）", float(best[1]))
 
 
@@ -469,6 +510,7 @@ def scenario_for_row(
     rule_hits = quality_hit_count(row, signal_meta)
     horizon_code, win_text, win_value = pick_horizon_by_wr(rule_ctx)
     score = scenario_score(row, signal_meta, rule_ctx, rule_hits, win_value, board_available)
+    sample_count = int(rule_ctx.get("appearances") or 0)
     skip_conditions = [
         invalidation_text(direction),
         "寄り直後の出来高が細い/気配が飛ぶ場合は見送り",
@@ -492,6 +534,7 @@ def scenario_for_row(
         "ruleReproducibility": rule_ctx.get("summary", ""),
         "ruleStatus": rule_ctx.get("status", ""),
         "ruleHitCount": rule_hits,
+        "ruleSampleCount": sample_count,
         "scenarioScore": score,
         "suggestedHorizon": horizon_code,
         "estimatedWinRate": win_text,
@@ -501,6 +544,7 @@ def scenario_for_row(
         "rationale": rationale,
         "sourceUrl": row.get("url", ""),
         "candidateSource": row.get("candidateSource", "primary"),
+        "borrowStatus": row.get("borrowStatus", ""),
     }
 
 
@@ -578,6 +622,8 @@ def main() -> int:
         ctx = ticker_ctx.get(str(r.get("ticker", "")).strip(), {})
         r["sector"] = ctx.get("sector", "")
         r["borrowStatus"] = ctx.get("borrow_status", "")
+        r["buyStatus"] = ctx.get("buy_status", "")
+        r["sellStatus"] = ctx.get("sell_status", "")
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -592,6 +638,8 @@ def main() -> int:
         ctx = ticker_ctx.get(str(r.get("ticker", "")).strip(), {})
         r["sector"] = ctx.get("sector", "")
         r["borrowStatus"] = ctx.get("borrow_status", "")
+        r["buyStatus"] = ctx.get("buy_status", "")
+        r["sellStatus"] = ctx.get("sell_status", "")
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -613,6 +661,9 @@ def main() -> int:
                 reasons.append(f"ruleHits<{min_rule_hits}")
             if int(s.get("scenarioScore") or 0) < min_score:
                 reasons.append(f"score<{min_score}")
+            sample_n = int(s.get("ruleSampleCount") or 0)
+            if sample_n < max(0, int(args.min_winrate_samples)):
+                reasons.append(f"sampleCount<{int(args.min_winrate_samples)}")
             wv = s.get("estimatedWinRateValue")
             if isinstance(wv, (int, float)):
                 if float(wv) < float(min_winrate):
@@ -620,7 +671,29 @@ def main() -> int:
             else:
                 if not args.allow_unknown_winrate:
                     reasons.append("winRate_unknown")
+            # n=1 exceptional allowance: keep possibility when score+winrate are clearly strong.
+            if sample_n == 1:
+                strong_n1 = (
+                    int(s.get("scenarioScore") or 0) >= int(args.n1_min_score)
+                    and isinstance(wv, (int, float))
+                    and float(wv) >= float(args.n1_min_winrate)
+                )
+                if not strong_n1:
+                    reasons.append(f"n1_not_strong(score>={int(args.n1_min_score)}&wr>={float(args.n1_min_winrate):.1f}%)")
             if reasons:
+                # Manual operator override: if credit is explicitly marked marginable,
+                # allow trade-tier pass when score/hits are not critically low.
+                if str(s.get("borrowStatus", "")).strip().lower() == "manual_marginable":
+                    score_now = int(s.get("scenarioScore") or 0)
+                    hits_now = int(s.get("ruleHitCount") or 0)
+                    sample_now = int(s.get("ruleSampleCount") or 0)
+                    if sample_now >= max(1, int(args.min_winrate_samples)) and score_now >= max(args.soft_min_score, 50) and hits_now >= max(args.soft_min_rule_hits, 2):
+                        x = dict(s)
+                        x["scenarioTier"] = "trade"
+                        x["manualCreditOverride"] = True
+                        x["manualCreditOverrideReasons"] = reasons
+                        accepted_local.append(x)
+                        continue
                 if args.soft_gate:
                     score_now = int(s.get("scenarioScore") or 0)
                     hits_now = int(s.get("ruleHitCount") or 0)
@@ -704,7 +777,9 @@ def main() -> int:
         borrow_status = str(src_row.get("borrowStatus", "")).strip()
         if not borrow_status:
             borrow_status = ticker_ctx.get(ticker, {}).get("borrow_status", "")
-        if is_non_marginable(borrow_status):
+        buy_status = str(src_row.get("buyStatus", "")).strip() or str(ticker_ctx.get(ticker, {}).get("buy_status", "")).strip()
+        sell_status = str(src_row.get("sellStatus", "")).strip() or str(ticker_ctx.get(ticker, {}).get("sell_status", "")).strip()
+        if is_non_marginable_for_direction(str(s.get("direction", "")), borrow_status, buy_status, sell_status):
             margin_rejected.append(
                 {
                     "ticker": ticker,
@@ -713,7 +788,7 @@ def main() -> int:
                     "scenarioScore": s.get("scenarioScore", 0),
                     "ruleHitCount": s.get("ruleHitCount", 0),
                     "estimatedWinRate": s.get("estimatedWinRate", ""),
-                    "rejectReasons": [f"credit_unavailable:{borrow_status}"],
+                    "rejectReasons": [f"credit_unavailable:base={borrow_status};buy={buy_status};sell={sell_status}"],
                 }
             )
             continue
@@ -849,6 +924,47 @@ def main() -> int:
             "DELETE FROM opening_scenarios WHERE scenario_date=?",
             (args.date,),
         )
+        conn.execute(
+            "DELETE FROM scenario_gate_diagnostics WHERE scenario_date=?",
+            (args.date,),
+        )
+        gate_thresholds = {
+            "minRuleHits": args.min_rule_hits,
+            "minScore": args.min_score,
+            "minWinRate": args.min_winrate,
+            "effectiveMinRuleHits": min_rule_hits_eff,
+            "effectiveMinScore": min_score_eff,
+            "effectiveMinWinRate": round(min_winrate_eff, 1),
+            "autoRelaxApplied": relax_applied,
+            "autoRelaxRounds": relax_rounds,
+        }
+        def insert_diag(item: dict, gate_result: str, reject_reasons: list[str] | None = None) -> None:
+            conn.execute(
+                """
+                INSERT INTO scenario_gate_diagnostics(
+                  scenario_date,signal_id,ticker,direction,candidate_source,scenario_tier,
+                  scenario_score,rule_hit_count,estimated_winrate_value,gate_result,
+                  reject_reasons_json,gate_thresholds_json,payload_json,source_path,updated_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    args.date,
+                    str(item.get("signalId", "") or ""),
+                    str(item.get("ticker", "") or ""),
+                    str(item.get("direction", "") or ""),
+                    str(item.get("candidateSource", "") or ""),
+                    str(item.get("scenarioTier", "") or ""),
+                    int(item.get("scenarioScore") or 0),
+                    int(item.get("ruleHitCount") or 0),
+                    item.get("estimatedWinRateValue"),
+                    gate_result,
+                    json.dumps(reject_reasons or [], ensure_ascii=False),
+                    json.dumps(gate_thresholds, ensure_ascii=False),
+                    json.dumps(item, ensure_ascii=False),
+                    "db:entry_candidates",
+                    datetime.now().isoformat(timespec="seconds"),
+                ),
+            )
         idx = 0
         for s in scenarios:
             idx += 1
@@ -877,10 +993,11 @@ def main() -> int:
                     s.get("stopLossPrice"),
                     s.get("sourceUrl", ""),
                     "scenario",
-                    str(out_json.relative_to(ROOT)),
+                    "db:entry_candidates",
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
+            insert_diag(s, "accepted", [])
         for r in rejected:
             idx += 1
             conn.execute(
@@ -908,10 +1025,11 @@ def main() -> int:
                     None,
                     "",
                     "rejected",
-                    str(out_json.relative_to(ROOT)),
+                    "db:entry_candidates",
                     datetime.now().isoformat(timespec="seconds"),
                 ),
             )
+            insert_diag(r, "rejected", [str(x) for x in (r.get("rejectReasons") or [])])
         conn.commit()
     finally:
         conn.close()

@@ -14,14 +14,30 @@ reminders-toast.log
 
 # Generated local caches
 .cache/
+.venv/
+tmp/
 
 # Local DB artifacts
 data/*.db
 data/rakuten_rss/board_latest.csv
+data/exports/
+resource/
 
 # Generated brief prompts
 prompts/today-db-brief.md
 prompts/today-topics-db-brief.md
+prompts/*-discord-message.txt
+prompts/*-discord-message.md
+prompts/*.status.txt
+prompts/*.sha256.txt
+prompts/*-metrics.json
+prompts/*-diagnostics.json
+prompts/*-coverage-plan.json
+prompts/*-kpi-alert.json
+prompts/*-state.json
+prompts/.signal-unchanged-streak.txt
+prompts/.paper-stats-unchanged-streak.txt
+prompts/.generic-unchanged-streak.txt
 
 # Local secrets
 .env

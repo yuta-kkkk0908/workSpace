@@ -41,3 +41,122 @@
 [2026-05-20 07:31:37] [OK] posted parts=1 hash=7f5c17cbdaa8e82767ac617bb1fe9f3c5c0316f95332aad45e1a5a75049d1669
 [2026-05-20 12:10:03] [START] parts=1 msg_len=656
 [2026-05-20 12:10:04] [OK] posted parts=1 hash=91a3aa19d174188d57106262ad1f40c4d81d2d41d2c6794dac0cc76cad615e44
+[2026-05-21 11:07:59] [START] parts=1 msg_len=345
+[2026-05-21 11:07:59] [ERROR] part=1/1 message=Unable to connect to the remote server body=
+[2026-05-21 11:08:05] [START] parts=1 msg_len=345
+[2026-05-21 11:08:05] [ERROR] part=1/1 message=Unable to connect to the remote server body=
+[2026-05-21 11:08:35] [START] parts=1 msg_len=345
+[2026-05-21 11:08:35] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:08:37] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:08:41] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:18] [START] parts=1 msg_len=345
+[2026-05-21 11:34:19] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:21] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:25] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:25] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:42] [START] parts=1 msg_len=345
+[2026-05-21 11:34:42] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:44] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:48] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:48] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:50] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:34:54] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:35:49] [START] parts=1 msg_len=345
+[2026-05-21 11:35:49] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:35:51] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:35:55] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:35:55] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:35:57] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:36:01] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 11:36:01] [ERROR] failed_to_deliver part=1/1
+[2026-05-21 11:36:01] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260521-113601.txt
+[2026-05-21 12:10:07] [START] parts=1 msg_len=345
+[2026-05-21 12:10:08] [OK] posted parts=1 hash=56b7de7cf02c7dd655a3d08bb3be195e5716d681c5b93c0783c00caab4e53048
+[2026-05-21 13:45:14] [START] parts=1 msg_len=333
+[2026-05-21 13:45:14] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:16] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:20] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:20] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:22] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:26] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 13:45:26] [ERROR] failed_to_deliver part=1/1
+[2026-05-21 13:45:26] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260521-134526.txt
+[2026-05-21 14:01:27] [START] parts=1 msg_len=333
+[2026-05-21 14:01:27] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:29] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:33] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:33] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:35] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:39] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 14:01:39] [ERROR] failed_to_deliver part=1/1
+[2026-05-21 14:01:40] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260521-140139.txt
+[2026-05-21 21:13:01] [START] parts=1 msg_len=346
+[2026-05-21 21:13:01] [OK] posted parts=1 hash=5c0b2210817b6a563da8f38efd7dffb911866ee1a0c66d4b7109306e690c9642
+[2026-05-21 21:39:34] [START] parts=1 msg_len=338
+[2026-05-21 21:39:34] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:36] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:40] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:40] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:42] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:46] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:39:46] [ERROR] failed_to_deliver part=1/1
+[2026-05-21 21:39:46] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260521-213946.txt
+[2026-05-21 21:44:50] [START] parts=1 msg_len=350
+[2026-05-21 21:44:50] [OK] posted parts=1 hash=fce2e2bdee8b8e0390bd9839cacc01709e222d54971c886d9dcab1852b9e4bf5
+[2026-05-21 21:50:35] [START] parts=1 msg_len=357
+[2026-05-21 21:50:36] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:38] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:42] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:42] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:44] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:48] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-21 21:50:48] [ERROR] failed_to_deliver part=1/1
+[2026-05-21 21:50:48] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260521-215048.txt
+[2026-05-21 21:54:17] [START] parts=1 msg_len=369
+[2026-05-21 21:54:18] [OK] posted parts=1 hash=9412be7f0e1ca1fa73aee1932d86387806fa74f97977b89f38ef1bf0ba8e1693
+[2026-05-21 22:42:52] [SKIP] unchanged hash=9412be7f0e1ca1fa73aee1932d86387806fa74f97977b89f38ef1bf0ba8e1693
+[2026-05-22 09:00:46] [START] parts=1 msg_len=76
+[2026-05-22 09:00:46] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:48] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:52] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:52] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:54] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:58] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:00:59] [ERROR] failed_to_deliver part=1/1
+[2026-05-22 09:00:59] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260522-090059.txt
+[2026-05-22 09:01:19] [START] parts=1 msg_len=76
+[2026-05-22 09:01:19] [ERROR] part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:21] [ERROR] part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:25] [ERROR] part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:25] [ERROR] fallback part=1/1 attempt=1/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:27] [ERROR] fallback part=1/1 attempt=2/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:31] [ERROR] fallback part=1/1 attempt=3/3 message=Unable to connect to the remote server body=
+[2026-05-22 09:01:31] [ERROR] failed_to_deliver part=1/1
+[2026-05-22 09:01:32] [WARN] queued pending=E:\workSpace\prompts\pending\signal-discord-pending-20260522-090131.txt
+[2026-05-22 12:10:10] [START] parts=1 msg_len=613
+[2026-05-22 12:10:11] [OK] posted parts=1 hash=352b8cf2c94949a3c67e9a4557173ceddb545c9a6e8abdcc77fbd41a775af57d
+[2026-05-22 12:20:23] [QUALITY_WARN] unchanged hash=352b8cf2c94949a3c67e9a4557173ceddb545c9a6e8abdcc77fbd41a775af57d reason=RULE_THIN streak=1
+[2026-05-22 21:13:03] [START] parts=1 msg_len=613
+[2026-05-22 21:13:04] [OK] posted parts=1 hash=9f59c3560ce0a00e7376714224edec9e63a655394024c0a28c5d5208bc564bcf
+[2026-05-23 07:33:25] [START] parts=1 msg_len=805
+[2026-05-23 07:33:26] [OK] posted parts=1 hash=540e02557cd858fd61bc9df3f88a159a7dc120305afb28f964d4f78a9ff6fadc
+[2026-05-23 20:34:38] [QUALITY_WARN] unchanged hash=540e02557cd858fd61bc9df3f88a159a7dc120305afb28f964d4f78a9ff6fadc reason=RULE_THIN streak=1
+[2026-05-23 21:14:53] [QUALITY_WARN] unchanged hash=540e02557cd858fd61bc9df3f88a159a7dc120305afb28f964d4f78a9ff6fadc reason=RULE_THIN streak=2
+[2026-05-24 07:33:31] [START] parts=1 msg_len=615
+[2026-05-24 07:33:32] [OK] posted parts=1 hash=6db1552971f7136b6b6eece5e7ff988fe9b2141c1a3419b396292409b0ac6efb
+[2026-05-24 11:55:12] [QUALITY_WARN] unchanged hash=6db1552971f7136b6b6eece5e7ff988fe9b2141c1a3419b396292409b0ac6efb reason=RULE_THIN streak=1
+[2026-05-24 21:16:22] [QUALITY_WARN] unchanged hash=6db1552971f7136b6b6eece5e7ff988fe9b2141c1a3419b396292409b0ac6efb reason=RULE_THIN streak=2
+[2026-05-25 07:33:25] [START] parts=1 msg_len=519
+[2026-05-25 07:33:26] [OK] posted parts=1 hash=c5465b5e7ca0e538dd2f95779b5670c67e29943df8209399865c5e23c4bda7fe
+[2026-05-26 00:47:19] [START] parts=1 msg_len=76
+[2026-05-26 00:47:19] [OK] posted parts=1 hash=2c82ca40c28c72d197ddb2d75607dc8becef5baddcfec2c41f0b5c559bb7c06d
+[2026-05-26 00:53:26] [START] parts=1 msg_len=519
+[2026-05-26 00:53:26] [OK] posted parts=1 hash=fd140cba5d725fb76452de4ed55d2fa45c8ed5f6f337cfc99df77fe75d8654e4
+[2026-05-26 07:33:21] [START] parts=1 msg_len=709
+[2026-05-26 07:33:22] [OK] posted parts=1 hash=94bb1c20775086580dcca7ed24da4ce878e96ee40cd4f8be912a09fa12e35274
+[2026-05-26 19:15:59] [START] parts=1 msg_len=682
+[2026-05-26 19:16:01] [OK] posted parts=1 hash=fc53519ef4f69cb8bc4ec849df4f856294afd7dbbbf8126d31c238acde35cf67
+[2026-05-26 21:14:03] [START] parts=1 msg_len=683
+[2026-05-26 21:14:04] [OK] posted parts=1 hash=ba3e137d88de96efb50e3de146221cd7e64a73149eca3d24c6802f01df4e6a73
+[2026-05-27 07:33:42] [START] parts=1 msg_len=682
+[2026-05-27 07:33:43] [OK] posted parts=1 hash=4435c56c1c02b9f9fcaafce638a2bfaa356ef333c3ed44431844c656591ec2ad

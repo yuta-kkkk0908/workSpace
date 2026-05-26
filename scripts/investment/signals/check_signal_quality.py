@@ -26,6 +26,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--db", type=Path, default=DEFAULT_DB)
     p.add_argument("--out-json", default=str(PROMPTS / "signal-quality-metrics.json"))
     p.add_argument("--out-alert", default=str(PROMPTS / "signal-quality-alert.txt"))
+    p.add_argument("--out-diagnostics-json", default=str(PROMPTS / "signal-quality-diagnostics.json"))
+    p.add_argument("--print-json", action="store_true", help="print diagnostics JSON to stdout")
+    p.add_argument("--write-files", action=argparse.BooleanOptionalAction, default=True, help="write metrics/alert files (audit)")
     return p.parse_args()
 
 
@@ -50,6 +53,12 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
         rows = conn.execute(
             """
             SELECT signal_id,ticker,expected_direction,publishedAt as published_at
+                  ,COALESCE(gate_status,'') as gate_status
+                  ,COALESCE(long_rank,'') as long_rank
+                  ,COALESCE(short_rank,'') as short_rank
+                  ,COALESCE(material_signal_checked,'') as material_signal_checked
+                  ,COALESCE(external_context_checked,'') as external_context_checked
+                  ,COALESCE(technical_signal_checked,'') as technical_signal_checked
             FROM signals
             WHERE date=?
             """,
@@ -59,6 +68,12 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
         rows = conn.execute(
             """
             SELECT signal_id,ticker,expected_direction,'' as published_at
+                  ,COALESCE(gate_status,'') as gate_status
+                  ,COALESCE(long_rank,'') as long_rank
+                  ,COALESCE(short_rank,'') as short_rank
+                  ,COALESCE(material_signal_checked,'') as material_signal_checked
+                  ,COALESCE(external_context_checked,'') as external_context_checked
+                  ,COALESCE(technical_signal_checked,'') as technical_signal_checked
             FROM signals
             WHERE date=?
             """,
@@ -104,6 +119,35 @@ def main() -> int:
     metrics["downCount"] = down
     metrics["newMaterialCount"] = new_count
     metrics["tickers"] = tickers
+    gate_pass = 0
+    gate_hold = 0
+    gate_hold_breakdown: dict[str, int] = {}
+    long_ab = 0
+    short_ab = 0
+    q3_yes = 0
+    for r in rows:
+        gs = (r.get("gate_status", "") or "").lower()
+        if gs == "pass":
+            gate_pass += 1
+        if gs.startswith("hold"):
+            gate_hold += 1
+            gate_hold_breakdown[gs] = gate_hold_breakdown.get(gs, 0) + 1
+        if (r.get("long_rank", "") or "").upper().startswith(("A", "B")):
+            long_ab += 1
+        if (r.get("short_rank", "") or "").upper().startswith(("A", "B")):
+            short_ab += 1
+        if (
+            (r.get("material_signal_checked", "") or "").lower() == "yes"
+            and (r.get("external_context_checked", "") or "").lower() == "yes"
+            and (r.get("technical_signal_checked", "") or "").lower() == "yes"
+        ):
+            q3_yes += 1
+    metrics["gatePassCount"] = gate_pass
+    metrics["gateHoldCount"] = gate_hold
+    metrics["gateHoldBreakdown"] = gate_hold_breakdown
+    metrics["longABCount"] = long_ab
+    metrics["shortABCount"] = short_ab
+    metrics["quality3YesCount"] = q3_yes
     if abs(up - down) > args.max_side_imbalance:
         alerts.append(f"方向偏り過大: up={up}, down={down}, diff={abs(up-down)}")
     if stale:
@@ -130,18 +174,59 @@ def main() -> int:
     metrics["tradeScenarioCount"] = trade_count
     metrics["watchScenarioCount"] = watch_count
     metrics["watchShare"] = round(watch_share, 4)
+    scenario_bias_reasons: list[str] = []
     if trade_count == 0 and watch_count > 0:
-        alerts.append("tradeシナリオが0件（watch偏重）")
+        scenario_bias_reasons.append("trade=0")
     if watch_share > float(args.max_watch_share):
-        alerts.append(f"watch比率が高い: watchShare={watch_share:.0%} > {float(args.max_watch_share):.0%}")
+        scenario_bias_reasons.append(f"watchShare={watch_share:.0%}>{float(args.max_watch_share):.0%}")
+    if scenario_bias_reasons:
+        alerts.append(
+            "シナリオ構成偏り: "
+            + ", ".join(scenario_bias_reasons)
+            + f" (trade={trade_count}, watch={watch_count})"
+        )
 
     status = "ALERT" if alerts else "OK"
     metrics["status"] = status
     metrics["alerts"] = alerts
+    inferred_root = "OK"
+    if len(rows) < args.min_signals:
+        inferred_root = "DATA_THIN"
+    elif gate_pass == 0 and gate_hold > 0:
+        inferred_root = "RULE_THIN_GATE"
+    elif long_ab + short_ab == 0:
+        inferred_root = "RULE_THIN_RANK"
+    elif q3_yes == 0:
+        inferred_root = "RULE_THIN_QUALITY"
+    metrics["inferredRootCause"] = inferred_root
 
-    out_json = Path(args.out_json)
-    out_json.parent.mkdir(parents=True, exist_ok=True)
-    out_json.write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    if args.write_files:
+        out_json = Path(args.out_json)
+        out_json.parent.mkdir(parents=True, exist_ok=True)
+        out_json.write_text(json.dumps(metrics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    diag = {
+        "date": args.date,
+        "status": status,
+        "inferredRootCause": inferred_root,
+        "signalCount": len(rows),
+        "gatePassCount": gate_pass,
+        "gateHoldCount": gate_hold,
+        "gateHoldBreakdown": gate_hold_breakdown,
+        "longABCount": long_ab,
+        "shortABCount": short_ab,
+        "quality3YesCount": q3_yes,
+        "tradeScenarioCount": trade_count,
+        "watchScenarioCount": watch_count,
+        "watchShare": round(watch_share, 4),
+        "alerts": alerts,
+    }
+    if args.write_files:
+        out_diag = Path(args.out_diagnostics_json)
+        out_diag.parent.mkdir(parents=True, exist_ok=True)
+        out_diag.write_text(json.dumps(diag, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    if args.print_json:
+        print(json.dumps(diag, ensure_ascii=False))
 
     out_alert = Path(args.out_alert)
     if alerts:
@@ -151,12 +236,21 @@ def main() -> int:
         lines.append(
             f"- summary: signals={len(rows)} new={new_count} trade={trade_count} watch={watch_count} watchShare={watch_share:.0%}"
         )
-        out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"ALERT: {out_alert}")
+        if gate_hold_breakdown:
+            detail = ", ".join(f"{k}={v}" for k, v in sorted(gate_hold_breakdown.items()))
+            lines.append(f"- hold内訳: {detail}")
+        if args.write_files:
+            out_alert = Path(args.out_alert)
+            out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        if not args.print_json:
+            print(f"ALERT: {Path(args.out_alert)}")
         return 2
     else:
-        out_alert.write_text("", encoding="utf-8")
-        print("OK: signal quality")
+        if args.write_files:
+            out_alert = Path(args.out_alert)
+            out_alert.write_text("", encoding="utf-8")
+        if not args.print_json:
+            print("OK: signal quality")
         return 0
 
 

@@ -196,8 +196,8 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
     for r in rows:
         conn.execute(
             """
-            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,source_path,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,payload_json,source_path,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(signal_id,date) DO UPDATE SET
             ticker=excluded.ticker,company=excluded.company,signal_type=excluded.signal_type,signal_type_label_ja=excluded.signal_type_label_ja,
             expected_direction=excluded.expected_direction,expected_direction_label_ja=excluded.expected_direction_label_ja,
@@ -205,7 +205,7 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
             t1=excluded.t1,t5=excluded.t5,t20=excluded.t20,
             gate_status=excluded.gate_status,gate_status_label_ja=excluded.gate_status_label_ja,
             url=excluded.url,source=excluded.source,session=excluded.session,
-            material_signal_checked=excluded.material_signal_checked,external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,
+            material_signal_checked=excluded.material_signal_checked,external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,payload_json=excluded.payload_json,
             source_path=excluded.source_path,updated_at=excluded.updated_at
             """,
             (
@@ -218,6 +218,7 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
                 gate_status_label_ja(r.get("gateStatus","")),
                 r.get("url",""), r.get("source",""), r.get("session",""),
                 r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),
+                json.dumps(r, ensure_ascii=False, separators=(",", ":")),
                 str(path.relative_to(ROOT)), now(),
             ),
         )
@@ -238,22 +239,22 @@ def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
         for r in data.get(key, []) or []:
             conn.execute(
                 """
-                INSERT INTO entry_candidates(date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,trade_use,gate_status,material_signal_checked,external_context_checked,technical_signal_checked,score,url,source_path,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                ON CONFLICT(date,side,signal_id) DO UPDATE SET
+                INSERT INTO entry_candidates(date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,trade_use,gate_status,material_signal_checked,external_context_checked,technical_signal_checked,score,url,payload_json,source_path,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT DO UPDATE SET
                 candidate_type=excluded.candidate_type,
                 ticker=excluded.ticker,company=excluded.company,rank=excluded.rank,expected_direction=excluded.expected_direction,
                 long_rank=excluded.long_rank,short_rank=excluded.short_rank,trade_use=excluded.trade_use,
                 gate_status=excluded.gate_status,material_signal_checked=excluded.material_signal_checked,
                 external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,
-                score=excluded.score,url=excluded.url,source_path=excluded.source_path,updated_at=excluded.updated_at
+                score=excluded.score,url=excluded.url,payload_json=excluded.payload_json,source_path=excluded.source_path,updated_at=excluded.updated_at
                 """,
                 (
                     date, side, candidate_type, r.get("signalId",""), r.get("ticker",""), r.get("company",""),
                     r.get(rank_field,""), r.get("longSignalRank",""), r.get("shortSignalRank",""),
                     r.get("expectedDirection",""), r.get("tradeUse",""), r.get("gateStatus",""),
                     r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),
-                    int(r.get("score", 0) or 0), r.get("url",""), str(path.relative_to(ROOT)), now(),
+                    int(r.get("score", 0) or 0), r.get("url",""), json.dumps(r, ensure_ascii=False, separators=(",", ":")), str(path.relative_to(ROOT)), now(),
                 ),
             )
             rows += 1
@@ -315,13 +316,14 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
             """
             INSERT INTO backtest_outcomes(outcome_id,date,source_signal_id,ticker,signal_date,disclosure_category,disclosure_category_label_ja,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1_judge,t5_judge,t20_judge,outcome_type,source_path,updated_at)
             VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            ON CONFLICT(outcome_id,date) DO UPDATE SET
+            ON CONFLICT DO UPDATE SET
             ticker=excluded.ticker,signal_date=excluded.signal_date,
             disclosure_category=excluded.disclosure_category,disclosure_category_label_ja=excluded.disclosure_category_label_ja,
             signal_type=excluded.signal_type,signal_type_label_ja=excluded.signal_type_label_ja,
             expected_direction=excluded.expected_direction,expected_direction_label_ja=excluded.expected_direction_label_ja,
             long_rank=excluded.long_rank,short_rank=excluded.short_rank,long_rank_label_ja=excluded.long_rank_label_ja,short_rank_label_ja=excluded.short_rank_label_ja,t1_judge=excluded.t1_judge,t5_judge=excluded.t5_judge,
-            t20_judge=excluded.t20_judge,outcome_type=excluded.outcome_type,source_path=excluded.source_path,updated_at=excluded.updated_at
+            t20_judge=excluded.t20_judge,outcome_type=excluded.outcome_type,source_path=excluded.source_path,updated_at=excluded.updated_at,
+            outcome_id=excluded.outcome_id,date=excluded.date
             """,
             (
                 outcome_id, row_date, source_signal_id, ticker, signal_date,
@@ -490,6 +492,38 @@ def upsert_rule_history(conn: sqlite3.Connection, path: Path):
     conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "rule_history_snapshots", str(path.relative_to(ROOT)), rows))
 
 
+def upsert_observations(conn: sqlite3.Connection, path: Path):
+    data = json.loads(path.read_text(encoding="utf-8"))
+    date = data.get("date", path.name[:10])
+    rows = 0
+    for r in data.get("rows", []) or []:
+        note = str(r.get("note", "")).strip()
+        if not note:
+            continue
+        obs_time = str(r.get("obsTime", "")).strip()
+        ticker = str(r.get("ticker", "")).strip()
+        sector = str(r.get("sector", "")).strip()
+        tag = str(r.get("tag", "")).strip()
+        source_kind = str(r.get("sourceKind", "manual_observation")).strip() or "manual_observation"
+        source_url = str(r.get("sourceUrl", "")).strip()
+        payload = r.get("payload", {})
+        if not isinstance(payload, (dict, list)):
+            payload = {"value": payload}
+        conn.execute(
+            """
+            INSERT INTO observations(obs_date,obs_time,ticker,sector,tag,source_kind,source_url,note,payload_json,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                date, obs_time, ticker, sector, tag, source_kind, source_url, note,
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                now(),
+            ),
+        )
+        rows += 1
+    conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "observations", str(path.relative_to(ROOT)), rows))
+
+
 def main() -> int:
     args = parse_args()
     db = Path(args.db)
@@ -517,6 +551,9 @@ def main() -> int:
         for p in files_for("{date}-opening-scenarios.json", args.date):
             if p.exists():
                 upsert_execution_plan(conn, p)
+        for p in files_for("{date}-observations.json", args.date):
+            if p.exists():
+                upsert_observations(conn, p)
         history = ROOT / "topics" / "investment-research" / "rule-history.json"
         if history.exists():
             upsert_rule_history(conn, history)

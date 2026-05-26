@@ -71,6 +71,93 @@ def normalize_date(s: str) -> str:
     return m.group(1) if m else s
 
 
+def infer_source_meta(source_path: str, signal_type: str) -> tuple[str, str]:
+    p = (source_path or "").lower()
+    st = (signal_type or "").lower()
+    if "kabutan-surprise" in p or "batch-5" in p:
+        return "kabutan_surprise_seed", ""
+    if "short-negative" in p or "batch-6" in p:
+        return "kabutan_short_seed", ""
+    if "tdnet" in p:
+        return "tdnet_seed", ""
+    if st.startswith("technical_") or "breakout" in st or "breakdown" in st:
+        return "yahoo_price_seed", ""
+    return "db_backtest_seed", ""
+
+
+def source_priority(source_name: str) -> int:
+    s = (source_name or "").strip().lower()
+    if s.startswith("tdnet"):
+        return 100
+    if s.startswith("jpx"):
+        return 80
+    if "kabutan" in s:
+        return 60
+    if "yahoo" in s:
+        return 40
+    return 20
+
+
+def choose_source(current_name: str, current_url: str, candidate_name: str, candidate_url: str) -> tuple[str, str]:
+    if source_priority(candidate_name) > source_priority(current_name):
+        return candidate_name, candidate_url
+    return current_name, current_url
+
+
+def infer_signal_type_from_tdnet_title(title: str, fallback: str) -> str:
+    t = (title or "").strip()
+    if not t:
+        return fallback
+    has_highest_profit = any(k in t for k in ["最高益", "過去最高益", "最高益更新"])
+    has_downward = ("下方修正" in t) or ("業績予想の修正" in t and "上方修正" not in t)
+    has_dividend_cut = any(k in t for k in ["減配", "無配", "配当予想の修正", "配当予想の取り下げ", "配当予想を未定"])
+    # Positive revisions/dividend increase
+    if "上方修正" in t and has_highest_profit:
+        return "upward_revision_highest_profit"
+    if "上方修正" in t and ("増配" in t or "配当予想の修正" in t):
+        return "upward_revision_plus_dividend"
+    if "増配" in t and "配当予想の修正" in t:
+        return "dividend_revision"
+    if "上方修正" in t:
+        return "upward_revision"
+    # Dilution / offering
+    if any(k in t for k in ["売出し", "売出", "自己株式処分", "公募", "第三者割当", "新株予約権"]):
+        return "offering_or_dilution"
+    # Downward + dividend cut
+    if has_downward and has_dividend_cut:
+        return "downward_revision_dividend_cut"
+    # Weak earnings/guidance
+    if any(k in t for k in ["下方修正", "赤字", "減益", "未達", "下振れ", "営業損失", "経常損失", "最終損失", "最終赤字", "業績予想の修正"]):
+        return "weak_earnings_or_guidance"
+    return fallback
+
+
+def infer_signal_type_from_tdnet_category(category: str, title: str, fallback: str) -> str:
+    c = (category or "").strip().lower()
+    if c:
+        known = {
+            "offering_or_dilution",
+            "downward_revision_dividend_cut",
+            "weak_earnings_or_guidance",
+            "upward_revision_highest_profit",
+            "upward_revision_plus_dividend",
+            "dividend_revision",
+            "upward_revision",
+        }
+        if c in known:
+            return c
+    return infer_signal_type_from_tdnet_title(title, fallback)
+
+
+def infer_expected_direction(signal_type: str, fallback: str) -> str:
+    st = (signal_type or "").strip().lower()
+    if st in {"offering_or_dilution", "downward_revision_dividend_cut", "weak_earnings_or_guidance", "downward_revision_to_loss", "downward_revision"}:
+        return "down"
+    if st in {"upward_revision_plus_dividend", "upward_revision", "dividend_revision", "highest_profit_guidance_dividend_revision", "upward_revision_highest_profit"}:
+        return "up"
+    return (fallback or "unknown")
+
+
 def signal_score(row: dict[str, str], target_date: str) -> int:
     expected = (row.get("expectedDirection") or "").lower()
     lr = rank_score(row.get("longSignalRank", ""))
@@ -83,6 +170,9 @@ def signal_score(row: dict[str, str], target_date: str) -> int:
     d = normalize_date(row.get("signalDate", "")) or normalize_date(row.get("publishedAt", ""))
     if d == target_date:
         base += 5
+    # Prefer rows with primary-source TDnet linkage.
+    if (row.get("sourceName") or "").startswith("tdnet_"):
+        base += 12
     return base
 
 
@@ -104,22 +194,85 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
             """,
             (min_date, args.date),
         ).fetchall()
+        tdnet_rows = conn.execute(
+            """
+            SELECT date,ticker,title,tdnet_url,source_kind,category
+            FROM tdnet_disclosures
+            WHERE date BETWEEN ? AND ?
+            ORDER BY date DESC
+            """,
+            (min_date, args.date),
+        ).fetchall()
+        credit_rows = conn.execute(
+            """
+            SELECT c.ticker,c.credit_status
+            FROM credit_status_rows c
+            JOIN (
+              SELECT ticker, MAX(date) AS max_date
+              FROM credit_status_rows
+              GROUP BY ticker
+            ) m
+            ON c.ticker=m.ticker AND c.date=m.max_date
+            """
+        ).fetchall()
     finally:
         conn.close()
+    tdnet_by_ticker: dict[str, dict[str, str]] = {}
+    for t in tdnet_rows:
+        ticker = str(t["ticker"] or "").strip()
+        if not ticker or ticker in tdnet_by_ticker:
+            continue
+        tdnet_by_ticker[ticker] = {
+            "url": str(t["tdnet_url"] or "").strip(),
+            "source": str(t["source_kind"] or "tdnet_web").strip() or "tdnet_web",
+            "title": str(t["title"] or "").strip(),
+            "category": str(t["category"] or "").strip(),
+        }
+    credit_by_ticker: dict[str, str] = {}
+    for c in credit_rows:
+        ticker = str(c["ticker"] or "").strip()
+        if not ticker:
+            continue
+        credit_by_ticker[ticker] = str(c["credit_status"] or "").strip().lower()
     all_rows: list[dict[str, str]] = []
     for r in src:
+        source_name, source_url = infer_source_meta(r["source_path"] or "", r["signal_type"] or "")
+        ticker = r["ticker"] or ""
+        td = tdnet_by_ticker.get(ticker, {})
+        if td.get("url"):
+            source_name, source_url = choose_source(
+                source_name,
+                source_url,
+                td.get("source", "tdnet_web"),
+                td.get("url", ""),
+            )
+        credit_status = credit_by_ticker.get(ticker, "")
+        credit_unknown_hold = (not credit_status) or credit_status == "unknown"
+        inferred_type = infer_signal_type_from_tdnet_category(
+            td.get("category", ""),
+            td.get("title", ""),
+            r["signal_type"] or "",
+        )
         all_rows.append(
             {
                 "id": r["outcome_id"] or "",
-                "ticker": r["ticker"] or "",
+                "ticker": ticker,
                 "company": "",
                 "signalDate": r["signal_date"] or "",
                 "publishedAt": r["signal_date"] or "",
-                "signalType": r["signal_type"] or "",
-                "expectedDirection": r["expected_direction"] or "",
+                "signalType": inferred_type,
+                "expectedDirection": infer_expected_direction(
+                    inferred_type,
+                    r["expected_direction"] or "",
+                ),
                 "longSignalRank": r["long_rank"] or "C",
                 "shortSignalRank": r["short_rank"] or "C",
-                "source": r["source_path"] or "",
+                "sourceName": source_name,
+                "sourceUrl": source_url,
+                "sourceAuditPath": r["source_path"] or "",
+                "sourceTitle": td.get("title", ""),
+                "creditStatus": credit_status or "unknown",
+                "creditUnknownHold": "yes" if credit_unknown_hold else "no",
             }
         )
     if not all_rows:
@@ -190,8 +343,10 @@ def to_market_signal_markdown(args: argparse.Namespace, rows: list[dict[str, str
                 f"### {sig_id}: {r.get('ticker','')} {r.get('company','')}",
                 f"- ticker: {r.get('ticker','')}",
                 f"- company: {r.get('company','')}",
-                f"- source: {r.get('source','')}",
-                f"- url: {r.get('source','')}",
+                f"- source: {r.get('sourceName','')}",
+                f"- url: {r.get('sourceUrl','')}",
+                f"- sourceTitle: {r.get('sourceTitle','')}",
+                f"- sourceAuditPath: {r.get('sourceAuditPath','')}",
                 f"- publishedAt: {sd}",
                 "- session: after_close",
                 f"- signalType: {r.get('signalType','')}",
@@ -214,11 +369,12 @@ def to_market_signal_markdown(args: argparse.Namespace, rows: list[dict[str, str
                 "  - T+5:",
                 "  - T+20:",
                 "- requiredCheck:",
-                "  - gateStatus: pass",
+                f"  - gateStatus: {'hold_credit_unknown' if r.get('creditUnknownHold','no') == 'yes' else 'pass'}",
                 "  - materialSignalChecked: yes",
                 "  - technicalSignalNote: batch_refresh",
                 "  - technicalSignalChecked: yes",
                 "  - externalContextChecked: yes",
+                f"  - creditStatus: {r.get('creditStatus','unknown')}",
                 "",
             ]
         )
@@ -238,6 +394,7 @@ def main() -> int:
             for i, r in enumerate(rows, 1):
                 sid = f"signal_{ymd}_{i:03d}"
                 expected = (r.get("expectedDirection", "") or "unknown").lower()
+                gate_status = "hold_credit_unknown" if r.get("creditUnknownHold", "no") == "yes" else "pass"
                 conn.execute(
                     """
                     INSERT INTO signals(
@@ -255,14 +412,14 @@ def main() -> int:
                         expected,
                         r.get("longSignalRank", "C"),
                         r.get("shortSignalRank", "C"),
-                        "pass",
-                        r.get("source", ""),
-                        r.get("source", ""),
+                        gate_status,
+                        r.get("sourceUrl", ""),
+                        r.get("sourceName", ""),
                         "after_close",
                         "yes",
                         "yes",
                         "yes",
-                        str(out.relative_to(ROOT)),
+                        "db:backtest_seed_batches",
                     ),
                 )
             conn.commit()
