@@ -7,27 +7,25 @@
   "downCount": 6,
   "newMaterialCount": 0,
   "tickers": [
-    "8306",
-    "2593",
-    "6062",
-    "7806",
+    "9692",
     "3282",
+    "7384",
+    "3104",
     "8967",
-    "9279",
-    "4406",
-    "4099",
-    "6228",
-    "9238",
-    "7419"
+    "6062",
+    "9973",
+    "8105",
+    "7794",
+    "7776",
+    "7578",
+    "6721"
   ],
-  "gatePassCount": 9,
-  "gateHoldCount": 3,
-  "gateHoldBreakdown": {
-    "hold_credit_unknown": 3
-  },
-  "longABCount": 6,
+  "gatePassCount": 0,
+  "gateHoldCount": 0,
+  "gateHoldBreakdown": {},
+  "longABCount": 12,
   "shortABCount": 6,
-  "quality3YesCount": 12,
+  "quality3YesCount": 0,
   "openingScenariosPath": "db:opening_scenarios",
   "openingScenariosDate": "2026-06-01",
   "tradeScenarioCount": 12,
@@ -36,13 +34,20 @@
   "noonSnapshotTickerCount": 12,
   "noonSignalTickerCount": 12,
   "noonCoverageRate": 1.0,
+  "repeatedTickers": [
+    "3282",
+    "6062",
+    "8967",
+    "9692"
+  ],
+  "repeatedTickerCount": 4,
+  "repeatedTickerRatio": 0.3333,
   "status": "ALERT",
   "alerts": [
     "当日材料の新規シグナルが0件"
   ],
-  "inferredRootCause": "CREDIT_THIN",
+  "inferredRootCause": "RULE_THIN_QUALITY",
   "qualityReasonCodes": [
-    "CREDIT_THIN",
     "MATERIAL_NONE_TODAY"
   ]
 }

@@ -301,6 +301,28 @@
     - `scripts/investment/signals/build_market_signals_from_batches.py`
     - `scripts/data/ingest_investment_db.py`
 
+---
+
+## Job: AIOS-DB-Backup-2230
+
+- status: active
+- schedule: 毎日 02:00
+- entrypoint: `scripts/ops/run_db_backup_to_discord.ps1`
+- 目的:
+  - `investment.db` のフルバックアップを日次で保全する
+  - Discord にZIP保管し、障害時のロールバック起点を確保する
+- 処理内容:
+  - `scripts/data/backup_dbzip_to_discord.py --db data/investment.db --label investment-db-backup --keep-local 14`
+  - DBスナップショットを `investment.db` 名でZIP化
+  - `DISCORD_BACKUPPER_URL` へファイル添付投稿
+  - 投稿結果（`message_id/channel_id/attachment_url`）を `data/backups/discord-backups-manifest.json` に記録
+  - ローカルZIPは最新14件のみ保持
+- 復元手順:
+  - `scripts/data/restore_dbzip_from_discord.py --channel-id <id> --message-id <id>`
+  - channel/message未指定時は manifest の最新投稿を利用
+  - 復元前に現行DBを `investment.db.pre-restore-YYYYMMDD-HHMMSS` として退避
+  - ZIP内DBが壊れている場合は `recover_investment_db.py` で救済して反映
+
 ## 再登録ポリシー（重要）
 
 - 公式再登録スクリプト: `scripts/ops/register_tasks.ps1`

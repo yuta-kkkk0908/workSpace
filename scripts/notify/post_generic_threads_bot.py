@@ -201,7 +201,7 @@ def parse_digest(text: str) -> tuple[str, str, str, list[dict[str, str]]]:
             if current_name:
                 topics.append({"name": current_name, "body": "\n".join(current_lines).strip()})
             current_name = line.strip()[1:-1]
-            current_lines = [line.strip()]
+            current_lines = []
             in_topics = True
             continue
         if in_topics:

@@ -96,6 +96,16 @@
 - `doc/scheduler-job-catalog.md` と設定JSON（model/job）を同時更新
 - 重要: DB-first契約を崩さない（先にDB、失敗時のみファイル）
 
+## 7.5) チューニング項目（要記録）
+
+- シグナル品質: 同一銘柄の連日出現バイアス検知（`check_signal_quality.py`）
+  - `--repeat-lookback-days`（既定: `5`）
+  - `--repeat-min-days`（既定: `3`）
+  - `--repeat-max-ratio`（既定: `0.5`）
+- 運用ルール:
+  - 値を変更した場合は「変更日 / 旧値 / 新値 / 目的」をこの節または当月運用メモへ記録する。
+  - 例: `2026-06-10 repeat-max-ratio 0.50 -> 0.35（同一銘柄偏り抑制）`
+
 ## 8) Chappyへの最短共有テンプレ
 
 「この環境はDB-first運用。通知・判定の正本は `topics.db` / `investment.db`。  

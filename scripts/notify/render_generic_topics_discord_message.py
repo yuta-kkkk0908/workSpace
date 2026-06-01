@@ -179,10 +179,18 @@ def main() -> int:
         conn.close()
 
     parsed: list[tuple[str, list[dict[str, str]]]] = []
+    topic_links_map: dict[str, list[str]] = {}
+    for tp, url in links:
+        tps = str(tp or "").strip()
+        uu = str(url or "").strip()
+        if not tps or not uu:
+            continue
+        topic_links_map.setdefault(tps, []).append(uu)
     for topic, summary, _path in digest:
         entries = parse_summary_entries(summary or "")
         filtered: list[dict[str, str]] = []
         seen_norm: list[str] = []
+        used_urls: set[str] = set()
         for e in entries:
             title = repair_mojibake_title((e.get("title") or "").strip())
             summ = (e.get("summary") or "").strip()
@@ -208,11 +216,19 @@ def main() -> int:
                 except ValueError:
                     pass
             seen_norm.append(norm)
+            picked_url = (e.get("url") or "").strip()
+            if not picked_url:
+                for u in topic_links_map.get(topic, []):
+                    if u not in used_urls:
+                        picked_url = u
+                        break
+            if picked_url:
+                used_urls.add(picked_url)
             filtered.append(
                 {
                     "title": compact_text(title, 76),
                     "summary": compact_text(summ, 90) if summ else "",
-                    "url": (e.get("url") or "").strip(),
+                    "url": picked_url,
                 }
             )
         parsed.append((topic, filtered))
@@ -248,6 +264,10 @@ def main() -> int:
                     )
                     if p["summary"] and not is_duplicate_summary:
                         lines.append(f"     要約: {p['summary']}")
+                    if args.include_urls and not p.get("url"):
+                        fallback_urls = topic_links_map.get(topic, [])
+                        if idx - 1 < len(fallback_urls):
+                            p["url"] = fallback_urls[idx - 1]
                     if args.include_urls and p["url"]:
                         # Keep URL clickable while suppressing preview card.
                         lines.append(f"     URL: <{p['url']}>")

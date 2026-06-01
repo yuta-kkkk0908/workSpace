@@ -1,7 +1,7 @@
 シグナル速報 2026-06-01
 - 参照日: 2026-06-01
-- 件数: 5
-- 信用取引不可除外: 7件
+- 件数: 12
+- 信用取引不可除外: 0件
 
 1. 9692 シーイーシー (不明) / 上昇 / L:A- S:該当なし
   根拠: highest_profit_guidance_dividend_revision / ruleHits=0
@@ -11,19 +11,45 @@
   根拠: highest_profit_guidance_dividend_revision / ruleHits=0
   出典: 一次情報URL未設定
 
-3. 8967 Ｒ－ニホンロジ (不明) / 上昇 / L:A- S:該当なし
+3. 7384 (不明) / 上昇 / L:A- S:該当なし
+  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
+  出典: 一次情報URL未設定
+
+4. 3104 富士紡ＨＤ (不明) / 上昇 / L:A- S:該当なし
+  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
+  出典: 一次情報URL未設定
+
+5. 8967 Ｒ－ニホンロジ (不明) / 上昇 / L:A- S:該当なし
   根拠: upward_revision_plus_dividend / ruleHits=0
   出典: 一次情報URL未設定
 
-4. 6062 チャーム・ケア・コーポレーション (不明) / 上昇 / L:A- S:該当なし
+6. 6062 チャーム・ケア・コーポレーション (不明) / 上昇 / L:A- S:該当なし
   根拠: upward_revision_plus_dividend / ruleHits=0
   出典: 一次情報URL未設定
 
-5. 9973 ＫＯＺＯＨＤ (不明) / 下落 / L:B S:B
+7. 9973 ＫＯＺＯＨＤ (不明) / 下落 / L:B S:B
   根拠: offering_or_dilution / ruleHits=0
   出典: https://www.release.tdnet.info/inbs/140120260601557774.pdf
 
-VWAP運用（昼）:
-- ロング: 価格がVWAPを下回ったら継続見直し/撤退候補
-- ショート: 価格がVWAPを上回ったら継続見直し/撤退候補
-- VWAP逆行中の追撃・ナンピンは禁止
+8. 8105 ＢｉｔｃｏｉｎＪＰＮ (不明) / 下落 / L:B S:B
+  根拠: offering_or_dilution / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601557918.pdf
+
+9. 7794 Ｇ－イーディーピー (不明) / 下落 / L:B S:B
+  根拠: offering_or_dilution / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601557932.pdf
+
+10. 7776 Ｇ－セルシード (不明) / 下落 / L:B S:B
+  根拠: offering_or_dilution / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601557346.pdf
+
+11. 7578 ニチリョク (不明) / 下落 / L:B S:B
+  根拠: offering_or_dilution / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601557034.pdf
+
+12. 6721 ウインテスト (不明) / 下落 / L:B S:B
+  根拠: offering_or_dilution / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601557740.pdf
+
+保有中ウォッチ（open）:
+- 該当なし

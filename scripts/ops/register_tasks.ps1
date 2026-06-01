@@ -29,6 +29,7 @@ New-AiosTask -Name "AIOS-Inv-Scenario-0810" -TimeHHmm "08:10" -ScriptPath "$Repo
 New-AiosTask -Name "AIOS-Alert-Healthcheck" -TimeHHmm "21:20" -ScriptPath "$RepoPath\scripts\ops\run_alert_and_post.ps1"
 New-AiosTask -Name "AIOS-Backtest-Weekly" -TimeHHmm "03:30" -ScriptPath "$RepoPath\scripts\ops\run_backtest_weekly.ps1" -Days @("Sunday")
 New-AiosTask -Name "AIOS-Data-Harvest" -TimeHHmm "23:40" -ScriptPath "$RepoPath\scripts\ops\run_data_harvest.ps1"
+New-AiosTask -Name "AIOS-DB-Backup-2230" -TimeHHmm "02:00" -ScriptPath "$RepoPath\scripts\ops\run_db_backup_to_discord.ps1"
 
 # Scenario reply sync windows: every 5 minutes for 1 hour
 # Morning window: 09:00-10:00
@@ -44,5 +45,5 @@ Write-Host "registered: AIOS-Scenario-Replies-Sync-Noon (12:30-13:30 / every 5m)
 schtasks /Create /TN "AIOS-Scenario-Replies-Sync-Manual" /SC ONCE /ST 00:00 /SD 2099/01/01 /TR $syncCmd /F | Out-Null
 Write-Host "registered: AIOS-Scenario-Replies-Sync-Manual (on-demand)"
 
-Get-ScheduledTask -TaskName "AIOS-Night","AIOS-Inv-Morning","AIOS-Inv-Noon","AIOS-Inv-Evening","AIOS-Inv-AI-2100","AIOS-Inv-Heavy-2000","AIOS-Inv-Scenario-0810","AIOS-Alert-Healthcheck","AIOS-Backtest-Weekly","AIOS-Data-Harvest","AIOS-Scenario-Replies-Sync-Morning","AIOS-Scenario-Replies-Sync-Noon","AIOS-Scenario-Replies-Sync-Manual" -ErrorAction SilentlyContinue |
+Get-ScheduledTask -TaskName "AIOS-Night","AIOS-Inv-Morning","AIOS-Inv-Noon","AIOS-Inv-Evening","AIOS-Inv-AI-2100","AIOS-Inv-Heavy-2000","AIOS-Inv-Scenario-0810","AIOS-Alert-Healthcheck","AIOS-Backtest-Weekly","AIOS-Data-Harvest","AIOS-DB-Backup-2230","AIOS-Scenario-Replies-Sync-Morning","AIOS-Scenario-Replies-Sync-Noon","AIOS-Scenario-Replies-Sync-Manual" -ErrorAction SilentlyContinue |
   Select-Object TaskName,State

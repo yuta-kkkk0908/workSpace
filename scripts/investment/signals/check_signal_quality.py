@@ -27,6 +27,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-signals", type=int, default=4)
     p.add_argument("--max-side-imbalance", type=int, default=4)
     p.add_argument("--max-watch-share", type=float, default=0.7, help="alert when watch share exceeds this ratio")
+    p.add_argument("--repeat-lookback-days", type=int, default=5, help="lookback window to detect repeated ticker exposure")
+    p.add_argument("--repeat-min-days", type=int, default=3, help="min appeared days within lookback to flag ticker repetition")
+    p.add_argument("--repeat-max-ratio", type=float, default=0.5, help="alert when repeated ticker ratio exceeds this threshold")
     p.add_argument("--db", type=Path, default=DEFAULT_DB)
     p.add_argument("--out-json", default=str(PROMPTS / "signal-quality-metrics.json"))
     p.add_argument("--out-alert", default=str(PROMPTS / "signal-quality-alert.txt"))
@@ -229,6 +232,34 @@ def main() -> int:
             f"noon snapshot coverage低下: {noon_snapshot_ticker_count}/{signal_ticker_count} ({noon_coverage:.0%})"
         )
         reason_codes.append("NOON_DATA_GAP")
+
+    # Repeated ticker detection: same names surfacing too many days in short window.
+    conn = sqlite3.connect(args.db)
+    try:
+        rows_rep = conn.execute(
+            """
+            SELECT ticker, COUNT(DISTINCT date) AS appeared_days
+            FROM signals
+            WHERE date BETWEEN date(?, '-' || ? || ' days') AND ?
+              AND COALESCE(ticker,'')<>''
+            GROUP BY ticker
+            """,
+            (args.date, int(args.repeat_lookback_days), args.date),
+        ).fetchall()
+    finally:
+        conn.close()
+    appeared_map = {str(t): int(c or 0) for t, c in rows_rep}
+    today_tickers = [str(t or "").strip() for t in tickers if str(t or "").strip()]
+    repeated_today = sorted({t for t in today_tickers if appeared_map.get(t, 0) >= int(args.repeat_min_days)})
+    repeat_ratio = (len(repeated_today) / len(set(today_tickers))) if today_tickers else 0.0
+    metrics["repeatedTickers"] = repeated_today
+    metrics["repeatedTickerCount"] = int(len(repeated_today))
+    metrics["repeatedTickerRatio"] = round(repeat_ratio, 4)
+    if today_tickers and repeat_ratio > float(args.repeat_max_ratio):
+        alerts.append(
+            f"同一銘柄の連日出現が多い: repeated={len(repeated_today)}/{len(set(today_tickers))} ({repeat_ratio:.0%})"
+        )
+        reason_codes.append("REPEATED_TICKER_BIAS")
 
     status = "ALERT" if alerts else "OK"
     metrics["status"] = status

@@ -44,6 +44,21 @@ def signal_type_ja(v: str) -> str:
         "rebound_long_candidate": "押し目ロング候補",
         "rebound_short_candidate": "戻り売りショート候補",
         "news_material": "ニュース材料",
+        "dividend_revision": "配当修正",
+        "upward_revision_plus_dividend": "上方修正＋配当材料",
+        "highest_profit_guidance_dividend_revision": "最高益見通し＋配当修正",
+        "downward_revision_dividend_cut": "下方修正＋減配",
+        "downward_revision_to_loss": "下方修正（赤字転落）",
+        "offering_or_dilution": "希薄化（増資・売出）",
+        "self_buyback_with_earnings": "自社株買い＋決算材料",
+        "earnings_surprise_positive": "決算サプライズ（上振れ）",
+        "earnings_surprise_negative": "決算サプライズ（下振れ）",
+        "credit_improvement": "信用需給改善",
+        "credit_deterioration": "信用需給悪化",
+        "market_context_risk_off": "地合いリスクオフ",
+        "market_context_risk_on": "地合いリスクオン",
+        "sector_strength": "セクター強含み",
+        "sector_weakness": "セクター弱含み",
     }
     raw = (v or "").strip()
     if not raw or raw.lower() == "unknown":
@@ -120,6 +135,15 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
                      ORDER BY ec.date DESC
                      LIMIT 1
                    ) AS company_from_candidate,
+                   (
+                     SELECT i.name FROM instruments i
+                     WHERE i.ticker=s.ticker
+                       AND i.name IS NOT NULL
+                       AND TRIM(i.name) <> ''
+                       AND LOWER(TRIM(i.name)) <> 'unknown'
+                       AND TRIM(i.name) <> '不明'
+                     LIMIT 1
+                   ) AS company_from_instruments,
                    (
                      SELECT sc.sector_group FROM sector_context_rows sc
                      WHERE sc.ticker=s.ticker
@@ -357,6 +381,8 @@ def build_message(
             company = (r.get("company_from_plan", "") or "").strip()
         if not company:
             company = (r.get("company_from_candidate", "") or "").strip()
+        if not company:
+            company = (r.get("company_from_instruments", "") or "").strip()
         if company in {"不明", "unknown", "UNKNOWN", "-"}:
             company = ""
         header_name = f"{r.get('ticker','')} {company}".strip()

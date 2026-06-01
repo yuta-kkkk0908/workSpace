@@ -393,6 +393,8 @@ def run_investment_cycle_morning(py: str, d: str, backtest: bool = False, weeken
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
@@ -416,6 +418,8 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_c
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals_noon.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
@@ -439,11 +443,14 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weeken
         return rc
     # Daily backtest outcome refresh so DB is not dependent on weekly-only updates.
     rc |= run([py, 'scripts/investment/backtest/fill_market_outcomes.py', '--date', d, '--seed-list', 'rough_backtest_full', '--include-db-signals'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/backtest/fill_sector_context.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
@@ -726,6 +733,8 @@ def main() -> int:
                 # Persist scenario/execution artifacts to DB in the same slot.
                 rc |= run([py, 'scripts/data/init_investment_db.py'])
                 rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+                rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
                 rc |= run([py, 'scripts/investment/analysis/cleanup_investment_inbox.py', '--date', d, '--keep-days', '14'], allow_fail=True)
                 if not args.backtest:
                     rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d], allow_fail=True)

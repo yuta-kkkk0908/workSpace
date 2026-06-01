@@ -1931,3 +1931,17 @@
 [2026-06-01 21:20:05] [AIOS-Alert-Healthcheck] [ERROR] exit_code=2
 [2026-06-01 21:20:06] [AIOS-Alert-Healthcheck] [OK] foreground restored: YourChronicle
 [2026-06-01 21:20:06] [AIOS-Alert-Healthcheck] [END] elapsed_ms=3891
+[2026-06-01 22:00:05] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-01 22:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-01 22:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-01 22:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2982
+[2026-06-01 23:00:08] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-01 23:00:11] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-01 23:00:12] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-01 23:00:12] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3414
+[2026-06-01 23:16:24] [AIOS-Inv-Heavy-2000] [ERROR] exit_code=1
+[2026-06-01 23:16:26] [AIOS-Inv-Heavy-2000] [OK] foreground restored: YourChronicle
+[2026-06-01 23:16:26] [AIOS-Inv-Heavy-2000] [END] elapsed_ms=11783741
+[2026-06-01 23:21:03] [AIOS-Data-Harvest-Weekly-Samples365] [ERROR] exit_code=1
+[2026-06-01 23:21:06] [AIOS-Data-Harvest-Weekly-Samples365] [OK] foreground restored: YourChronicle
+[2026-06-01 23:21:06] [AIOS-Data-Harvest-Weekly-Samples365] [END] elapsed_ms=155461057
