@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 DEFAULT_DB = ROOT / "data" / "investment.db"
+COMPANY_OVERRIDE_PATH = ROOT / "configs" / "ticker_company_overrides.json"
 
 SIG_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$", re.MULTILINE)
 FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
@@ -129,6 +130,82 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def _is_placeholder_company(v: str) -> bool:
+    s = (v or "").strip()
+    if not s:
+        return True
+    return s.upper() in {"不明", "-", "N/A", "NA", "UNKNOWN"}
+
+
+def _load_company_overrides() -> dict[str, str]:
+    if not COMPANY_OVERRIDE_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(COMPANY_OVERRIDE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, str] = {}
+    for k, v in raw.items():
+        tk = str(k or "").strip()
+        tv = str(v or "").strip()
+        if not tk or _is_placeholder_company(tv):
+            continue
+        out[tk] = tv
+    return out
+
+
+def _resolve_company_name(conn: sqlite3.Connection, ticker: str, current_company: str, asof_date: str) -> str:
+    c = (current_company or "").strip()
+    if not _is_placeholder_company(c):
+        return c
+    t = (ticker or "").strip()
+    if not t:
+        return c
+    overrides = _load_company_overrides()
+    if t in overrides:
+        return overrides[t]
+
+    # 1) existing signals (most recent <= asof_date)
+    row = conn.execute(
+        """
+        SELECT company FROM signals
+        WHERE ticker=? AND date<=?
+        ORDER BY date DESC, signal_id DESC
+        LIMIT 1
+        """,
+        (t, asof_date),
+    ).fetchone()
+    if row:
+        v = str(row[0] or "").strip()
+        if not _is_placeholder_company(v):
+            return v
+
+    # 2) tdnet disclosures
+    row = conn.execute(
+        """
+        SELECT company FROM tdnet_disclosures
+        WHERE ticker=? AND date<=?
+        ORDER BY date DESC, disclosed_at DESC
+        LIMIT 1
+        """,
+        (t, asof_date),
+    ).fetchone()
+    if row:
+        v = str(row[0] or "").strip()
+        if not _is_placeholder_company(v):
+            return v
+
+    # 3) instruments master
+    row = conn.execute("SELECT name FROM instruments WHERE ticker=? LIMIT 1", (t,)).fetchone()
+    if row:
+        v = str(row[0] or "").strip()
+        if not _is_placeholder_company(v):
+            return v
+    return c
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Ingest investment inbox into SQLite")
     p.add_argument("--db", default=str(DEFAULT_DB))
@@ -194,10 +271,35 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
     date = path.name[:10]
     rows = parse_signal_chunks(text)
     for r in rows:
+        existing = conn.execute(
+            """
+            SELECT long_rank,short_rank,gate_status,payload_json
+            FROM signals
+            WHERE signal_id=? AND date=?
+            """,
+            (r.get("signal_id", ""), date),
+        ).fetchone()
+        parsed_payload: dict = dict(r)
+        keep_noon_reeval = False
+        if existing and existing[3]:
+            try:
+                existing_payload = json.loads(str(existing[3]))
+            except Exception:
+                existing_payload = {}
+            keep_noon_reeval = isinstance(existing_payload, dict) and isinstance(existing_payload.get("noonReeval"), dict)
+            if keep_noon_reeval:
+                # Keep DB-side noon re-evaluation result even when inbox markdown is re-ingested.
+                r["longSignalRank"] = str(existing[0] or r.get("longSignalRank", ""))
+                r["shortSignalRank"] = str(existing[1] or r.get("shortSignalRank", ""))
+                r["gateStatus"] = str(existing[2] or r.get("gateStatus", ""))
+                parsed_payload.update(existing_payload)
+        ticker = str(r.get("ticker", "") or "").strip()
+        company = _resolve_company_name(conn, ticker, str(r.get("company", "") or ""), date)
+        r["company"] = company
         conn.execute(
             """
-            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,payload_json,source_path,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO signals(signal_id,date,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,credit_status,credit_buy_status,credit_sell_status,credit_source_kind,credit_source_date,credit_freshness_hours,payload_json,source_path,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(signal_id,date) DO UPDATE SET
             ticker=excluded.ticker,company=excluded.company,signal_type=excluded.signal_type,signal_type_label_ja=excluded.signal_type_label_ja,
             expected_direction=excluded.expected_direction,expected_direction_label_ja=excluded.expected_direction_label_ja,
@@ -205,11 +307,14 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
             t1=excluded.t1,t5=excluded.t5,t20=excluded.t20,
             gate_status=excluded.gate_status,gate_status_label_ja=excluded.gate_status_label_ja,
             url=excluded.url,source=excluded.source,session=excluded.session,
-            material_signal_checked=excluded.material_signal_checked,external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,payload_json=excluded.payload_json,
+            material_signal_checked=excluded.material_signal_checked,external_context_checked=excluded.external_context_checked,technical_signal_checked=excluded.technical_signal_checked,
+            credit_status=excluded.credit_status,credit_buy_status=excluded.credit_buy_status,credit_sell_status=excluded.credit_sell_status,
+            credit_source_kind=excluded.credit_source_kind,credit_source_date=excluded.credit_source_date,credit_freshness_hours=excluded.credit_freshness_hours,
+            payload_json=excluded.payload_json,
             source_path=excluded.source_path,updated_at=excluded.updated_at
             """,
             (
-                r.get("signal_id",""), date, r.get("ticker",""), r.get("company",""), r.get("signalType",""),
+                r.get("signal_id",""), date, ticker, company, r.get("signalType",""),
                 signal_type_label_ja(r.get("signalType","")),
                 r.get("expectedDirection",""), expected_direction_label_ja(r.get("expectedDirection","")),
                 r.get("longSignalRank",""), r.get("shortSignalRank",""),
@@ -218,7 +323,10 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
                 gate_status_label_ja(r.get("gateStatus","")),
                 r.get("url",""), r.get("source",""), r.get("session",""),
                 r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),
-                json.dumps(r, ensure_ascii=False, separators=(",", ":")),
+                r.get("creditStatus",""), r.get("creditBuyStatus",""), r.get("creditSellStatus",""),
+                r.get("creditSourceKind",""), r.get("creditSourceDate",""),
+                int(r.get("creditFreshnessHours", 0) or 0) if str(r.get("creditFreshnessHours", "")).strip() else None,
+                json.dumps(parsed_payload, ensure_ascii=False, separators=(",", ":")),
                 str(path.relative_to(ROOT)), now(),
             ),
         )
@@ -237,6 +345,9 @@ def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
     ]
     for side, key, candidate_type, rank_field in mappings:
         for r in data.get(key, []) or []:
+            ticker = str(r.get("ticker", "") or "").strip()
+            company = _resolve_company_name(conn, ticker, str(r.get("company", "") or ""), date)
+            r["company"] = company
             conn.execute(
                 """
                 INSERT INTO entry_candidates(date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,trade_use,gate_status,material_signal_checked,external_context_checked,technical_signal_checked,score,url,payload_json,source_path,updated_at)
@@ -250,7 +361,7 @@ def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
                 score=excluded.score,url=excluded.url,payload_json=excluded.payload_json,source_path=excluded.source_path,updated_at=excluded.updated_at
                 """,
                 (
-                    date, side, candidate_type, r.get("signalId",""), r.get("ticker",""), r.get("company",""),
+                    date, side, candidate_type, r.get("signalId",""), ticker, company,
                     r.get(rank_field,""), r.get("longSignalRank",""), r.get("shortSignalRank",""),
                     r.get("expectedDirection",""), r.get("tradeUse",""), r.get("gateStatus",""),
                     r.get("materialSignalChecked",""), r.get("externalContextChecked",""), r.get("technicalSignalChecked",""),

@@ -1,0 +1,4 @@
+{
+  "_comment": "Manual fallback for tickers missing company name in upstream sources. Example: \"6062\": \"チャーム・ケア・コーポレーション\"",
+  "6062": "チャーム・ケア・コーポレーション"
+}

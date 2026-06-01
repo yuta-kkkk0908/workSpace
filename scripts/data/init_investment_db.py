@@ -188,6 +188,12 @@ SCHEMA = [
       material_signal_checked TEXT,
       external_context_checked TEXT,
       technical_signal_checked TEXT,
+      credit_status TEXT,
+      credit_buy_status TEXT,
+      credit_sell_status TEXT,
+      credit_source_kind TEXT,
+      credit_source_date TEXT,
+      credit_freshness_hours INTEGER,
       payload_json TEXT,
       source_path TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -663,6 +669,55 @@ SCHEMA = [
       processed_at TEXT NOT NULL
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS pipeline_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_time TEXT NOT NULL,
+      event_date TEXT NOT NULL,
+      pipeline TEXT NOT NULL,
+      slot TEXT,
+      stage TEXT,
+      level TEXT NOT NULL DEFAULT 'info',
+      status TEXT,
+      command TEXT,
+      return_code INTEGER,
+      duration_ms INTEGER,
+      payload_json TEXT,
+      source_path TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_pipeline_events_date_slot
+      ON pipeline_events(event_date, slot, event_time)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_pipeline_events_pipeline_stage
+    ON pipeline_events(pipeline, stage, event_time)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS market_signal_snapshots (
+      date TEXT NOT NULL,
+      ticker TEXT NOT NULL,
+      slot TEXT NOT NULL,
+      snapshot_time TEXT NOT NULL,
+      price REAL,
+      vwap REAL,
+      vwap_gap_pct REAL,
+      return_pct REAL,
+      volume INTEGER,
+      volume_ratio REAL,
+      source_kind TEXT,
+      source_ref TEXT,
+      payload_json TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY(date, ticker, slot, snapshot_time)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_market_signal_snapshots_date_slot
+    ON market_signal_snapshots(date, slot, ticker, snapshot_time)
+    """,
 ]
 
 
@@ -693,6 +748,12 @@ def main() -> int:
             ("signals", "material_signal_checked", "TEXT"),
             ("signals", "external_context_checked", "TEXT"),
             ("signals", "technical_signal_checked", "TEXT"),
+            ("signals", "credit_status", "TEXT"),
+            ("signals", "credit_buy_status", "TEXT"),
+            ("signals", "credit_sell_status", "TEXT"),
+            ("signals", "credit_source_kind", "TEXT"),
+            ("signals", "credit_source_date", "TEXT"),
+            ("signals", "credit_freshness_hours", "INTEGER"),
             ("signals", "payload_json", "TEXT"),
             ("entry_candidates", "candidate_type", "TEXT"),
             ("entry_candidates", "long_rank", "TEXT"),

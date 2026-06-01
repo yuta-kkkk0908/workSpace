@@ -26,6 +26,12 @@ def main() -> int:
             "select topic,summary,path from topic_daily_digest where date=? order by topic",
             (args.date,),
         ).fetchall()
+        ai_summary = dict(
+            conn.execute(
+                "select topic,summary from topic_ai_summaries where date=? and kind='collection_summary'",
+                (args.date,),
+            ).fetchall()
+        )
         link_counts = dict(
             conn.execute(
                 "select topic,count(*) from topic_links where date=? group by topic",
@@ -49,6 +55,9 @@ def main() -> int:
             lines.append(f"- links: {link_counts.get(topic, 0)}")
             lines.append("- summary:")
             lines.append(f"  - {(summary or '').replace(chr(10), ' / ')[:500]}")
+            if topic in ai_summary:
+                lines.append("- ai_summary:")
+                lines.append(f"  - {(ai_summary.get(topic) or '').replace(chr(10), ' / ')[:500]}")
             lines.append("")
 
     out = Path(args.out)
@@ -60,4 +69,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

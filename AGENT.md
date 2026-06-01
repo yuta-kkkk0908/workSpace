@@ -129,6 +129,15 @@
 - `needs` 系（`product-idea-watch`）も同様に DB-first とし、`needs.db` の内容を優先参照する。
 - アラート/運用ログ系も同様に DB-first とし、`ops.db`（scheduler/discord logs）を優先参照する。
 
+## Discord Delivery Contract
+Discord 投稿は次を原則とする。
+
+1. 投稿ルートは Python 実装（Bot API / Webhook）を優先する。
+2. PowerShell 直投稿（`Invoke-RestMethod`）は補助経路として扱い、常用しない。
+3. 投稿失敗時は scheduler 終了コードだけで判断せず、`logs/discord-*.log` と `ops.db` の delivery event を確認する。
+4. 再送時は同一メッセージ重複を避けるため、既存の重複回避ロジック（hash/state）を尊重する。
+5. Webhook が `403` の場合は Python 経由で `User-Agent` を明示して再送する（例: `curl/8.8.0`）。
+
 ## Investment DB-First Contract
 投資系（`investment-research`）は次を必須とする。
 

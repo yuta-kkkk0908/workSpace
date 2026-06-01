@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sqlite3
 import urllib.error
 import urllib.request
@@ -29,6 +30,12 @@ def parse_args() -> argparse.Namespace:
         help="target minimum number of trade posts. If fewer trades exist, watch posts are expanded up to max-posts",
     )
     p.add_argument("--dedupe-hours", type=int, default=6, help="skip same ticker/direction/tier posted within this window")
+    p.add_argument(
+        "--thread-reuse-days",
+        type=int,
+        default=7,
+        help="reuse recent thread for same ticker/direction/tier(+ladder) within this window",
+    )
     p.add_argument("--dry-run", action="store_true")
     return p.parse_args()
 
@@ -66,7 +73,7 @@ def direction_ja(v: str) -> str:
 
 def clean_company_name(v: str) -> str:
     s = (v or "").strip()
-    if not s:
+    if not s or s in {"不明", "-", "N/A", "NA", "UNKNOWN", "unknown"}:
         return "不明"
     s = s.replace("ロング", "").replace("ショート", "")
     s = s.replace("[", " ").replace("]", " ")
@@ -117,7 +124,7 @@ def rationale(row: dict) -> str:
 def to_message(date_str: str, idx: int, row: dict) -> str:
     hold_code = str(row.get("suggestedHorizon", "") or "")
     tier = str(row.get("scenarioTier", "trade"))
-    tier_label = "TRADE" if tier == "trade" else "WATCH"
+    tier_label = "TRADE" if tier == "trade" else ("PAPER" if tier == "paper_trade_only" else "WATCH")
     entry = row.get("entryLimitRule", "") or "条件未設定（watch観測用）"
     take = row.get("takeProfitRule", "") or "条件未設定（watch観測用）"
     stop = row.get("stopLossRule", "") or "条件未設定（watch観測用）"
@@ -125,20 +132,39 @@ def to_message(date_str: str, idx: int, row: dict) -> str:
     lines = [
         f"【{date_str} シナリオ #{idx} / {tier_label}】{row.get('ticker','')} {company}",
         f"方向: {direction_ja(row.get('direction',''))}",
+        "運用注記: 本投稿は売買判断の提案/観測であり、自動発注は行いません。",
         f"品質: score={row.get('scenarioScore',0)} / ruleHits={row.get('ruleHitCount',0)} / {row.get('estimatedWinRate','')}",
         f"根拠: {rationale(row)}",
-        f"エントリー: {entry}",
-        f"利確: {take}",
-        f"損切: {stop}",
-        f"想定保有日数: {hold_days_ja(hold_code)}（{hold_code or 'N/A'}）",
-        f"無効化条件: {invalidation(row)}",
         f"補足: ruleHits={row.get('ruleHitCount',0)} / source={row.get('candidateSource','primary')}",
-        "返信例: entry 100 4022 / entry paper 100 4022 / entry 机上 100 4022 / exit tp 4070 / cancel / credit ng|ok|unknown",
     ]
+    if tier != "watch":
+        lines.extend(
+            [
+                f"エントリー: {entry}",
+                f"利確: {take}",
+                f"損切: {stop}",
+                f"想定保有日数: {hold_days_ja(hold_code)}（{hold_code or 'N/A'}）",
+                f"無効化条件: {invalidation(row)}",
+                "返信例: entry 100 4022 / entry paper 100 4022 / entry 机上 100 4022 / exit tp 4070 / cancel / credit ng|ok|unknown",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"エントリー: {entry}",
+                "返信例: entry paper 100 4022 / entry 机上 100 4022 / cancel / credit ng|ok|unknown",
+            ]
+        )
     if tier != "trade":
         ladder = str(row.get("watchLadder", "") or "").strip()
         lines.append(f"優先度: Ladder={ladder or 'none'}")
-        lines.append("注意: WATCH枠（検証優先）。entry時は paper_trades.mode=watch で記録")
+        lines.append(f"昇格根拠: {watch_ladder_reason(row)}")
+        if tier == "paper_trade_only":
+            lines.append("注意: PAPER枠（実売買見送り・紙トレ検証優先）。entry時は paper_trades.mode=watch で記録")
+        else:
+            lines.append("注意: WATCH枠（監視優先）。entry時は paper_trades.mode=watch で記録")
+    else:
+        lines.append("注意: TRADE枠は執行候補の提案です。発注可否は運用者が最終判断してください。")
     msg = "\n".join(lines)
     return msg[:1900]
 
@@ -152,9 +178,10 @@ def to_anchor_message(date_str: str, idx: int, row: dict) -> str:
 
 
 def to_thread_name(date_str: str, idx: int, row: dict) -> str:
-    tier = str(row.get("scenarioTier", "trade")).upper()
+    tier_raw = str(row.get("scenarioTier", "trade")).strip().lower()
+    tier = "WATCH" if tier_raw == "watch" else ("PAPER" if tier_raw == "paper_trade_only" else "TRADE")
     company = clean_company_name(row.get("company", ""))
-    base = f"{date_str} #{idx} {row.get('ticker','')} {company} {tier}"
+    base = f"{date_str} #{idx} [{tier}] {row.get('ticker','')} {company}"
     return base[:100]
 
 
@@ -197,6 +224,66 @@ def start_thread_from_message(token: str, channel_id: str, message_id: str, name
         f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/threads",
         {"name": name[:100], "auto_archive_duration": 1440},
     )
+
+
+def patch_channel(token: str, channel_id: str, payload: dict) -> dict:
+    return discord_request(
+        token,
+        "PATCH",
+        f"https://discord.com/api/v10/channels/{channel_id}",
+        payload,
+    )
+
+
+def thread_reuse_key(row: dict) -> tuple[str, str, str, str]:
+    ticker = str(row.get("ticker", "") or "").strip()
+    direction = str(row.get("direction", "") or "").strip().lower()
+    tier = str(row.get("scenarioTier", "trade") or "trade").strip().lower()
+    ladder = ""
+    if tier != "trade":
+        ladder = str(row.get("watchLadder", "") or "").strip().lower()
+    return ticker, direction, tier, ladder
+
+
+def find_reusable_thread_id(
+    conn: sqlite3.Connection,
+    *,
+    row: dict,
+    reuse_days: int,
+) -> str:
+    if reuse_days <= 0:
+        return ""
+    ticker, direction, tier, ladder = thread_reuse_key(row)
+    if not ticker or not direction:
+        return ""
+    threshold = datetime.now(timezone.utc) - timedelta(days=reuse_days)
+    rows = conn.execute(
+        """
+        select thread_id, posted_at, watch_ladder
+        from scenario_messages
+        where ticker=?
+          and direction=?
+          and scenario_tier=?
+          and coalesce(thread_id,'')<>''
+        order by posted_at desc
+        """,
+        (ticker, direction, tier),
+    ).fetchall()
+    for r in rows:
+        raw = str(r["posted_at"] or "").strip()
+        if not raw:
+            continue
+        try:
+            dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if dt < threshold:
+            continue
+        db_ladder = str(r["watch_ladder"] or "").strip().lower()
+        if tier != "trade" and db_ladder != ladder:
+            continue
+        return str(r["thread_id"] or "")
+    return ""
 
 
 def upsert_scenario_message(
@@ -253,7 +340,7 @@ def upsert_scenario_message(
 
 
 def upsert_auto_paper_trade(conn: sqlite3.Connection, row: dict) -> None:
-    if str(row.get("scenarioTier", "trade")) != "trade":
+    if str(row.get("scenarioTier", "trade")) not in {"trade", "paper_trade_only", "watch"}:
         return
     scenario_date = str(row.get("scenarioDate", "") or "")
     scenario_index = int(row.get("scenarioIndex", 0) or 0)
@@ -278,7 +365,7 @@ def upsert_auto_paper_trade(conn: sqlite3.Connection, row: dict) -> None:
         """,
         (
             trade_id,
-            "paper",
+            "paper" if str(row.get("scenarioTier", "trade")) == "trade" else "watch",
             scenario_date,
             ticker,
             str(row.get("company", "") or ""),
@@ -336,9 +423,42 @@ def direction_to_side(v: str) -> str:
     return "long" if x == "long" else "short"
 
 
-def bucket_none_ladder(row: dict, *, high_score_threshold: int = 80) -> str:
+def parse_winrate_value(text: str) -> float | None:
+    m = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", str(text or ""))
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
+
+
+def bucket_watch_ladder(row: dict) -> str:
     score = int(row.get("scenarioScore", 0) or 0)
-    return "none-high-score" if score >= high_score_threshold else "none-low-score"
+    hits = int(row.get("ruleHitCount", 0) or 0)
+    wr = parse_winrate_value(str(row.get("estimatedWinRate", "") or ""))
+    if wr is not None and score >= 85 and hits >= 6 and wr >= 55.0:
+        return "strict"
+    if wr is not None and score >= 75 and hits >= 4 and wr >= 50.0:
+        return "balanced"
+    if score >= 65 and hits >= 3:
+        return "early"
+    return "none"
+
+
+def watch_ladder_reason(row: dict) -> str:
+    ladder = str(row.get("watchLadder", "") or "").strip().lower()
+    score = int(row.get("scenarioScore", 0) or 0)
+    hits = int(row.get("ruleHitCount", 0) or 0)
+    wr = parse_winrate_value(str(row.get("estimatedWinRate", "") or ""))
+    wr_text = f"{wr:.1f}%" if isinstance(wr, float) else "unknown"
+    if ladder == "strict":
+        return f"strict: score>=85 & ruleHits>=6 & winRate>=55%（actual: score={score}, ruleHits={hits}, winRate={wr_text}）"
+    if ladder == "balanced":
+        return f"balanced: score>=75 & ruleHits>=4 & winRate>=50%（actual: score={score}, ruleHits={hits}, winRate={wr_text}）"
+    if ladder == "early":
+        return f"early: score>=65 & ruleHits>=3（actual: score={score}, ruleHits={hits}, winRate={wr_text}）"
+    return f"none: ladder基準未達（actual: score={score}, ruleHits={hits}, winRate={wr_text}）"
 
 
 def main() -> int:
@@ -355,6 +475,7 @@ def main() -> int:
         d0 = datetime.strptime(args.date, "%Y-%m-%d").date()
         src_date = None
         trade_rows: list[dict] = []
+        paper_rows: list[dict] = []
         rejected_rows: list[dict] = []
         for i in range(0, max(0, args.fallback_days) + 1):
             d = (d0 - timedelta(days=i)).isoformat()
@@ -362,19 +483,19 @@ def main() -> int:
                 """
                 SELECT scenario_index,ticker,
                        COALESCE(
-                         NULLIF(TRIM(company),''),
+                         CASE WHEN UPPER(TRIM(company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(company) END,
                          (
-                           SELECT NULLIF(TRIM(s.company),'') FROM signals s
+                           SELECT CASE WHEN UPPER(TRIM(s.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(s.company) END FROM signals s
                            WHERE s.ticker=os.ticker
                            ORDER BY s.date DESC, s.signal_id DESC LIMIT 1
                          ),
                          (
-                           SELECT NULLIF(TRIM(t.company),'') FROM tdnet_disclosures t
-                           WHERE t.ticker=os.ticker AND COALESCE(NULLIF(TRIM(t.company),''),'')<>''
+                           SELECT CASE WHEN UPPER(TRIM(t.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(t.company) END FROM tdnet_disclosures t
+                           WHERE t.ticker=os.ticker AND COALESCE(CASE WHEN UPPER(TRIM(t.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(t.company) END,'')<>''
                            ORDER BY t.date DESC, t.disclosed_at DESC LIMIT 1
                          ),
                          (
-                           SELECT NULLIF(TRIM(i.name),'') FROM instruments i
+                           SELECT CASE WHEN UPPER(TRIM(i.name)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(i.name) END FROM instruments i
                            WHERE i.ticker=os.ticker
                            LIMIT 1
                          ),
@@ -388,7 +509,36 @@ def main() -> int:
                 """,
                 (d,),
             ).fetchall()
-            if not trade_src:
+            rej_src = conn.execute(
+                """
+                SELECT scenario_index,ticker,
+                       COALESCE(
+                         CASE WHEN UPPER(TRIM(company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(company) END,
+                         (
+                           SELECT CASE WHEN UPPER(TRIM(s.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(s.company) END FROM signals s
+                           WHERE s.ticker=os.ticker
+                           ORDER BY s.date DESC, s.signal_id DESC LIMIT 1
+                         ),
+                         (
+                           SELECT CASE WHEN UPPER(TRIM(t.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(t.company) END FROM tdnet_disclosures t
+                           WHERE t.ticker=os.ticker AND COALESCE(CASE WHEN UPPER(TRIM(t.company)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(t.company) END,'')<>''
+                           ORDER BY t.date DESC, t.disclosed_at DESC LIMIT 1
+                         ),
+                         (
+                           SELECT CASE WHEN UPPER(TRIM(i.name)) IN ('', '不明', '-', 'N/A', 'NA', 'UNKNOWN') THEN NULL ELSE TRIM(i.name) END FROM instruments i
+                           WHERE i.ticker=os.ticker
+                           LIMIT 1
+                         ),
+                         ''
+                       ) AS company,
+                       direction,scenario_score,rule_hit_count,estimated_winrate_text
+                FROM opening_scenarios os
+                WHERE scenario_date=? AND source_kind='rejected'
+                ORDER BY scenario_index
+                """,
+                (d,),
+            ).fetchall()
+            if not trade_src and not rej_src:
                 continue
             src_date = d
             for r in trade_src:
@@ -404,44 +554,16 @@ def main() -> int:
                         "estimatedWinRate": r["estimated_winrate_text"] or "",
                         "sourceUrl": r["source_url"] or "",
                         "entryPrice": r["entry_price"],
-                        "scenarioTier": "trade",
+                        "scenarioTier": str(r["scenario_tier"] or "trade"),
                         "signalId": r["signal_id"] or "",
                         "sourcePath": "db:opening_scenarios",
                     }
                 )
-            rej_src = conn.execute(
-                """
-                SELECT ticker,
-                       COALESCE(
-                         NULLIF(TRIM(company),''),
-                         (
-                           SELECT NULLIF(TRIM(s.company),'') FROM signals s
-                           WHERE s.ticker=os.ticker
-                           ORDER BY s.date DESC, s.signal_id DESC LIMIT 1
-                         ),
-                         (
-                           SELECT NULLIF(TRIM(t.company),'') FROM tdnet_disclosures t
-                           WHERE t.ticker=os.ticker AND COALESCE(NULLIF(TRIM(t.company),''),'')<>''
-                           ORDER BY t.date DESC, t.disclosed_at DESC LIMIT 1
-                         ),
-                         (
-                           SELECT NULLIF(TRIM(i.name),'') FROM instruments i
-                           WHERE i.ticker=os.ticker
-                           LIMIT 1
-                         ),
-                         ''
-                       ) AS company,
-                       direction,scenario_score,rule_hit_count,estimated_winrate_text
-                FROM opening_scenarios os
-                WHERE scenario_date=? AND source_kind='rejected'
-                ORDER BY scenario_index
-                """,
-                (d,),
-            ).fetchall()
             for r in rej_src:
                 rejected_rows.append(
                     {
                         "scenarioDate": d,
+                        "scenarioIndex": int(r["scenario_index"] or 0),
                         "ticker": r["ticker"] or "",
                         "company": r["company"] or "",
                         "direction": r["direction"] or "",
@@ -453,19 +575,26 @@ def main() -> int:
                 )
             break
         if not src_date:
-            raise SystemExit(f"opening_scenarios not found in DB for {args.date} (fallback_days={args.fallback_days})")
+            print(
+                f"opening_scenarios not found in DB for {args.date} (fallback_days={args.fallback_days}); "
+                "skip scenario thread posting"
+            )
+            return 0
     finally:
         conn.close()
-    trade_rows = trade_rows[:max_posts]
     for r in trade_rows:
-        r["scenarioTier"] = "trade"
+        if str(r.get("scenarioTier", "trade")) == "paper_trade_only":
+            paper_rows.append(r)
+    trade_rows = [r for r in trade_rows if str(r.get("scenarioTier", "trade")) == "trade"][:max_posts]
+    paper_rows = paper_rows[: max(0, max_posts - len(trade_rows))]
     trade_count = len(trade_rows)
+    paper_count = len(paper_rows)
     base_watch_posts = max(0, args.watch_posts)
     # If trade scenarios are thin, backfill with watch scenarios to keep observation throughput.
     shortfall = max(0, int(args.min_trade_posts) - trade_count)
     watch_cap = min(max_posts, base_watch_posts + shortfall)
     # Avoid overfill beyond total post cap.
-    watch_cap = max(0, min(watch_cap, max_posts - trade_count))
+    watch_cap = max(0, min(watch_cap, max_posts - trade_count - paper_count))
     watch_rows = []
     for r in rejected_rows:
         if len(watch_rows) >= watch_cap:
@@ -474,15 +603,20 @@ def main() -> int:
         x["scenarioTier"] = "watch"
         watch_rows.append(x)
 
-    # Prioritize watch rows by ladder candidates (early > balanced > strict).
+    # Prioritize watch rows by ladder candidates (strict > balanced > early > none).
     for r in watch_rows:
-        r["watchLadder"] = bucket_none_ladder(r)
-    rows = (trade_rows + watch_rows)[:max_posts]
+        r["watchLadder"] = bucket_watch_ladder(r)
+    rows = (trade_rows + paper_rows + watch_rows)[:max_posts]
 
     conn = sqlite3.connect(db)
+    conn.row_factory = sqlite3.Row
     try:
         posted = 0
         for idx, row in enumerate(rows, 1):
+            if not str(row.get("scenarioDate", "") or "").strip():
+                row["scenarioDate"] = args.date
+            if int(row.get("scenarioIndex", 0) or 0) <= 0:
+                row["scenarioIndex"] = idx
             if not args.dry_run:
                 upsert_auto_paper_trade(conn, row)
             if is_recent_duplicate(
@@ -505,14 +639,22 @@ def main() -> int:
                 print("---- thread ----")
                 print(content)
                 continue
-            anchor_resp = post_message(token, channel_id, anchor)
-            anchor_message_id = str(anchor_resp.get("id", ""))
-            if not anchor_message_id:
-                continue
-            thread_resp = start_thread_from_message(token, channel_id, anchor_message_id, thread_name)
-            thread_id = str(thread_resp.get("id", ""))
+            thread_id = find_reusable_thread_id(conn, row=row, reuse_days=int(args.thread_reuse_days))
+            anchor_message_id = ""
+            if thread_id:
+                try:
+                    patch_channel(token, thread_id, {"archived": False, "locked": False, "auto_archive_duration": 1440})
+                except RuntimeError:
+                    thread_id = ""
             if not thread_id:
-                continue
+                anchor_resp = post_message(token, channel_id, anchor)
+                anchor_message_id = str(anchor_resp.get("id", ""))
+                if not anchor_message_id:
+                    continue
+                thread_resp = start_thread_from_message(token, channel_id, anchor_message_id, thread_name)
+                thread_id = str(thread_resp.get("id", ""))
+                if not thread_id:
+                    continue
             detail_resp = post_message(token, thread_id, content)
             message_id = str(detail_resp.get("id", ""))
             if not message_id:
@@ -535,9 +677,10 @@ def main() -> int:
         conn.close()
 
     print(
-        "posted_scenarios={posted} trade={trade_count} watch={watch_count} watchCap={watch_cap} minTradePosts={min_trade} source={source} sourceDate={source_date} promoDate={promo_date}".format(
+        "posted_scenarios={posted} trade={trade_count} paper={paper_count} watch={watch_count} watchCap={watch_cap} minTradePosts={min_trade} source={source} sourceDate={source_date} promoDate={promo_date}".format(
             posted=0 if args.dry_run else posted,
             trade_count=trade_count,
+            paper_count=paper_count,
             watch_count=len(watch_rows),
             watch_cap=watch_cap,
             min_trade=int(args.min_trade_posts),

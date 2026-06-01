@@ -139,6 +139,9 @@ needs-db-init:
 needs-db-ingest:
 	$(PYTHON) scripts/data/ingest_needs_db.py $(if $(DATE),--date "$(DATE)",)
 
+topic-db-ingest:
+	$(PYTHON) scripts/data/topic_ingest_runner.py --target all $(if $(DATE),--date "$(DATE)",)
+
 needs-ai-queue:
 	$(PYTHON) scripts/build_needs_ai_queue.py --limit "$(if $(LIMIT),$(LIMIT),20)"
 

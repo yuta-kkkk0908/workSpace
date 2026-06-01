@@ -25,6 +25,7 @@ make inv-daily DATE=YYYY-MM-DD
 make inv-deep DATE=YYYY-MM-DD
 make inv-deep-cache DATE=YYYY-MM-DD
 make daily-missing DATE=today DAYS=7
+make topic-db-ingest DATE=YYYY-MM-DD
 make topics-db-ingest DATE=YYYY-MM-DD
 make needs-db-ingest DATE=YYYY-MM-DD
 make needs-ai-queue LIMIT=20
@@ -51,6 +52,8 @@ python scripts/ops/keyword_action.py 全部
 - `inv-deep`: 深掘りの投資パイプライン
 - `inv-deep-cache`: ネット取得を抑えた deep 実行
 - `daily-missing`: 日次取り逃しの確認
+- `topic-db-ingest`: topic/needs のDB投入を共通ランナーで実行
+  - プラグイン定義: `configs/topic-ingest-plugins.json`
 - `topics-db-ingest`: 非投資トピックの日次メモを汎用DBへ投入
 - `needs-db-ingest`: ニーズ収集ログを専用DBへ投入
 - `needs-ai-queue`: 未整理ニーズをAI整理キューとして抽出
@@ -84,10 +87,10 @@ Scenario チャンネル運用:
 - 抑止時は `skip_duplicate` ログを出力し、未投稿でも異常終了にはしない
 - `trade` 件数が不足した日は `min-trade-posts` を下回った不足分だけ `watch` 投稿枠を自動拡張（上限: `max-posts`）
 - `WATCH` 投稿には `Ladder` を表示する:
-- `strict`: 厳しめ条件でも昇格候補
-- `balanced`: 標準条件で昇格候補
-- `early`: 緩め条件で昇格候補（観測優先）
-- `none`: どの段階条件にも未達（継続観測）
+- `strict`: `score>=85` かつ `ruleHits>=6` かつ 想定勝率 `>=55%`
+- `balanced`: `score>=75` かつ `ruleHits>=4` かつ 想定勝率 `>=50%`
+- `early`: `score>=65` かつ `ruleHits>=3`
+- `none`: 上記に未達（継続観測）
 - 返信コマンドは共通:
 - `entry [lots] [price]`
 - `entry lots=100 price=4022`
@@ -436,6 +439,13 @@ make investment-seed-compare DATE=2026-05-11 LEFT_SEED=rough_backtest_light RIGH
 python3 scripts/new_topic.py product-research --purpose "プロダクト調査の論点と判断を管理する。"
 ```
 
+kind を明示したい場合（`daily-watch` / `need-watch` / `research` など）:
+
+```bash
+python3 scripts/new_topic.py ai-news-watch --kind daily-watch --purpose "日次ニュース監視"
+python3 scripts/new_topic.py product-idea-watch --kind need-watch --purpose "ニーズ収集"
+```
+
 タイトルと slug を分けたい場合:
 
 ```bash
@@ -446,6 +456,12 @@ python3 scripts/new_topic.py "Product Research" --slug product-research --title 
 
 ```bash
 python3 scripts/new_topic.py "Vendor Review" --slug vendor-review --from-example research --open-task-id-prefix review --purpose "ベンダー比較の判断を管理する。"
+```
+
+作成直後の DB ingest フック:
+
+```bash
+make topic-db-ingest DATE=YYYY-MM-DD
 ```
 
 ### 情報を追加する
@@ -553,11 +569,70 @@ CI でも同じ検証を回せるようにしています。
 - `.github/workflows/validate.yml`
 - `.pre-commit-config.yaml`
 
+DB-first 検証を含める場合:
+
+```bash
+python scripts/data/init_topics_db.py
+python scripts/data/init_needs_db.py
+python scripts/data/init_investment_db.py
+python scripts/data/init_ops_db.py
+python scripts/validate_topics.py --check-db-first --db-date YYYY-MM-DD
+```
+
+## Daily Missing / Scheduler 監視
+日次漏れとスケジューラー健全性は、次を定期確認します。
+
+日次漏れ確認:
+
+```bash
+python scripts/check_daily_missing.py --date today --days 7 --check-db
+```
+
+見るポイント:
+- `topics.db 未投入` / `investment.db signals 未投入` / `needs.db が存在しない`
+- `kind: daily-watch` topic の当日不足
+
+スケジューラー健全性確認:
+
+```bash
+python scripts/check_scheduler_health.py --hours 24
+```
+
+見るポイント:
+- 直近24時間の task 実行欠落
+- 連続エラー、重複実行、想定外停止
+
+失敗時の復旧手順（最小）:
+1. `python scripts/data/init_ops_db.py` を実行して `ops.db` スキーマを再適用
+2. `python scripts/data/ingest_ops_logs.py` でログ再取り込み
+3. 該当スロットを `python scripts/run_ops_scheduler.py --slot <slot> --date YYYY-MM-DD` で再実行
+4. 再度 `check_daily_missing.py` / `check_scheduler_health.py` を実行して解消確認
+
 ## Scripts
 - `scripts/new_topic.py`: template から topic を作る
 - `scripts/export_sample_topic.py`: local topic を `sample-topics/` に複製する
 - `scripts/diff_topic.py`: topic 同士の差分を見る
 - `scripts/validate_topics.py`: JSON と topic 構造を検証する
+
+## Command Update Scope
+主要コマンドが更新する対象（DB-first の正本 / 補助ファイル）を明示します。
+
+| Command | 主な更新先(DB) | 主な更新先(ファイル) | 備考 |
+|---|---|---|---|
+| `make topics-db-ingest DATE=...` | `data/topics.db` (`topic_daily_digest`, `topic_links`) | なし（読み取りのみ） | 非投資dailyの取り込み |
+| `make needs-db-ingest DATE=...` | `data/needs.db` (`need_items`, `need_item_state`) | なし（読み取りのみ） | needsログの取り込み |
+| `make topic-db-ingest DATE=...` | `data/topics.db`, `data/needs.db` | なし（読み取りのみ） | 共通 ingestion runner |
+| `make inv-daily DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 軽量投資パイプライン |
+| `make inv-deep DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 深掘り投資パイプライン |
+| `make daily-missing ...` | なし（DB参照） | `logs/*`（必要時） | 日次漏れの検査 |
+| `python scripts/run_ops_scheduler.py --slot night ...` | `data/ops.db`, `data/topics.db`, `data/needs.db`, `data/investment.db` | `topics/*/inbox/*`, `prompts/*`, `logs/*` | 全体夜間オーケストレーション |
+| `python scripts/run_ops_scheduler.py --slot inv-scenario ...` | `data/investment.db` (`opening_scenarios`, `execution_plan`, `scenario_gate_diagnostics` ほか) | `topics/investment-research/inbox/*` | 寄り付きシナリオ生成 |
+| `python scripts/validate_topics.py` | なし | なし | 構造/JSON検証 |
+| `python scripts/validate_topics.py --check-db-first --db-date ...` | なし（DB参照） | なし | DB存在/主要テーブル/manifest kind整合性検証 |
+
+補足:
+- 正式な参照先は DB（`data/*.db`）。`topics/*/inbox/*` は監査・再現用の補助ログです。
+- `organize` 系は原則 DB更新を伴い、`present` 系は原則読み取り専用です。
 
 ## Public Samples
 GitHub に載せる topic サンプルは `sample-topics/` に置きます。

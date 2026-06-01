@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    {
+      "name": "topics",
+      "script": "scripts/data/ingest_topics_db.py",
+      "dbArg": "--db",
+      "dbPathArgName": "topics_db"
+    },
+    {
+      "name": "needs",
+      "script": "scripts/data/ingest_needs_db.py",
+      "dbArg": "--db",
+      "dbPathArgName": "needs_db"
+    }
+  ]
+}

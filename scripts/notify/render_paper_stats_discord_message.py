@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import argparse
 import re
+import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 SECTION_RE = re.compile(r"^###\s+(backtest|watch|live|paper|all)\s*$")
 SAMPLE_RE = re.compile(r"^- sampleTrades:\s*(\d+)\s*$")
@@ -21,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Render paper-stats into Discord-ready message")
     p.add_argument("--date", required=True, help="YYYY-MM-DD")
     p.add_argument("--fallback-days", type=int, default=3)
+    p.add_argument("--db", type=Path, default=DEFAULT_DB)
     return p.parse_args()
 
 
@@ -80,6 +83,65 @@ def parse_stats(text: str) -> dict[str, dict[str, str]]:
             rows[cur][f"rank_{rk}_wr"] = m.group(3)
             rows[cur][f"rank_{rk}_ret"] = m.group(4)
     return rows
+
+
+def load_stats_from_db(db_path: Path, date_str: str) -> dict[str, dict[str, str]]:
+    if not db_path.exists():
+        return {}
+    conn = sqlite3.connect(db_path)
+    try:
+        out: dict[str, dict[str, str]] = {}
+        for mode in ("backtest", "watch", "live", "paper"):
+            row = conn.execute(
+                """
+                SELECT
+                  COUNT(*) AS sample,
+                  SUM(CASE WHEN t5_return_pct IS NOT NULL THEN 1 ELSE 0 END) AS t5_n,
+                  AVG(t5_return_pct) AS t5_avg,
+                  AVG(CASE WHEN t5_return_pct > 0 THEN 1.0 ELSE 0.0 END) AS t5_wr
+                FROM paper_trades
+                WHERE mode=? AND entry_date<=?
+                """,
+                (mode, date_str),
+            ).fetchone()
+            if not row:
+                continue
+            sample = int(row[0] or 0)
+            t5_n = int(row[1] or 0)
+            t5_avg = float(row[2] or 0.0)
+            t5_wr = float(row[3] or 0.0) * 100.0 if t5_n > 0 else 0.0
+            out[mode] = {
+                "sample": str(sample),
+                "t5_n": str(t5_n),
+                "t5_wr": f"{t5_wr:.1f}",
+                "t5_ret": f"{t5_avg:.2f}",
+            }
+        row_all = conn.execute(
+            """
+            SELECT
+              COUNT(*) AS sample,
+              SUM(CASE WHEN t5_return_pct IS NOT NULL THEN 1 ELSE 0 END) AS t5_n,
+              AVG(t5_return_pct) AS t5_avg,
+              AVG(CASE WHEN t5_return_pct > 0 THEN 1.0 ELSE 0.0 END) AS t5_wr
+            FROM paper_trades
+            WHERE entry_date<=?
+            """,
+            (date_str,),
+        ).fetchone()
+        if row_all:
+            sample = int(row_all[0] or 0)
+            t5_n = int(row_all[1] or 0)
+            t5_avg = float(row_all[2] or 0.0)
+            t5_wr = float(row_all[3] or 0.0) * 100.0 if t5_n > 0 else 0.0
+            out["all"] = {
+                "sample": str(sample),
+                "t5_n": str(t5_n),
+                "t5_wr": f"{t5_wr:.1f}",
+                "t5_ret": f"{t5_avg:.2f}",
+            }
+        return out
+    finally:
+        conn.close()
 
 
 def parse_next_actions(text: str) -> list[str]:
@@ -196,8 +258,11 @@ def build_message(
 
 def main() -> int:
     args = parse_args()
-    src, src_date = find_stats_file(args.date, args.fallback_days)
-    rows = parse_stats(src.read_text(encoding="utf-8"))
+    rows = load_stats_from_db(args.db, args.date)
+    src_date = args.date
+    if not rows or int((rows.get("all", {}) or {}).get("sample", "0")) == 0:
+        src, src_date = find_stats_file(args.date, args.fallback_days)
+        rows = parse_stats(src.read_text(encoding="utf-8"))
     review_path, review_date = find_weekly_review_file(args.date, args.fallback_days)
     actions: list[str] = []
     ops_lines: list[str] = []

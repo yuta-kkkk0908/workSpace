@@ -106,3 +106,15 @@ Prioritize:
 - iterative improvement
 
 Avoid premature optimization.
+
+---
+
+## Discord Logging Route
+
+For Codex work logs to `codex-logs`, use webhook route (not bot-token route) in this environment.
+
+- env key: `DISCORD_CODEX_LOGER_CHANNEL_HOOK`
+- destination: `codex-logs`
+- note: Bot-token posting may return 403/40333 in this environment even when webhook posting succeeds.
+- Python webhook posting can fail with `403 (error code: 1010)` when using default `urllib` User-Agent.
+- When posting via Python, set an explicit `User-Agent` header (e.g. `curl/8.8.0`) to avoid Cloudflare bot blocking.

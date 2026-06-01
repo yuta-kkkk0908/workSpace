@@ -20,6 +20,7 @@ DEFAULT_TASKS = [
     "AIOS-Inv-Morning",
     "AIOS-Inv-Noon",
     "AIOS-Inv-Evening",
+    "AIOS-Inv-Heavy-2000",
     "AIOS-Inv-Scenario-0810",
 ]
 

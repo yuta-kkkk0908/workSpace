@@ -201,6 +201,7 @@ def main() -> int:
         rc |= run([py, "scripts/investment/collect/plan_collection_coverage.py", "--date", ds, "--target-bars", str(args.price_target_bars), "--max-items", "300"])
         rc |= run([py, "scripts/investment/collect/collect_jpx_daily_stats.py", "--date", ds, "--max-links", str(args.jpx_max_links)])
         rc |= run([py, "scripts/investment/collect/process_jpx_daily_files.py", "--date", ds, "--max-files", str(args.jpx_process_max_files)])
+        rc |= run([py, "scripts/investment/collect/collect_jpx_daily_pdf_prices.py", "--date", ds], allow_fail=True)
         rc |= run([py, "scripts/investment/collect/collect_tdnet_disclosures.py", "--date", ds, "--lookback-days", "0", "--max-items", str(args.tdnet_max_items)])
         rc |= run([py, "scripts/investment/collect/collect_kabutan_surprise_signals.py", "--date", ds, "--discover-latest", str(effective_discover_latest), "--max-pages", str(effective_max_pages), "--sleep", "1.6", "--jitter", "0.6", "--retries", "3", "--retry-wait", "2.0"])
         rc |= run([py, "scripts/investment/collect/collect_kabutan_short_signals.py", "--date", ds, "--discover-latest", str(effective_discover_latest), "--max-pages", str(effective_max_pages), "--sleep", "1.6", "--jitter", "0.6", "--retries", "3", "--retry-wait", "2.0"])
@@ -228,7 +229,7 @@ def main() -> int:
                 str(args.price_max_tickers),
             ]
         )
-        rc |= run([py, "scripts/investment/backtest/fill_market_outcomes.py", "--date", ds, "--seed-list", args.seed_list])
+        rc |= run([py, "scripts/investment/backtest/fill_market_outcomes.py", "--date", ds, "--seed-list", args.seed_list, "--include-db-signals"])
         rc |= run([py, "scripts/investment/signals/build_market_signals_from_batches.py", "--date", ds, "--lookback-days", "2", "--max-signals", str(args.max_signals), "--max-long", str(args.max_long), "--max-short", str(args.max_short)])
         rc |= run([py, "scripts/data/ingest_investment_db.py", "--date", ds])
         rc |= run([py, "scripts/data/cleanup_raw_events.py", "--as-of-date", ds, "--keep-days", "14"])

@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 import re
+import sqlite3
 import sys
 import time
 import urllib.request
@@ -18,12 +19,14 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterable
+from json import JSONDecodeError
 
 JST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md"
 DEFAULT_AGGREGATION_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-win-loss-aggregation.md"
 CACHE = ROOT / ".cache/market-outcomes/yahoo-chart-cache.json"
+DEFAULT_DB = ROOT / "data" / "investment.db"
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 from investment_seed_config import DEFAULT_CONFIG, load_seed_paths  # noqa: E402
@@ -110,10 +113,149 @@ def parse_signals(paths: Iterable[Path]) -> list[Signal]:
     return out
 
 
+def infer_signal_type_from_tdnet(title: str, category: str) -> str:
+    c = (category or "").strip().lower()
+    if c in {
+        "offering_or_dilution",
+        "downward_revision_dividend_cut",
+        "weak_earnings_or_guidance",
+        "upward_revision_highest_profit",
+        "upward_revision_plus_dividend",
+        "dividend_revision",
+        "upward_revision",
+    }:
+        return c
+    t = (title or "").strip()
+    has_highest_profit = any(k in t for k in ["最高益", "過去最高益", "最高益更新"])
+    has_downward = ("下方修正" in t) or ("業績予想の修正" in t and "上方修正" not in t)
+    has_dividend_cut = any(k in t for k in ["減配", "無配", "配当予想の修正", "配当予想の取り下げ", "配当予想を未定"])
+    if "上方修正" in t and has_highest_profit:
+        return "upward_revision_highest_profit"
+    if "上方修正" in t and ("増配" in t or "配当予想の修正" in t):
+        return "upward_revision_plus_dividend"
+    if "増配" in t and "配当予想の修正" in t:
+        return "dividend_revision"
+    if "上方修正" in t:
+        return "upward_revision"
+    if any(k in t for k in ["売出し", "売出", "自己株式処分", "公募", "第三者割当", "新株予約権"]):
+        return "offering_or_dilution"
+    if has_downward and has_dividend_cut:
+        return "downward_revision_dividend_cut"
+    if any(k in t for k in ["下方修正", "赤字", "減益", "未達", "下振れ", "営業損失", "経常損失", "最終損失", "最終赤字", "業績予想の修正"]):
+        return "weak_earnings_or_guidance"
+    return "unknown"
+
+
+def infer_expected_direction(signal_type: str, fallback: str = "unknown") -> str:
+    st = (signal_type or "").strip().lower()
+    if st in {"offering_or_dilution", "downward_revision_dividend_cut", "weak_earnings_or_guidance", "downward_revision_to_loss", "downward_revision"}:
+        return "down"
+    if st in {"upward_revision_plus_dividend", "upward_revision", "dividend_revision", "highest_profit_guidance_dividend_revision", "upward_revision_highest_profit"}:
+        return "up"
+    return fallback or "unknown"
+
+
+def parse_db_signals(db_path: Path, as_of: str, lookback_days: int) -> list[Signal]:
+    if not db_path.exists():
+        return []
+    d0 = datetime.strptime(as_of, "%Y-%m-%d").date()
+    min_date = (d0 - timedelta(days=max(0, lookback_days))).isoformat()
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    out: list[Signal] = []
+    try:
+        sig_rows = conn.execute(
+            """
+            SELECT signal_id,date,ticker,signal_type,expected_direction,long_rank,short_rank
+            FROM signals
+            WHERE date BETWEEN ? AND ?
+              AND COALESCE(ticker,'')<>''
+            ORDER BY date DESC, signal_id DESC
+            """,
+            (min_date, as_of),
+        ).fetchall()
+        for r in sig_rows:
+            ticker = str(r["ticker"] or "").strip()
+            if not re.match(r"^[0-9]{4}$|^[0-9]{3}[A-Z]$", ticker):
+                continue
+            signal_date = str(r["date"] or "").strip()
+            if not signal_date:
+                continue
+            out.append(
+                Signal(
+                    signal_id=str(r["signal_id"] or f"db_signal_{signal_date}_{ticker}"),
+                    title=f"{ticker} {str(r['signal_type'] or '').strip()}",
+                    ticker=ticker,
+                    signal_date=signal_date,
+                    category=infer_category("unknown", str(r["signal_type"] or "")),
+                    signal_type=str(r["signal_type"] or "unknown").strip() or "unknown",
+                    expected=str(r["expected_direction"] or "unknown").strip() or "unknown",
+                    long_rank=str(r["long_rank"] or "C").strip() or "C",
+                    short_rank=str(r["short_rank"] or "C").strip() or "C",
+                    source_file="db:signals",
+                )
+            )
+
+        td_rows = conn.execute(
+            """
+            SELECT date,ticker,title,category,source_kind
+            FROM tdnet_disclosures
+            WHERE date BETWEEN ? AND ?
+              AND COALESCE(ticker,'')<>''
+            ORDER BY date DESC
+            """,
+            (min_date, as_of),
+        ).fetchall()
+        for r in td_rows:
+            ticker = str(r["ticker"] or "").strip()
+            if not re.match(r"^[0-9]{4}$|^[0-9]{3}[A-Z]$", ticker):
+                continue
+            signal_date = str(r["date"] or "").strip()
+            if not signal_date:
+                continue
+            signal_type = infer_signal_type_from_tdnet(str(r["title"] or ""), str(r["category"] or ""))
+            out.append(
+                Signal(
+                    signal_id=f"tdnet_{signal_date}_{ticker}_{signal_type}",
+                    title=f"{ticker} {str(r['title'] or '').strip()}",
+                    ticker=ticker,
+                    signal_date=signal_date,
+                    category=infer_category(str(r["category"] or "unknown"), signal_type),
+                    signal_type=signal_type,
+                    expected=infer_expected_direction(signal_type, "unknown"),
+                    long_rank="B" if str(r["source_kind"] or "").strip().startswith("tdnet") else "C",
+                    short_rank="B" if infer_expected_direction(signal_type, "unknown") == "down" else "none",
+                    source_file="db:tdnet_disclosures",
+                )
+            )
+    finally:
+        conn.close()
+    seen: set[tuple[str, str, str]] = set()
+    deduped: list[Signal] = []
+    for s in out:
+        key = (s.ticker, s.signal_date, s.signal_type)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(s)
+    return deduped
+
+
 def load_cache() -> dict:
     if CACHE.exists():
         try:
             return json.loads(CACHE.read_text(encoding="utf-8"))
+        except JSONDecodeError:
+            # Corrupted cache file can happen after interrupted writes.
+            # Keep evidence and continue with cold cache.
+            ts = datetime.now(JST).strftime("%Y%m%d-%H%M%S")
+            bad = CACHE.with_name(f"{CACHE.stem}.corrupt-{ts}{CACHE.suffix}")
+            try:
+                CACHE.rename(bad)
+                print(f"[warn] cache json broken; moved to {display_path(bad)}")
+            except Exception:
+                pass
+            return {}
         except MemoryError:
             # Fallback to cold cache when file is too large to read in memory.
             return {}
@@ -165,7 +307,46 @@ def is_cache_stale(rows: list[dict], end: str) -> bool:
     return last < expected_last_available_date(end)
 
 
-def fetch_prices(ticker: str, start: str, end: str, cache: dict, cache_only: bool = False) -> list[dict]:
+def fetch_prices_from_db(ticker: str, start: str, end: str, db_path: Path) -> list[dict]:
+    if not db_path.exists():
+        return []
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT date, open, high, low, close, volume
+            FROM facts_price_daily
+            WHERE ticker = ?
+              AND date BETWEEN ? AND ?
+            ORDER BY date
+            """,
+            (ticker, start, end),
+        ).fetchall()
+        out: list[dict] = []
+        for r in rows:
+            if r["close"] is None:
+                continue
+            out.append(
+                {
+                    "date": str(r["date"]),
+                    "open": float(r["open"]) if r["open"] is not None else float(r["close"]),
+                    "high": float(r["high"]) if r["high"] is not None else float(r["close"]),
+                    "low": float(r["low"]) if r["low"] is not None else float(r["close"]),
+                    "close": float(r["close"]),
+                    "volume": int(r["volume"]) if r["volume"] is not None else None,
+                }
+            )
+        return out
+    finally:
+        conn.close()
+
+
+def fetch_prices(ticker: str, start: str, end: str, cache: dict, cache_only: bool = False, db_path: Path | None = None) -> list[dict]:
+    if db_path:
+        db_rows = fetch_prices_from_db(ticker, start, end, db_path)
+        if db_rows and has_ohlc(db_rows) and not is_cache_stale(db_rows, end):
+            return db_rows
     for suffix in (".T", ".N", ".S", ".F"):
         symbol = f"{ticker}{suffix}"
         key = f"{symbol}:{start}:{end}"
@@ -227,11 +408,11 @@ def add_months_rough(date: str, days: int) -> str:
     return (d + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
-def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False) -> dict:
+def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_path: Path | None = None) -> dict:
     start = add_months_rough(signal.signal_date, -7)
     end = add_months_rough(signal.signal_date, 45)
     try:
-        rows = fetch_prices(signal.ticker, start, end, cache, cache_only=cache_only)
+        rows = fetch_prices(signal.ticker, start, end, cache, cache_only=cache_only, db_path=db_path)
     except Exception as e:
         return {"status": "fetch_failed", "error": f"{type(e).__name__}: {e}"}
     base_idx = next((idx for idx, row in enumerate(rows) if row["date"] >= signal.signal_date), None)
@@ -540,6 +721,9 @@ def main() -> int:
     parser.add_argument("--seed-config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--seed-list", default=None)
     parser.add_argument("--cache-only", action="store_true", help="Use existing Yahoo cache only; do not fetch network data.")
+    parser.add_argument("--db", type=Path, default=DEFAULT_DB, help="SQLite DB path for optional signal/tdnet backfill seeds.")
+    parser.add_argument("--include-db-signals", action="store_true", help="Include `signals` and `tdnet_disclosures` rows as seed candidates.")
+    parser.add_argument("--db-lookback-days", type=int, default=30, help="Lookback days for DB-derived seeds.")
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--aggregation-output", type=Path, default=None)
     args = parser.parse_args()
@@ -552,6 +736,20 @@ def main() -> int:
     except ValueError:
         source_log = output
     signals = parse_signals(paths)
+    db_added = 0
+    if args.include_db_signals:
+        db_signals = parse_db_signals(args.db, args.date, args.db_lookback_days)
+        db_added = len(db_signals)
+        signals.extend(db_signals)
+        seen: set[tuple[str, str, str]] = set()
+        deduped: list[Signal] = []
+        for s in signals:
+            key = (s.ticker, s.signal_date, s.signal_type)
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(s)
+        signals = deduped
     cache = load_cache()
     lines = [
         f"# {args.date} Rough Backtest Outcomes Batch 1",
@@ -562,18 +760,21 @@ def main() -> int:
         "- mode: rough-outcome-fill",
         "- sourceData: Yahoo Finance chart API via query1.finance.yahoo.com",
         f"- cacheOnly: {args.cache_only}",
+        f"- includeDbSignals: {args.include_db_signals}",
+        f"- dbLookbackDays: {args.db_lookback_days}",
         "- method: signalDate以降の最初の取引日終値をbaseとし、T+1/T+5/T+20営業日後の調整後終値を比較。T+1はOHLCから寄り付きギャップ、ヒゲ、引け位置を粗分類する。",
         "- caution: 発表時刻、場中織り込み、分割/配当調整、TOBイベント、流動性は未精査の粗計算。売買助言ではない。",
         "",
         "## Summary",
         f"- parsedSignals: {len(signals)}",
+        f"- dbDerivedSignalsBeforeDedup: {db_added}",
     ]
     ok = 0
     failed = 0
     computed_rows: list[tuple[Signal, dict]] = []
     rows_md: list[str] = []
     for idx, signal in enumerate(signals, 1):
-        outcome = compute_outcome(signal, cache, cache_only=args.cache_only)
+        outcome = compute_outcome(signal, cache, cache_only=args.cache_only, db_path=args.db)
         if outcome.get("status") == "ok":
             ok += 1
         else:

@@ -4,9 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.pipeline_events import write_pipeline_event
+
 DEFAULT_DB = ROOT / "data" / "investment.db"
 OUT = ROOT / "topics" / "investment-research" / "inbox"
 
@@ -23,6 +28,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    rc = 0
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
@@ -37,7 +43,7 @@ def main() -> int:
             """
             SELECT ticker,credit_status,source_kind,source_detail
             FROM credit_status_rows
-            WHERE date=? AND source_kind='auto_sbi'
+            WHERE date=? AND source_kind LIKE 'auto_%'
             """,
             (args.date,),
         ).fetchall()
@@ -117,7 +123,18 @@ def main() -> int:
             args.date, auto_rows, auto_unknown, unknown_rate, quality_status
         )
     )
-    return 2 if quality_status == "error" else 0
+    rc = 2 if quality_status == "error" else 0
+    write_pipeline_event(
+        pipeline="investment_analysis",
+        slot="inv-scenario",
+        stage="report_credit_auto_quality",
+        status="ok" if rc == 0 else "error",
+        event_date=args.date,
+        return_code=rc,
+        payload=payload,
+        source_path="scripts/investment/analysis/report_credit_auto_quality.py",
+    )
+    return rc
 
 
 if __name__ == "__main__":

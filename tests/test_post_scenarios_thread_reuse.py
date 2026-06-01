@@ -1,0 +1,84 @@
+import sqlite3
+import unittest
+
+from scripts.notify.post_scenarios_bot import find_reusable_thread_id, thread_reuse_key
+
+
+class PostScenariosThreadReuseTests(unittest.TestCase):
+    def _conn(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(":memory:")
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE scenario_messages (
+              scenario_date TEXT NOT NULL,
+              scenario_index INTEGER NOT NULL,
+              channel_id TEXT NOT NULL,
+              thread_id TEXT,
+              anchor_message_id TEXT,
+              message_id TEXT NOT NULL PRIMARY KEY,
+              ticker TEXT,
+              company TEXT,
+              direction TEXT,
+              scenario_tier TEXT NOT NULL DEFAULT 'trade',
+              watch_ladder TEXT,
+              signal_id TEXT,
+              source_path TEXT NOT NULL,
+              posted_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+            """
+        )
+        return conn
+
+    def test_thread_reuse_key_includes_ladder_for_watch(self) -> None:
+        row = {"ticker": "4022", "direction": "long", "scenarioTier": "watch", "watchLadder": "balanced"}
+        self.assertEqual(thread_reuse_key(row), ("4022", "long", "watch", "balanced"))
+
+    def test_thread_reuse_key_ignores_ladder_for_trade(self) -> None:
+        row = {"ticker": "4022", "direction": "long", "scenarioTier": "trade", "watchLadder": "strict"}
+        self.assertEqual(thread_reuse_key(row), ("4022", "long", "trade", ""))
+
+    def test_find_reusable_thread_id_respects_ladder_and_period(self) -> None:
+        conn = self._conn()
+        conn.execute(
+            """
+            INSERT INTO scenario_messages(
+              scenario_date, scenario_index, channel_id, thread_id, anchor_message_id, message_id,
+              ticker, company, direction, scenario_tier, watch_ladder, signal_id, source_path, posted_at, updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                "2026-05-27",
+                1,
+                "ch",
+                "th-1",
+                "a-1",
+                "m-1",
+                "4022",
+                "Test",
+                "long",
+                "watch",
+                "balanced",
+                "",
+                "db:opening_scenarios",
+                "2026-05-27T00:00:00Z",
+                "2026-05-27T00:00:00Z",
+            ),
+        )
+        matched = find_reusable_thread_id(
+            conn,
+            row={"ticker": "4022", "direction": "long", "scenarioTier": "watch", "watchLadder": "balanced"},
+            reuse_days=30,
+        )
+        self.assertEqual(matched, "th-1")
+        not_matched = find_reusable_thread_id(
+            conn,
+            row={"ticker": "4022", "direction": "long", "scenarioTier": "watch", "watchLadder": "strict"},
+            reuse_days=30,
+        )
+        self.assertEqual(not_matched, "")
+
+
+if __name__ == "__main__":
+    unittest.main()

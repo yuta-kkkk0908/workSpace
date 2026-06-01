@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 JST = timezone(timedelta(hours=9))
+INBOX = ROOT / "topics" / "investment-research" / "inbox"
 
 
 def load_module(name: str, path: Path):
@@ -150,6 +151,53 @@ def collect_needs_weekly_status() -> str:
     return f"needs.db 最終投入日: {last_date or '(none)'}"
 
 
+def collect_decision_support_warning_status() -> tuple[str, int]:
+    files = sorted(INBOX.glob("*-decision-support-diff.json"))
+    rows: list[tuple[str, str, list[str]]] = []
+    for p in files[-20:]:
+        name = p.name
+        if len(name) < 10:
+            continue
+        ds = name[:10]
+        try:
+            j = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        status = str(j.get("status", "")).strip().lower()
+        warns = [str(x) for x in (j.get("warnings") or [])]
+        rows.append((ds, status, warns))
+    rows.sort(key=lambda x: x[0], reverse=True)
+    if not rows:
+        return ("decision-support-diff が未生成（観測開始前）", 0)
+
+    streak = 0
+    latest_date = rows[0][0]
+    latest_warns: list[str] = rows[0][2]
+    for _, st, _ in rows:
+        if st == "warning":
+            streak += 1
+        else:
+            break
+
+    if streak >= 3:
+        level = "ACTION"
+        lead = "warning 3営業日連続: 閾値調整タスクを当日対応"
+    elif streak >= 2:
+        level = "WARN"
+        lead = "warning 2営業日連続: 事前レビュー"
+    else:
+        level = "INFO"
+        lead = "warning連続なし"
+    detail = ", ".join(latest_warns) if latest_warns else "none"
+    text = (
+        f"Decision Support {latest_date} ({level})\n"
+        f"- streak: {streak}\n"
+        f"- action: {lead}\n"
+        f"- latestWarnings: {detail}"
+    )
+    return text, streak
+
+
 def main() -> int:
     load_dotenv()
     webhook = os.getenv("DISCORD_ALERT_WEBHOOK_URL", "").strip()
@@ -161,15 +209,19 @@ def main() -> int:
     scheduler_payload = build_scheduler_payload()
     sched_status = format_scheduler_status(scheduler_payload)
     sched_alert = scheduler_payload.get("status") == "ALERT"
+    decision_support_status, ds_streak = collect_decision_support_warning_status()
     is_wednesday = datetime.now(JST).weekday() == 2
     needs_weekly = collect_needs_weekly_status() if is_wednesday else ""
-    if daily_ok and not sched_alert and not needs_weekly:
+    ds_alert = ds_streak >= 2
+    if daily_ok and not sched_alert and not needs_weekly and not ds_alert:
         print("ALERT skipped (all healthy)")
         return 0
 
     msg = "AIOS Alert\n\n[DATA_INGEST / DAILY_COVERAGE]\n" + daily_status.strip()
     if sched_status:
         msg += "\n\n[SCHEDULER_RUNTIME]\n" + sched_status.strip()
+    if decision_support_status:
+        msg += "\n\n[INV_SCENARIO_DECISION_SUPPORT]\n" + decision_support_status.strip()
     if needs_weekly:
         msg += "\n\n[NEEDS_WEEKLY_FRESHNESS]\n" + needs_weekly
     msg += f"\n\nAsOf: {datetime.now(JST).strftime('%Y-%m-%d %H:%M')} JST"

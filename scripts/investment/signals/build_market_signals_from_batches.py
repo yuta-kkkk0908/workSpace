@@ -205,7 +205,7 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
         ).fetchall()
         credit_rows = conn.execute(
             """
-            SELECT c.ticker,c.credit_status
+            SELECT c.ticker,c.date,c.credit_status,c.buy_status,c.sell_status,c.source_kind
             FROM credit_status_rows c
             JOIN (
               SELECT ticker, MAX(date) AS max_date
@@ -228,12 +228,25 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
             "title": str(t["title"] or "").strip(),
             "category": str(t["category"] or "").strip(),
         }
-    credit_by_ticker: dict[str, str] = {}
+    credit_by_ticker: dict[str, dict[str, str]] = {}
     for c in credit_rows:
         ticker = str(c["ticker"] or "").strip()
         if not ticker:
             continue
-        credit_by_ticker[ticker] = str(c["credit_status"] or "").strip().lower()
+        src_date = str(c["date"] or "").strip()
+        freshness_h = None
+        try:
+            freshness_h = int((datetime.strptime(args.date, "%Y-%m-%d").date() - datetime.strptime(src_date, "%Y-%m-%d").date()).days * 24)
+        except Exception:
+            freshness_h = None
+        credit_by_ticker[ticker] = {
+            "status": str(c["credit_status"] or "").strip().lower(),
+            "buy": str(c["buy_status"] or "").strip().lower(),
+            "sell": str(c["sell_status"] or "").strip().lower(),
+            "source_kind": str(c["source_kind"] or "").strip(),
+            "source_date": src_date,
+            "freshness_hours": "" if freshness_h is None else str(freshness_h),
+        }
     all_rows: list[dict[str, str]] = []
     for r in src:
         source_name, source_url = infer_source_meta(r["source_path"] or "", r["signal_type"] or "")
@@ -246,7 +259,8 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
                 td.get("source", "tdnet_web"),
                 td.get("url", ""),
             )
-        credit_status = credit_by_ticker.get(ticker, "")
+        credit_meta = credit_by_ticker.get(ticker, {})
+        credit_status = credit_meta.get("status", "")
         credit_unknown_hold = (not credit_status) or credit_status == "unknown"
         inferred_type = infer_signal_type_from_tdnet_category(
             td.get("category", ""),
@@ -272,6 +286,11 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
                 "sourceAuditPath": r["source_path"] or "",
                 "sourceTitle": td.get("title", ""),
                 "creditStatus": credit_status or "unknown",
+                "creditBuyStatus": credit_meta.get("buy", "") or "unknown",
+                "creditSellStatus": credit_meta.get("sell", "") or "unknown",
+                "creditSourceKind": credit_meta.get("source_kind", ""),
+                "creditSourceDate": credit_meta.get("source_date", ""),
+                "creditFreshnessHours": credit_meta.get("freshness_hours", ""),
                 "creditUnknownHold": "yes" if credit_unknown_hold else "no",
             }
         )
@@ -400,8 +419,9 @@ def main() -> int:
                     INSERT INTO signals(
                       signal_id,date,ticker,company,signal_type,expected_direction,long_rank,short_rank,
                       gate_status,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,
+                      credit_status,credit_buy_status,credit_sell_status,credit_source_kind,credit_source_date,credit_freshness_hours,
                       source_path,updated_at
-                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
                     """,
                     (
                         sid,
@@ -419,6 +439,12 @@ def main() -> int:
                         "yes",
                         "yes",
                         "yes",
+                        r.get("creditStatus", "unknown"),
+                        r.get("creditBuyStatus", "unknown"),
+                        r.get("creditSellStatus", "unknown"),
+                        r.get("creditSourceKind", ""),
+                        r.get("creditSourceDate", ""),
+                        int(r.get("creditFreshnessHours") or 0) if str(r.get("creditFreshnessHours", "")).strip() else None,
                         "db:backtest_seed_batches",
                     ),
                 )

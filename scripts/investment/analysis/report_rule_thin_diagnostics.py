@@ -4,9 +4,14 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.pipeline_events import write_pipeline_event
+
 DEFAULT_DB = ROOT / "data" / "investment.db"
 OUT = ROOT / "topics" / "investment-research" / "inbox"
 
@@ -179,6 +184,16 @@ def main() -> int:
             payload["rejectedCount"],
             next(iter(payload["rejectReasonCounts"].keys()), "none"),
         )
+    )
+    write_pipeline_event(
+        pipeline="investment_analysis",
+        slot="inv-scenario",
+        stage="report_rule_thin_diagnostics",
+        status="ok",
+        event_date=args.date,
+        return_code=0,
+        payload=payload,
+        source_path="scripts/investment/analysis/report_rule_thin_diagnostics.py",
     )
     return 0
 

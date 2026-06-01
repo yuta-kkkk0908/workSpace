@@ -4,14 +4,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
+import time
 from datetime import date
 from datetime import datetime
 from pathlib import Path
 from contextlib import contextmanager
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.pipeline_events import write_pipeline_event
 # Phase-2 step1 (+25% class): expand collection breadth before weekly re-tune.
 KABUTAN_DISCOVER_LATEST = "35"
 KABUTAN_MAX_PAGES_NIGHT = "50"
@@ -23,14 +28,99 @@ KABUTAN_RETRIES = "3"
 KABUTAN_RETRY_WAIT_SEC = "2.0"
 TDNET_LOOKBACK_DAYS = "7"
 WATCH_PROMOTION_MIN_AVG_TURNOVER_MIL = "700"
+MARKET_SIGNALS_MAX = "12"
+MARKET_SIGNALS_MAX_LONG = "6"
+MARKET_SIGNALS_MAX_SHORT = "6"
+OPENING_SCENARIOS_MAX_CANDIDATES = "12"
 LOCK_DIR = ROOT / "tmp" / "scheduler-locks"
 LOCK_STALE_SEC = 6 * 60 * 60
 SIGNAL_UNCHANGED_STREAK_FILE = ROOT / "prompts" / ".signal-unchanged-streak.txt"
+CURRENT_SLOT: str | None = None
+CURRENT_DATE: str | None = None
 
 
-def run(cmd: list[str], allow_fail: bool = False) -> int:
+def classify_error_category(stage: str | None, cmd: list[str], rc: int) -> str:
+    if rc == 0:
+        return "ok"
+    text = " ".join(([stage or ""] + cmd)).lower()
+    if any(k in text for k in ["discord", "webhook", "post_", "sync_scenario_replies"]):
+        return "discord_delivery"
+    if any(k in text for k in ["collect_", "fetch", "snapshot", "tdnet", "kabutan", "rakuten", "sbi"]):
+        return "source_fetch"
+    if any(k in text for k in ["ingest_", "init_", "sqlite", "db"]):
+        return "db_error"
+    if any(k in text for k in ["auth", "token", "credential"]):
+        return "auth_error"
+    return "process_error"
+
+
+def scenario_credit_max_tickers(db_path: Path, event_date: str, base: int = 80) -> int:
+    """
+    Expand credit collection breadth when recent quality alerts indicate CREDIT_THIN.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT payload_json
+            FROM pipeline_events
+            WHERE event_date BETWEEN date(?, '-3 day') AND ?
+              AND stage='check_signal_quality.py'
+              AND status='alert'
+            ORDER BY id DESC
+            LIMIT 12
+            """,
+            (event_date, event_date),
+        ).fetchall()
+    except Exception:
+        return base
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    for r in rows:
+        try:
+            payload = json.loads(r["payload_json"] or "{}")
+        except Exception:
+            payload = {}
+        codes = payload.get("qualityReasonCodes") or []
+        if isinstance(codes, list) and any(str(c) == "CREDIT_THIN" for c in codes):
+            return max(base, 120)
+    return base
+
+
+def run(
+    cmd: list[str],
+    allow_fail: bool = False,
+    *,
+    slot: str | None = None,
+    event_date: str | None = None,
+    stage: str | None = None,
+) -> int:
+    slot = slot or CURRENT_SLOT
+    event_date = event_date or CURRENT_DATE
+    if not stage and len(cmd) >= 2:
+        stage = Path(cmd[1]).name
     print('[run]', ' '.join(cmd))
+    started = time.perf_counter()
     rc = subprocess.run(cmd, cwd=ROOT).returncode
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    write_pipeline_event(
+        pipeline="ops_scheduler",
+        slot=slot,
+        stage=stage,
+        status="ok" if rc == 0 else "error",
+        command=cmd,
+        return_code=rc,
+        duration_ms=elapsed_ms,
+        event_date=event_date,
+        payload={
+            "allow_fail": bool(allow_fail),
+            "error_category": classify_error_category(stage, cmd, rc),
+        },
+    )
     if rc != 0 and allow_fail:
         return 0
     return rc
@@ -105,21 +195,29 @@ def slot_lock(slot: str):
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description='Scheduler orchestration for AIOS ops')
-    p.add_argument('--slot', required=True, choices=['night', 'inv-morning', 'inv-noon', 'inv-evening', 'inv-scenario'])
+    p.add_argument('--slot', required=True, choices=['night', 'inv-morning', 'inv-noon', 'inv-evening', 'inv-heavy', 'inv-scenario'])
     p.add_argument('--date', default=date.today().isoformat())
     p.add_argument('--python', default=sys.executable)
     p.add_argument('--backtest', action='store_true', help='disable non-backtest side effects and today-dependent checks')
     return p.parse_args()
 
 
+def is_jp_market_weekend(d: str) -> bool:
+    try:
+        return datetime.strptime(d, "%Y-%m-%d").weekday() >= 5
+    except Exception:
+        return False
+
+
 def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
     rc = 0
     discover_latest, max_pages = kabutan_collection_profile("night")
+    rc |= run([py, 'scripts/investment/collect/collect_jpx_daily_pdf_prices.py', '--date', d], allow_fail=True)
     # 1) Python-only collection from external sources (raw temp artifacts in inbox)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_surprise_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_short_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
     # 2) Build daily market-signals from collected artifacts (no stale carry-over by default)
-    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     # 3) Fallback only when builder could not produce a valid file
     rc |= run([py, 'scripts/investment/signals/prepare_morning_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     # 4) Persist signals first (DB-first downstream)
@@ -139,7 +237,7 @@ def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
 def run_rule_repro_refresh(py: str, d: str) -> int:
     """Refresh rule reproducibility artifacts so scenario generation can use win-rate context."""
     rc = 0
-    # 1) Expand outcomes for the day (cache-only to keep scheduler cost stable)
+    # 1) Expand outcomes for the day (allow fetch to avoid empty-cache stagnation)
     rc |= run(
         [
             py,
@@ -148,7 +246,7 @@ def run_rule_repro_refresh(py: str, d: str) -> int:
             d,
             '--seed-list',
             'rough_backtest_light',
-            '--cache-only',
+            '--include-db-signals',
         ],
         allow_fail=True,
     )
@@ -179,14 +277,120 @@ def run_rule_repro_refresh(py: str, d: str) -> int:
     return rc
 
 
-def run_investment_cycle_morning(py: str, d: str, backtest: bool = False) -> int:
+def run_recent_outcome_backfill(py: str, d: str) -> int:
+    """Nightly backfill for recent outcomes (C-2)."""
+    rc = 0
+    # Daily: keep the recent 30-day window warm.
+    rc |= run(
+        [
+            py,
+            'scripts/investment/backtest/backfill_recent_outcomes_window.py',
+            '--as-of',
+            d,
+            '--window-days',
+            '30',
+            '--db-lookback-days',
+            '30',
+            '--seed-list',
+            'rough_backtest_light',
+        ],
+        allow_fail=True,
+    )
+    # Weekly (Monday night): extend to 90-day window.
+    try:
+        d_obj = datetime.strptime(d, "%Y-%m-%d").date()
+        wd = d_obj.weekday()
+    except Exception:
+        d_obj = None
+        wd = -1
+    if wd == 0:
+        rc |= run(
+            [
+                py,
+                'scripts/investment/backtest/backfill_recent_outcomes_window.py',
+                '--as-of',
+                d,
+                '--window-days',
+                '90',
+                '--db-lookback-days',
+                '90',
+                '--seed-list',
+                'rough_backtest_light',
+            ],
+            allow_fail=True,
+        )
+    # Monthly (1st night): extend to 180-day window.
+    if d_obj and d_obj.day == 1:
+        rc |= run(
+            [
+                py,
+                'scripts/investment/backtest/backfill_recent_outcomes_window.py',
+                '--as-of',
+                d,
+                '--window-days',
+                '180',
+                '--db-lookback-days',
+                '180',
+                '--seed-list',
+                'rough_backtest_light',
+            ],
+            allow_fail=True,
+        )
+    # Prioritize mature pending outcomes so scenario promotion uses judged samples.
+    rc |= run(
+        [
+            py,
+            'scripts/investment/backtest/backfill_pending_outcomes.py',
+            '--as-of',
+            d,
+            '--window-days',
+            '90',
+            '--max-dates',
+            '8',
+        ],
+        allow_fail=True,
+    )
+    return rc
+
+
+def run_decision_support_threshold_recommendation_weekly(py: str, d: str) -> int:
+    """
+    Weekly threshold recommendation for decision-support warnings.
+    Runs on Monday night against the current YYYY-MM bucket.
+    """
+    try:
+        d_obj = datetime.strptime(d, "%Y-%m-%d").date()
+    except Exception:
+        return 0
+    if d_obj.weekday() != 0:
+        return 0
+    month = d_obj.strftime("%Y-%m")
+    return run(
+        [
+            py,
+            "scripts/investment/analysis/recommend_decision_support_thresholds.py",
+            "--month",
+            month,
+            "--target-min-rate",
+            "5",
+            "--target-max-rate",
+            "15",
+        ],
+        allow_fail=True,
+    )
+
+
+def run_investment_cycle_morning(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
     """Morning: refresh sources + rebuild signals with overnight context."""
     rc = 0
     discover_latest, max_pages = kabutan_collection_profile("inv-morning")
     rc |= run([py, 'scripts/investment/collect/collect_tdnet_disclosures.py', '--date', d, '--lookback-days', TDNET_LOOKBACK_DAYS], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_surprise_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_short_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
+    if weekend_collect_only:
+        print(f"[weekend-collect-only] inv-morning: {d}")
+        return rc
+    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
@@ -195,16 +399,21 @@ def run_investment_cycle_morning(py: str, d: str, backtest: bool = False) -> int
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/analyze_signal_quality_alert_ai.py', '--date', d], allow_fail=True)
     if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-evening'], allow_fail=True)
     return rc
 
 
-def run_investment_cycle_noon(py: str, d: str, backtest: bool = False) -> int:
+def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
     """Noon: avoid heavy recollection; focus on re-ranking/re-candidates from intraday state."""
     rc = 0
     rc |= run([py, 'scripts/investment/collect/collect_tdnet_disclosures.py', '--date', d, '--lookback-days', TDNET_LOOKBACK_DAYS], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/collect/collect_intraday_signal_snapshots.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
+    if weekend_collect_only:
+        print(f"[weekend-collect-only] inv-noon: {d}")
+        return rc
+    rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals_noon.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
@@ -212,24 +421,25 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False) -> int:
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/analyze_signal_quality_alert_ai.py', '--date', d], allow_fail=True)
     if not backtest:
-        # sync_scenario_replies_bot.py loads .env by itself.
-        rc |= run([py, 'scripts/notify/sync_scenario_replies_bot.py', '--limit', '100'], allow_fail=True)
-    if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
+        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     return rc
 
 
-def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int:
+def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
     """Evening: include technical context after close and final re-evaluation."""
     rc = 0
     discover_latest, max_pages = kabutan_collection_profile("inv-evening")
     rc |= run([py, 'scripts/investment/collect/collect_tdnet_disclosures.py', '--date', d, '--lookback-days', TDNET_LOOKBACK_DAYS], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_surprise_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
     rc |= run([py, 'scripts/investment/collect/collect_kabutan_short_signals.py', '--date', d, '--discover-latest', discover_latest, '--max-pages', max_pages, '--sleep', KABUTAN_SLEEP_SEC, '--jitter', KABUTAN_JITTER_SEC, '--retries', KABUTAN_RETRIES, '--retry-wait', KABUTAN_RETRY_WAIT_SEC], allow_fail=True)
+    if weekend_collect_only:
+        print(f"[weekend-collect-only] inv-evening: {d}")
+        return rc
     # Daily backtest outcome refresh so DB is not dependent on weekly-only updates.
-    rc |= run([py, 'scripts/investment/backtest/fill_market_outcomes.py', '--date', d, '--seed-list', 'rough_backtest_full'], allow_fail=True)
-    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', '6', '--max-long', '3', '--max-short', '3'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/backtest/fill_market_outcomes.py', '--date', d, '--seed-list', 'rough_backtest_full', '--include-db-signals'], allow_fail=True)
+    rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
@@ -239,6 +449,7 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
     rc |= run([py, 'scripts/investment/signals/check_signal_quality.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/analyze_signal_quality_alert_ai.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/analysis/report_signal_pipeline_kpi.py', '--date', d], allow_fail=True)
     # Strengthen next scenario quality by refreshing rule reproducibility artifacts nightly/evening.
     rc |= run_rule_repro_refresh(py, d)
@@ -248,6 +459,22 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int
     rc |= run([py, 'scripts/investment/backtest/analyze_paper_trade_stats.py', '--out-date', d, '--mode', 'all'], allow_fail=True)
     # Keep watch outcomes fresh before promotion analysis.
     rc |= run([py, 'scripts/investment/backtest/fill_paper_trade_outcomes.py', '--mode', 'watch', '--as-of', d], allow_fail=True)
+    # E-1: paper_trade_only cohort KPI (after outcomes refresh).
+    rc |= run([py, 'scripts/investment/analysis/report_paper_trade_only_kpi.py', '--date', d, '--window-days', '30'], allow_fail=True)
+    # E-3: failure-factor aggregation for paper_trade_only losses.
+    rc |= run(
+        [
+            py,
+            'scripts/investment/analysis/report_paper_trade_only_failure_factors.py',
+            '--date',
+            d,
+            '--window-days',
+            '30',
+            '--loss-threshold-pct',
+            '-0.5',
+        ],
+        allow_fail=True,
+    )
     # Render short Discord message for paper stats.
     if not backtest:
         rc |= run([py, 'scripts/notify/render_paper_stats_discord_message.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
@@ -277,123 +504,242 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False) -> int
 
 
 def main() -> int:
+    global CURRENT_SLOT, CURRENT_DATE
     args = parse_args()
     py = args.python
     d = args.date
+    CURRENT_SLOT = args.slot
+    CURRENT_DATE = d
     rc = 0
 
-    with slot_lock(args.slot) as ok_to_run:
-        if not ok_to_run:
-            return 0
+    write_pipeline_event(
+        pipeline="ops_scheduler",
+        slot=args.slot,
+        stage="slot",
+        status="start",
+        event_date=d,
+        payload={"backtest": bool(args.backtest)},
+    )
 
-        if args.slot == 'night':
-        # Whole repository health + DB ingest for today.
-            rc |= run([py, 'scripts/data/init_ops_db.py'])
-            rc |= run([py, 'scripts/data/ingest_ops_logs.py'], allow_fail=True)
-            if not args.backtest:
-                rc |= run([py, 'scripts/check_daily_missing.py', '--date', 'today', '--days', '7'], allow_fail=True)
-                rc |= run([py, 'scripts/investment/collect/collect_generic_daily_topics.py', '--date', d, '--overwrite'], allow_fail=True)
-            rc |= run([py, 'scripts/data/init_topics_db.py'])
-            rc |= run([py, 'scripts/data/ingest_topics_db.py', '--date', d])
-            rc |= run([py, 'scripts/data/build_today_topics_brief_from_db.py', '--date', d], allow_fail=True)
-            if not args.backtest:
+    try:
+        with slot_lock(args.slot) as ok_to_run:
+            if not ok_to_run:
+                write_pipeline_event(
+                    pipeline="ops_scheduler",
+                    slot=args.slot,
+                    stage="slot",
+                    level="warning",
+                    status="skipped_lock_exists",
+                    event_date=d,
+                )
+                return 0
+
+            if args.slot == 'night':
+        # Whole repository health + generic/topic/needs pipeline only.
+        # Investment pipeline is intentionally detached from night slot.
+                rc |= run([py, 'scripts/data/init_ops_db.py'])
+                rc |= run([py, 'scripts/data/ingest_ops_logs.py'], allow_fail=True)
+                if not args.backtest:
+                    rc |= run([py, 'scripts/check_daily_missing.py', '--date', 'today', '--days', '7'], allow_fail=True)
+                    rc |= run([py, 'scripts/investment/collect/collect_generic_daily_topics.py', '--date', d, '--overwrite'], allow_fail=True)
+                    rc |= run([py, 'scripts/topics/enrich_pokemon_daily_with_ai.py', '--date', d], allow_fail=True)
+                    rc |= run([py, 'scripts/topics/consolidate_pokemon_sources_ai.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/data/init_topics_db.py'])
+                rc |= run([py, 'scripts/data/ingest_topics_db.py', '--date', d])
+                rc |= run([py, 'scripts/data/build_today_topics_brief_from_db.py', '--date', d], allow_fail=True)
+                if not args.backtest:
+                    rc |= run(
+                        [
+                            py,
+                            'scripts/notify/render_generic_topics_discord_message.py',
+                            '--date',
+                            d,
+                            '--items-per-topic',
+                            '3',
+                            '--include-urls',
+                            '--max-message-len',
+                            '3400',
+                        ],
+                        allow_fail=True,
+                    )
+                rc |= run([py, 'scripts/data/init_needs_db.py'])
+                rc |= run([py, 'scripts/data/ingest_needs_db.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/build_needs_ai_queue.py', '--limit', '20'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_ops_post_daily.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_ops_quality_weekly.py', '--date', d, '--window-days', '7'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_weekly_tuning_review.py', '--date', d, '--window-days', '7'], allow_fail=True)
+                if datetime.strptime(d, "%Y-%m-%d").weekday() == 0:
+                    rc |= run([py, 'scripts/investment/analysis/generate_weekly_tuning_ai_review.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/decide_collection_intensity.py', '--date', d, '--window-days', '3'], allow_fail=True)
+                print("[skip] investment pipeline detached from night slot; use inv-morning/inv-noon/inv-evening/inv-scenario.")
+
+            if args.slot == 'inv-morning':
+                rc |= run_investment_cycle_morning(
+                    py,
+                    d,
+                    backtest=args.backtest,
+                    weekend_collect_only=is_jp_market_weekend(d),
+                )
+
+            if args.slot == 'inv-noon':
+                rc |= run_investment_cycle_noon(
+                    py,
+                    d,
+                    backtest=args.backtest,
+                    weekend_collect_only=is_jp_market_weekend(d),
+                )
+
+            if args.slot == 'inv-evening':
+                rc |= run_investment_cycle_evening(
+                    py,
+                    d,
+                    backtest=args.backtest,
+                    weekend_collect_only=is_jp_market_weekend(d),
+                )
+
+            if args.slot == 'inv-heavy':
+                if is_jp_market_weekend(d):
+                    print(f"[skip] inv-heavy weekend: {d}")
+                    return rc
+                # Detached heavy investment maintenance that used to run in night slot.
+                rc |= run([py, 'scripts/data/init_investment_db.py'])
+                rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+                rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d], allow_fail=True)
+                rc |= run_investment_cycle(py, d, backtest=args.backtest)
+                rc |= run_rule_repro_refresh(py, d)
+                rc |= run_recent_outcome_backfill(py, d)
                 rc |= run(
                     [
                         py,
-                        'scripts/notify/render_generic_topics_discord_message.py',
-                        '--date',
+                        'scripts/investment/signals/backfill_opening_scenarios_window.py',
+                        '--as-of',
                         d,
-                        '--items-per-topic',
-                        '3',
-                        '--include-urls',
-                        '--max-message-len',
-                        '3400',
+                        '--window-days',
+                        '90',
+                        '--max-days-per-run',
+                        '10',
                     ],
                     allow_fail=True,
                 )
-            rc |= run([py, 'scripts/data/init_needs_db.py'])
-            rc |= run([py, 'scripts/data/ingest_needs_db.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/build_needs_ai_queue.py', '--limit', '20'], allow_fail=True)
-            rc |= run([py, 'scripts/data/init_investment_db.py'])
-            rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-            rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d], allow_fail=True)
-            # Investment pass at night as well.
-            rc |= run_investment_cycle(py, d, backtest=args.backtest)
-            # Refresh reproducibility artifacts in the nightly window as well.
-            rc |= run_rule_repro_refresh(py, d)
-            # Night lightweight technical context refresh (best-effort).
-            rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
-            # Night mandatory: technical check + rank re-evaluation, then refresh derived outputs.
-            rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
-            rc |= run([py, 'scripts/data/init_investment_db.py'])
-            rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-            rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-            rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/investment/analysis/report_signal_pipeline_kpi.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/investment/analysis/report_weekly_tuning_review.py', '--date', d, '--window-days', '7'], allow_fail=True)
-            rc |= run([py, 'scripts/investment/analysis/decide_collection_intensity.py', '--date', d, '--window-days', '3'], allow_fail=True)
-            if not args.backtest:
-                rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/backtest/fill_technical_context.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
+                rc |= run([py, 'scripts/data/init_investment_db.py'])
+                rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+                rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+                rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_signal_pipeline_kpi.py', '--date', d], allow_fail=True)
+                rc |= run_decision_support_threshold_recommendation_weekly(py, d)
+                if not args.backtest:
+                    rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-evening'], allow_fail=True)
 
-        if args.slot == 'inv-morning':
-            rc |= run_investment_cycle_morning(py, d, backtest=args.backtest)
-
-        if args.slot == 'inv-noon':
-            rc |= run_investment_cycle_noon(py, d, backtest=args.backtest)
-
-        if args.slot == 'inv-evening':
-            rc |= run_investment_cycle_evening(py, d, backtest=args.backtest)
-
-        if args.slot == 'inv-scenario':
-            # JP market is closed on weekends.
-            if datetime.strptime(d, "%Y-%m-%d").weekday() >= 5:
-                print(f"[skip] inv-scenario weekend: {d}")
-                return rc
-            rc |= run(
-                [
-                    py,
-                    'scripts/investment/collect/collect_credit_status_auto.py',
-                    '--date',
-                    d,
-                    '--fallback-days',
-                    '1',
-                    '--max-tickers',
-                    '50',
-                ],
-                allow_fail=True,
-            )
-            rc |= run([py, 'scripts/investment/analysis/report_credit_auto_quality.py', '--date', d], allow_fail=True)
-            rc |= run(
-                [
-                    py,
-                    'scripts/investment/signals/build_opening_scenarios.py',
-                    '--date',
-                    d,
-                    '--fallback-days',
-                    '3',
-                    '--auto-relax-gate',
-                    '--allow-unknown-winrate',
-                    '--soft-gate',
-                    '--adaptive-side-minimum',
-                ],
-                allow_fail=True,
-            )
-            rc |= run([py, 'scripts/investment/analysis/report_rule_thin_diagnostics.py', '--date', d], allow_fail=True)
-            rc |= run([py, 'scripts/investment/signals/build_execution_plan.py', '--date', d, '--fallback-days', '3'], allow_fail=True)
-            rc |= run([py, 'scripts/investment/signals/fill_execution_plan_metrics.py', '--start-date', d, '--end-date', d], allow_fail=True)
-            # Accumulate watch-mode paper rows for watch->trade promotion analysis.
-            # Use tier=all to keep a larger shadow sample while watch-only volume is still small.
-            rc |= run([py, 'scripts/investment/backtest/register_paper_trades.py', '--date', d, '--mode', 'watch', '--tier', 'all', '--max-trades', '12', '--fallback-days', '3'], allow_fail=True)
-            # Persist scenario/execution artifacts to DB in the same slot.
-            rc |= run([py, 'scripts/data/init_investment_db.py'])
-            rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-            rc |= run([py, 'scripts/investment/analysis/cleanup_investment_inbox.py', '--date', d, '--keep-days', '14'], allow_fail=True)
-            if not args.backtest:
-                rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d], allow_fail=True)
-                # post_scenarios_bot.py loads .env by itself.
-                rc |= run([py, 'scripts/notify/post_scenarios_bot.py', '--date', d, '--fallback-days', '3', '--max-posts', '12'], allow_fail=True)
+            if args.slot == 'inv-scenario':
+                # JP market is closed on weekends.
+                if is_jp_market_weekend(d):
+                    print(f"[skip] inv-scenario weekend: {d}")
+                    return rc
+                max_tickers = str(scenario_credit_max_tickers(ROOT / "data" / "investment.db", d, base=80))
+                rc |= run(
+                    [
+                        py,
+                        'scripts/investment/collect/collect_credit_status_auto.py',
+                        '--date',
+                        d,
+                        '--fallback-days',
+                        '3',
+                        '--max-tickers',
+                        max_tickers,
+                    ],
+                    allow_fail=True,
+                )
+                rc |= run([py, 'scripts/investment/analysis/report_credit_auto_quality.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/review_scenario_promotion_ai.py', '--date', d], allow_fail=True)
+                rc |= run(
+                    [
+                        py,
+                        'scripts/investment/signals/build_opening_scenarios.py',
+                        '--date',
+                        d,
+                        '--fallback-days',
+                        '30',
+                        '--max-candidates',
+                        OPENING_SCENARIOS_MAX_CANDIDATES,
+                        '--auto-relax-gate',
+                        '--allow-unknown-winrate',
+                        '--soft-gate',
+                        '--adaptive-side-minimum',
+                    ],
+                    allow_fail=True,
+                )
+                rc |= run([py, 'scripts/investment/analysis/generate_ai_analyst_report.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_rule_thin_diagnostics.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_phase_a_score_sensitivity.py', '--date', d, '--window-days', '90'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/signals/build_execution_plan.py', '--date', d, '--fallback-days', '30'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/signals/fill_execution_plan_metrics.py', '--start-date', d, '--end-date', d], allow_fail=True)
+                # Accumulate watch-mode paper rows for watch->trade promotion analysis.
+                # Use tier=all to keep a larger shadow sample while watch-only volume is still small.
+                rc |= run(
+                    [
+                        py,
+                        'scripts/investment/backtest/register_paper_trades.py',
+                        '--date',
+                        d,
+                        '--mode',
+                        'watch',
+                        '--tier',
+                        'all',
+                        '--rejected-policy',
+                        'weak_only',
+                        '--max-trades',
+                        '60',
+                        '--fallback-days',
+                        '30',
+                    ],
+                    allow_fail=True,
+                )
+                rc |= run(
+                    [
+                        py,
+                        'scripts/investment/backtest/register_paper_trades.py',
+                        '--date',
+                        d,
+                        '--mode',
+                        'watch',
+                        '--tier',
+                        'all',
+                        '--rejected-policy',
+                        'data_quality_only',
+                        '--max-trades',
+                        '60',
+                        '--fallback-days',
+                        '30',
+                    ],
+                    allow_fail=True,
+                )
+                rc |= run([py, 'scripts/investment/analysis/check_inv_scenario_acceptance.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_samplecount_trade_trend.py', '--date', d, '--window-days', '14', '--min-sample-for-trade', '3'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_sample_health_kpi.py', '--date', d, '--window-days', '30', '--min-effective-sample', '3'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_decision_support_kpi.py', '--date', d, '--window-days', '30'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_scenario_tracking_card.py', '--date', d, '--window-days', '7'], allow_fail=True)
+                rc |= run([py, 'scripts/investment/analysis/report_decision_support_diff.py', '--date', d, '--window-days', '30'], allow_fail=True)
+                # Persist scenario/execution artifacts to DB in the same slot.
+                rc |= run([py, 'scripts/data/init_investment_db.py'])
+                rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+                rc |= run([py, 'scripts/investment/analysis/cleanup_investment_inbox.py', '--date', d, '--keep-days', '14'], allow_fail=True)
+                if not args.backtest:
+                    rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d], allow_fail=True)
+                    # post_scenarios_bot.py loads .env by itself.
+                    rc |= run([py, 'scripts/notify/post_scenarios_bot.py', '--date', d, '--fallback-days', '30', '--max-posts', '12'], allow_fail=True)
+    finally:
+        write_pipeline_event(
+            pipeline="ops_scheduler",
+            slot=args.slot,
+            stage="slot",
+            status="done" if rc == 0 else "done_with_error",
+            event_date=d,
+            payload={"final_rc": rc, "backtest": bool(args.backtest)},
+        )
 
     return rc
 

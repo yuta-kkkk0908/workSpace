@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+import argparse
 import json
 import re
+import sqlite3
 import sys
+from datetime import date
 from pathlib import Path
 
 import jsonschema
@@ -12,6 +15,33 @@ SAMPLE_TOPICS_DIR = ROOT / "sample-topics"
 TEMPLATES_DIR = ROOT / "templates" / "topic"
 SCHEMAS_DIR = ROOT / "schemas"
 INVESTMENT_SEEDS_CONFIG = ROOT / "configs" / "investment-seeds.json"
+DEFAULT_DB_DATE = date.today().isoformat()
+
+DB_SPECS = {
+    "topics": {
+        "path": ROOT / "data" / "topics.db",
+        "tables": {"ingest_log", "topic_daily_digest", "topic_links"},
+    },
+    "needs": {
+        "path": ROOT / "data" / "needs.db",
+        "tables": {"ingest_log", "need_items", "need_item_state"},
+    },
+    "investment": {
+        "path": ROOT / "data" / "investment.db",
+        "tables": {"raw_events", "signals", "entry_candidates", "backtest_outcomes", "opening_scenarios", "execution_plan"},
+    },
+    "ops": {
+        "path": ROOT / "data" / "ops.db",
+        "tables": {"task_log_events", "discord_log_events", "discord_task_events", "agent_memory_events"},
+    },
+}
+
+KIND_TO_DB = {
+    "daily-watch": "topics",
+    "need-watch": "needs",
+    "research": "investment",
+    "ops": "ops",
+}
 
 SCHEMA_MAP = {
     "topic-manifest.json": SCHEMAS_DIR / "topic-manifest.schema.json",
@@ -55,6 +85,13 @@ def load_json(path: Path):
 def load_text(path: Path) -> str:
     with path.open("r", encoding="utf-8") as f:
         return f.read()
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Validate topic structure/schema and optional DB-first consistency checks")
+    p.add_argument("--check-db-first", action="store_true", help="Also validate DB existence/tables and manifest kind to DB mapping.")
+    p.add_argument("--db-date", default=DEFAULT_DB_DATE, help="Target date for daily-watch existence check (YYYY-MM-DD).")
+    return p.parse_args()
 
 
 def validate_json_schema(target: Path, schema_path: Path) -> tuple[object | None, list[str]]:
@@ -240,7 +277,99 @@ def validate_investment_seed_config() -> tuple[list[str], list[str]]:
     return errors, validated
 
 
+def list_db_tables(db_path: Path) -> set[str]:
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    finally:
+        conn.close()
+    return {str(r[0]) for r in rows}
+
+
+def collect_topic_manifests() -> list[tuple[Path, dict]]:
+    manifests: list[tuple[Path, dict]] = []
+    for base_dir in [TOPICS_DIR, SAMPLE_TOPICS_DIR]:
+        if not base_dir.exists():
+            continue
+        for topic_dir in sorted(p for p in base_dir.iterdir() if p.is_dir()):
+            manifest_path = topic_dir / "topic-manifest.json"
+            if not manifest_path.exists():
+                continue
+            try:
+                data = load_json(manifest_path)
+            except Exception:
+                continue
+            if isinstance(data, dict):
+                manifests.append((manifest_path, data))
+    return manifests
+
+
+def validate_db_first(db_date: str) -> tuple[list[str], list[str]]:
+    errors: list[str] = []
+    validated: list[str] = []
+
+    for key, spec in DB_SPECS.items():
+        db_path = spec["path"]
+        if not db_path.exists():
+            errors.append(f"{relpath(db_path)}: missing DB file ({key})")
+            continue
+        try:
+            tables = list_db_tables(db_path)
+        except Exception as exc:
+            errors.append(f"{relpath(db_path)}: unable to inspect tables ({type(exc).__name__}: {exc})")
+            continue
+        missing = sorted(spec["tables"] - tables)
+        if missing:
+            errors.append(f"{relpath(db_path)}: missing required tables ({key}): {', '.join(missing)}")
+            continue
+        validated.append(relpath(db_path))
+
+    manifests = collect_topic_manifests()
+    daily_watch_slugs: list[str] = []
+    for manifest_path, manifest in manifests:
+        kind = str(manifest.get("kind", "") or "").strip()
+        slug = str(manifest.get("slug", "") or "").strip()
+        if not slug:
+            continue
+        expected_db_key = KIND_TO_DB.get(kind)
+        if expected_db_key is None:
+            # demo/reference are intentionally outside DB-first mapping.
+            continue
+        expected_db_path = DB_SPECS[expected_db_key]["path"]
+        if not expected_db_path.exists():
+            errors.append(
+                f"{relpath(manifest_path)}: kind '{kind}' expects {relpath(expected_db_path)} but DB file is missing"
+            )
+            continue
+        validated.append(f"{relpath(manifest_path)}: kind={kind} -> {relpath(expected_db_path)}")
+        # Daily existence checks are for runtime topics only (exclude sample-topics).
+        if kind == "daily-watch" and manifest_path.parent.parent == TOPICS_DIR:
+            daily_watch_slugs.append(slug)
+
+    topics_db_path = DB_SPECS["topics"]["path"]
+    if daily_watch_slugs and topics_db_path.exists():
+        try:
+            conn = sqlite3.connect(topics_db_path)
+            try:
+                for slug in sorted(set(daily_watch_slugs)):
+                    count = conn.execute(
+                        "SELECT COUNT(*) FROM topic_daily_digest WHERE topic=? AND date=?",
+                        (slug, db_date),
+                    ).fetchone()[0]
+                    if int(count or 0) <= 0:
+                        errors.append(
+                            f"{relpath(topics_db_path)}: topic_daily_digest missing for daily-watch topic='{slug}' date={db_date}"
+                        )
+            finally:
+                conn.close()
+        except Exception as exc:
+            errors.append(f"{relpath(topics_db_path)}: daily-watch DB check failed ({type(exc).__name__}: {exc})")
+
+    return errors, validated
+
+
 def main() -> int:
+    args = parse_args()
     errors: list[str] = []
     validated: list[str] = []
 
@@ -275,6 +404,11 @@ def main() -> int:
     seed_errors, seed_validated = validate_investment_seed_config()
     errors.extend(seed_errors)
     validated.extend(seed_validated)
+
+    if args.check_db_first:
+        db_errors, db_validated = validate_db_first(args.db_date)
+        errors.extend(db_errors)
+        validated.extend(db_validated)
 
     if errors:
         print("Validation failed")

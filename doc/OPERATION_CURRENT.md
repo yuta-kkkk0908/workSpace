@@ -81,6 +81,9 @@
   - `prompts/paper-stats-discord-message.txt`（evening）
 - このRepoでは `night` 実行時に以下を生成する:
   - `prompts/generic-topics-discord-message.txt`
+  - `prompts/ops-kpi-summary-discord-message.txt`
+    - 夜間監視用の要約として使う
+    - 含むもの: `night` 実行状況 / 失敗ステージ / 収集漏れ系アラート / 収集母数トレンド
 - Webhook URLは `.env` に保存する:
   - `DISCORD_WEBHOOK_URL=...`
   - `DISCORD_SIGNAL_WEBHOOK_URL=...`
@@ -109,8 +112,12 @@
 - Alert通知:
   - 元データ: `prompts/pending-daily/latest.status.txt`
   - 追加データ: `prompts/scheduler-health.status.txt`
+  - 追加データ: `topics/investment-research/inbox/*-decision-support-diff.json`（連続 warning 自動判定）
   - 週次追加データ（水曜のみ）: `prompts/needs-freshness.status.txt`
   - 送信先: `DISCORD_ALERT_WEBHOOK_URL`
+  - `INV_SCENARIO_DECISION_SUPPORT` セクション:
+    - warning連続 2営業日: `WARN`（事前レビュー）
+    - warning連続 3営業日以上: `ACTION`（当日対応）
 - Generic Daily通知:
   - 元データ: `prompts/generic-topics-discord-message.txt`
   - 送信先:
@@ -138,6 +145,18 @@
 - `inv-scenario` は土日スキップ（休場のため）
 - `night` で `collect_generic_daily_topics.py` を実行し、汎用トピックの当日ファイルを自動生成
 - タスク再登録は `scripts/ops/register_tasks.ps1` を使用（`WakeToRun` / `StartWhenAvailable` を強制）
+- `night` は毎週月曜に `recommend_decision_support_thresholds.py` を実行し、`decision-support-diff` 警告率（目標 5-15%）の閾値提案を出力
+
+## inv-scenario 受け入れ基準（運用）
+
+- `decision-support-diff` が `warning` の日数を監視する
+- `warning` が **3営業日連続** した場合は、閾値調整タスクを起票して当日中に対応する
+- 単日 warning は観測継続、2営業日連続は事前レビュー、3営業日連続で要対応
+
+## 改修後の必須テスト
+
+- 改修後は次を一括実行してから運用に戻す
+- `python -m unittest tests.test_execution_feasibility tests.test_decision_support_kpi tests.test_post_scenarios_message_format tests.test_decision_support_diff`
 
 ## Alertメッセージ分類（2026-05）
 

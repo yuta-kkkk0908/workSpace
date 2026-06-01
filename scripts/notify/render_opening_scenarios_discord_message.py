@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -58,6 +59,40 @@ def rationale_ja(row: dict) -> str:
     return " / ".join(parts) if parts else "根拠情報不足"
 
 
+def _price_limit_width(base_price: float) -> int:
+    p = float(base_price)
+    bands = [
+        (100, 30), (200, 50), (500, 80), (700, 100), (1000, 150),
+        (1500, 300), (2000, 400), (3000, 500), (5000, 700), (7000, 1000),
+        (10000, 1500), (15000, 3000), (20000, 4000), (30000, 5000), (50000, 7000),
+        (70000, 10000), (100000, 15000), (150000, 30000), (200000, 40000), (300000, 50000),
+        (500000, 70000), (700000, 100000), (1000000, 150000), (1500000, 300000), (2000000, 400000),
+        (3000000, 500000), (5000000, 700000), (7000000, 1000000), (10000000, 1500000),
+        (15000000, 3000000), (20000000, 4000000), (30000000, 5000000), (50000000, 7000000),
+    ]
+    for upper, width in bands:
+        if p <= upper:
+            return width
+    return 10000000
+
+
+def _fmt_price(v: float | None) -> str:
+    if v is None:
+        return "不明"
+    if abs(v - round(v)) < 1e-9:
+        return f"{int(round(v)):,}"
+    return f"{v:,.2f}"
+
+
+def limit_range_ja(prev_close: float | None) -> str:
+    if prev_close is None:
+        return "不明"
+    w = _price_limit_width(prev_close)
+    up = prev_close + w
+    dn = max(0.0, prev_close - w)
+    return f"前日終値={_fmt_price(prev_close)} / 値幅制限={_fmt_price(dn)}- {_fmt_price(up)} (±{w:,})"
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Render opening scenarios into Discord-ready message text")
     p.add_argument("--date", required=True, help="YYYY-MM-DD")
@@ -96,6 +131,18 @@ def load_rows_from_db(db_path: Path, date_str: str) -> list[dict]:
                    os.direction,os.scenario_tier,os.scenario_score,os.rule_hit_count,
                    os.estimated_winrate_text,
                    (
+                     SELECT f.close FROM facts_price_daily f
+                     WHERE f.ticker=os.ticker AND f.date<=?
+                     ORDER BY f.date DESC
+                     LIMIT 1
+                   ) AS prev_close,
+                   (
+                     SELECT f.date FROM facts_price_daily f
+                     WHERE f.ticker=os.ticker AND f.date<=?
+                     ORDER BY f.date DESC
+                     LIMIT 1
+                   ) AS prev_close_date,
+                   (
                      SELECT sc.sector_group FROM sector_context_rows sc
                      WHERE sc.ticker=os.ticker
                      ORDER BY sc.date DESC LIMIT 1
@@ -104,7 +151,7 @@ def load_rows_from_db(db_path: Path, date_str: str) -> list[dict]:
             WHERE os.scenario_date=? AND os.source_kind='scenario'
             ORDER BY scenario_index
             """,
-            (date_str,),
+            (date_str, date_str, date_str),
         ).fetchall()
     finally:
         conn.close()
@@ -194,7 +241,35 @@ def load_rejected_rows_from_db(db_path: Path, date_str: str, limit: int = 8) -> 
     return [dict(r) for r in rows]
 
 
-def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], rejected_rows: list[dict]) -> str:
+def load_ai_analyst_summary(db_path: Path, date_str: str) -> str:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT payload_json
+            FROM collection_artifacts
+            WHERE artifact_key='ai_analyst_report' AND artifact_date=?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (date_str,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or not row[0]:
+        return ""
+    try:
+        payload = json.loads(str(row[0]))
+    except Exception:
+        return ""
+    text = str(payload.get("report") or "").strip()
+    if not text:
+        return ""
+    lines = [ln.rstrip() for ln in text.splitlines() if ln.strip()]
+    return "\n".join(lines[:12]).strip()
+
+
+def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], rejected_rows: list[dict], ai_summary: str = "") -> str:
     lines = [
         f"寄り付きシナリオ {date}",
         f"- 参照日: {date}",
@@ -229,6 +304,8 @@ def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], 
                 "",
             ]
         )
+        if ai_summary:
+            lines.extend(["", "AI分析官メモ:", ai_summary, ""])
         return "\n".join(lines)
 
     for i, r in enumerate(rows, 1):
@@ -239,6 +316,7 @@ def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], 
                 f"{i}. {r.get('ticker','')} {company} ({sector}) [{direction_ja(r.get('direction',''))}]",
                 f"  方向: {direction_ja(r.get('direction',''))}",
                 f"  品質: score={r.get('scenario_score',0)} / ruleHits={r.get('rule_hit_count',0)} / {r.get('estimated_winrate_text','')}",
+                f"  価格: {limit_range_ja(r.get('prev_close'))} (基準日={r.get('prev_close_date') or '不明'})",
                 f"  補足: 種別={r.get('scenario_tier','trade')}",
                 "",
             ]
@@ -265,6 +343,8 @@ def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], 
             "",
         ]
     )
+    if ai_summary:
+        lines.extend(["AI分析官メモ:", ai_summary, ""])
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -273,7 +353,8 @@ def main() -> int:
     rows = load_rows_from_db(args.db, args.date)
     zero_case_stats = load_zero_case_stats(args.db, args.date)
     rejected_rows = load_rejected_rows_from_db(args.db, args.date, limit=8)
-    message = build_message(args.date, rows, zero_case_stats, rejected_rows)
+    ai_summary = load_ai_analyst_summary(args.db, args.date)
+    message = build_message(args.date, rows, zero_case_stats, rejected_rows, ai_summary)
 
     out_txt = OUT_DIR / "opening-scenarios-discord-message.txt"
     out_md = OUT_DIR / "opening-scenarios-discord-message.md"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -91,7 +92,7 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
     try:
         rows = conn.execute(
             """
-            SELECT s.signal_id,s.ticker,s.company,s.expected_direction,s.long_rank,s.short_rank,s.signal_type,s.url,s.source,s.gate_status,
+            SELECT s.signal_id,s.ticker,s.company,s.expected_direction,s.long_rank,s.short_rank,s.signal_type,s.url,s.source,s.gate_status,s.payload_json,
                    s.material_signal_checked,s.external_context_checked,s.technical_signal_checked,
                    (
                      SELECT s2.company FROM signals s2
@@ -164,6 +165,70 @@ def load_entry_candidates_from_db(db_path: Path, date_str: str, limit: int = 3) 
     return [dict(r) for r in rows]
 
 
+def load_open_positions_from_db(db_path: Path, date_str: str, limit: int = 8) -> list[dict[str, str]]:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+              pt.ticker,
+              COALESCE(NULLIF(TRIM(pt.company),''), '') AS company,
+              COALESCE(pt.side, '') AS side,
+              COALESCE(pt.entry_date, '') AS entry_date,
+              pt.planned_entry_price,
+              COALESCE(
+                (
+                  SELECT s.gate_status
+                  FROM signals s
+                  WHERE s.ticker=pt.ticker AND s.date<=?
+                  ORDER BY s.date DESC, s.signal_id DESC
+                  LIMIT 1
+                ),
+                ''
+              ) AS gate_status_latest,
+              COALESCE(
+                (
+                  SELECT s.expected_direction
+                  FROM signals s
+                  WHERE s.ticker=pt.ticker AND s.date<=?
+                  ORDER BY s.date DESC, s.signal_id DESC
+                  LIMIT 1
+                ),
+                ''
+              ) AS expected_direction_latest,
+              COALESCE(
+                (
+                  SELECT s.signal_type
+                  FROM signals s
+                  WHERE s.ticker=pt.ticker AND s.date<=?
+                  ORDER BY s.date DESC, s.signal_id DESC
+                  LIMIT 1
+                ),
+                ''
+              ) AS signal_type_latest,
+              COALESCE(
+                (
+                  SELECT sc.sector_group
+                  FROM sector_context_rows sc
+                  WHERE sc.ticker=pt.ticker
+                  ORDER BY sc.date DESC
+                  LIMIT 1
+                ),
+                '不明'
+              ) AS sector_group
+            FROM paper_trades pt
+            WHERE COALESCE(pt.status,'')='open'
+            ORDER BY pt.entry_date DESC, pt.ticker
+            LIMIT ?
+            """,
+            (date_str, date_str, date_str, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(r) for r in rows]
+
+
 def is_non_marginable(borrow_status: str) -> bool:
     s = (borrow_status or "").strip().lower()
     if s == "manual_non_marginable":
@@ -186,11 +251,23 @@ def sanitize_source_url(url: str, source: str = "") -> str:
     return "一次情報URL未設定"
 
 
+def parse_noon_reeval(payload_json: str) -> dict:
+    try:
+        payload = json.loads(payload_json or "{}")
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    nr = payload.get("noonReeval")
+    return nr if isinstance(nr, dict) else {}
+
+
 def build_message(
     date_str: str,
     rows: list[dict[str, str]],
     slot: str = "",
     fallback_rows: list[dict[str, str]] | None = None,
+    open_positions: list[dict[str, str]] | None = None,
 ) -> str:
     excluded_non_margin = 0
     excluded_rows: list[dict[str, str]] = []
@@ -290,9 +367,16 @@ def build_message(
                 f"{i}. {header_name} ({sector}) / {exp} / L:{lr} S:{sr}",
                 f"  根拠: {rationale} / ruleHits={hit}",
                 f"  出典: {source_url}",
-                "",
             ]
         )
+        if (slot or "").strip() == "inv-noon":
+            nr = parse_noon_reeval(str(r.get("payload_json", "") or ""))
+            if nr:
+                action_ja = str(nr.get("actionJa") or nr.get("action") or "未判定")
+                confidence = str(nr.get("confidence") or "low")
+                no_add = "追撃禁止" if bool(nr.get("noAdd")) else "追撃可"
+                lines.append(f"  昼判定: {action_ja} / 信頼度={confidence} / {no_add}")
+        lines.append("")
     if (slot or "").strip() == "inv-noon":
         lines.extend(
             [
@@ -303,6 +387,31 @@ def build_message(
                 "",
             ]
         )
+    if (slot or "").strip() == "inv-evening":
+        lines.extend(["保有中ウォッチ（open）:"])
+        if not open_positions:
+            lines.append("- 該当なし")
+        else:
+            for i, p in enumerate(open_positions, 1):
+                ticker = (p.get("ticker", "") or "").strip()
+                company = (p.get("company", "") or "").strip()
+                side = (p.get("side", "") or "").strip().lower()
+                side_ja = {"long": "ロング", "short": "ショート"}.get(side, side or "不明")
+                entry_date = (p.get("entry_date", "") or "").strip() or "不明"
+                gate = gate_ja((p.get("gate_status_latest", "") or "").strip())
+                exp = expected_direction_ja((p.get("expected_direction_latest", "") or "").strip())
+                stype = signal_type_ja((p.get("signal_type_latest", "") or "").strip()) or "不明"
+                sector = (p.get("sector_group", "") or "不明").strip() or "不明"
+                planned = p.get("planned_entry_price")
+                planned_s = f"{planned}" if planned is not None else "-"
+                head = f"{ticker} {company}".strip()
+                lines.extend(
+                    [
+                        f"{i}. {head} ({sector}) / {side_ja} / entry={entry_date} @{planned_s}",
+                        f"  直近変化: 方向={exp} / gate={gate} / signal={stype}",
+                    ]
+                )
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -310,7 +419,10 @@ def main() -> int:
     args = parse_args()
     rows = load_signals_from_db(args.db, args.date)
     fallback_rows: list[dict[str, str]] = load_entry_candidates_from_db(args.db, args.date, limit=3)
-    msg = build_message(args.date, rows, args.slot, fallback_rows=fallback_rows)
+    open_positions: list[dict[str, str]] = []
+    if (args.slot or "").strip() == "inv-evening":
+        open_positions = load_open_positions_from_db(args.db, args.date, limit=8)
+    msg = build_message(args.date, rows, args.slot, fallback_rows=fallback_rows, open_positions=open_positions)
 
     out_txt = OUT_DIR / "market-signals-discord-message.txt"
     out_md = OUT_DIR / "market-signals-discord-message.md"

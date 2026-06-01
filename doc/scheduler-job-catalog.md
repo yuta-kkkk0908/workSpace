@@ -30,6 +30,8 @@
     - `scripts/check_daily_missing.py --date today --days 7`
   - 汎用トピック自動収集（RSSベース）
     - `scripts/investment/collect/collect_generic_daily_topics.py --date YYYY-MM-DD --overwrite`
+    - `scripts/topics/enrich_pokemon_daily_with_ai.py --date YYYY-MM-DD`（ポケカ収集メモへAI要約付与）
+    - `scripts/topics/consolidate_pokemon_sources_ai.py --date YYYY-MM-DD`（ポケカ記事重複統合）
   - 非投資topic DB更新  
     - `scripts/data/init_topics_db.py`  
     - `scripts/data/ingest_topics_db.py --date YYYY-MM-DD`  
@@ -44,11 +46,18 @@
     - `scripts/data/ingest_investment_db.py --date YYYY-MM-DD`  
     - `scripts/data/build_today_brief_from_db.py --date YYYY-MM-DD`
   - 投資サイクル（夜）  
+    - `scripts/investment/collect/collect_jpx_daily_pdf_prices.py --date YYYY-MM-DD`（JPX日足PDF）
     - `scripts/investment/signals/check_investment_signal_missing.py --date YYYY-MM-DD`  
     - `scripts/investment/signals/generate_entry_candidates.py --date YYYY-MM-DD`  
     - `scripts/data/init_investment_db.py`  
     - `scripts/data/ingest_investment_db.py --date YYYY-MM-DD`  
     - `scripts/data/build_today_brief_from_db.py --date YYYY-MM-DD`
+    - outcomesバックフィル（実取得あり）
+      - 30日: 毎日
+      - 90日: 毎週月曜
+      - 180日: 毎月1日
+  - 週次AIレビュー（月曜のみ）
+    - `scripts/investment/analysis/generate_weekly_tuning_ai_review.py --date YYYY-MM-DD`
 
 ---
 
@@ -67,6 +76,7 @@
     - `scripts/data/init_investment_db.py`
     - `scripts/data/ingest_investment_db.py --date YYYY-MM-DD`
     - `scripts/data/build_today_brief_from_db.py --date YYYY-MM-DD`
+    - `scripts/investment/analysis/analyze_signal_quality_alert_ai.py --date YYYY-MM-DD`（ALERT時のみ）
     - `scripts/notify/render_market_signals_discord_message.py --date YYYY-MM-DD --fallback-days 3`
 
 ---
@@ -79,24 +89,52 @@
 - 目的:
   - 昼時点の投資監視データを再更新する
 - 処理内容:
-  - 投資サイクル実行（Morningと同じ）
+  - `scripts/investment/collect/collect_intraday_signal_snapshots.py --date YYYY-MM-DD --slot inv-noon`
+  - `scripts/investment/signals/reevaluate_market_signals_noon.py --date YYYY-MM-DD --slot inv-noon`
+  - `scripts/investment/analysis/analyze_signal_quality_alert_ai.py --date YYYY-MM-DD`（ALERT時のみ）
+  - noon再評価は `gate/score` 分離:
+    - 逆行強/欠損は `hold_noon_recheck`
+    - 理由コードは `signals.payload_json.noonReeval` に保存
 
 ---
 
 ## Job: AIOS-Inv-Evening
 
 - status: active
-- schedule: 毎日 21:10
+- schedule: 毎日 17:00
 - entrypoint: `scripts/run_ops_scheduler.py --slot inv-evening --date YYYY-MM-DD`
 - 目的:
   - 引け後～夜の投資監視データを更新する
 - 処理内容:
   - 投資サイクル実行（引け後の再評価）
+  - `scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full --include-db-signals`
   - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
   - `scripts/notify/render_paper_stats_discord_message.py --date YYYY-MM-DD --fallback-days 3`
   - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
   - `scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date YYYY-MM-DD`
+  - `scripts/investment/analysis/analyze_signal_quality_alert_ai.py --date YYYY-MM-DD`（ALERT時のみ）
+
+---
+
+## Job: AIOS-Inv-AI-2100
+
+- status: active
+- schedule: 毎日 21:00
+- entrypoint: `scripts/ops/run_inv_ai_2100_and_post.ps1`（Windowsローカル）
+- 目的:
+  - 投資DB更新のうえで、AI要約を生成しDiscordへ投稿する
+  - 失敗時にアラート通知まで一気通貫で実行する
+- 処理内容:
+  - `scripts/run_ops_scheduler.py --slot inv-evening --date YYYY-MM-DD`
+  - `scripts/notify/resend_pending_discord.ps1`
+  - `scripts/notify/post_signal_discord.ps1`
+  - `scripts/investment/analysis/generate_ai_investment_digest.py --date YYYY-MM-DD`
+  - `scripts/notify/post_ai_investment_digest_discord.ps1`
+  - いずれか失敗時: `scripts/notify/post_alert_discord.ps1`
+  - ドライラン:
+    - 初回実行日から2日間は `--dry-run` で AI本文生成を擬似実行
+    - 状態ファイル: `prompts/.inv-ai-2100-dry-run-start.txt`
 
 ---
 
@@ -108,6 +146,8 @@
 - 目的:
   - 人手注文前の寄り前シナリオを生成する
 - 処理内容:
+  - `scripts/investment/analysis/generate_ai_analyst_report.py --date YYYY-MM-DD`（分析官レポートをDB保存）
+  - `scripts/investment/analysis/review_scenario_promotion_ai.py --date YYYY-MM-DD`（昇格/見送りレビュー）
   - `scripts/investment/signals/build_opening_scenarios.py --date YYYY-MM-DD --fallback-days 3`
   - `scripts/notify/render_opening_scenarios_discord_message.py --date YYYY-MM-DD --fallback-days 3`
   - 出力:
@@ -253,10 +293,11 @@
 - 処理内容:
   - `scripts/investment/collect/run_harvest_backfill.py --end-date YYYY-MM-DD --days 21 --discover-latest 120 --max-pages 120 --tdnet-max-items 800 --seed-list rough_backtest_full`
   - 内部で以下を日付ループ実行:
+    - `scripts/investment/collect/collect_jpx_daily_pdf_prices.py`（対象日付のJPX相場表PDF）
     - `scripts/investment/collect/collect_tdnet_disclosures.py`
     - `scripts/investment/collect/collect_kabutan_surprise_signals.py`
     - `scripts/investment/collect/collect_kabutan_short_signals.py`
-    - `scripts/investment/backtest/fill_market_outcomes.py`
+    - `scripts/investment/backtest/fill_market_outcomes.py --include-db-signals`
     - `scripts/investment/signals/build_market_signals_from_batches.py`
     - `scripts/data/ingest_investment_db.py`
 

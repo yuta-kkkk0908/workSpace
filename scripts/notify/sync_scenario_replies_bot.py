@@ -587,6 +587,17 @@ def ack_error_text(sc: sqlite3.Row, raw: str, err: str) -> str:
     )
 
 
+def exit_guide_text() -> str:
+    return (
+        "エグジット入力ガイド\n"
+        "- 利確: exit tp 4070 reason=tp\n"
+        "- 損切り: exit sl 3980 reason=sl\n"
+        "- 現在値クローズ: exit reason=time\n"
+        "- 前提崩れ: exit reason=thesis_break note=理由\n"
+        "- 取消: cancel"
+    )
+
+
 def log_reply(conn: sqlite3.Connection, *, reply_message_id: str, channel_id: str, parent_message_id: str, author_id: str, command: str, raw_content: str, parsed: dict) -> None:
     conn.execute(
         """
@@ -801,6 +812,13 @@ def main() -> int:
                         mid,
                         ack_text(cmd, sc, payload, trade_id, "反映"),
                     )
+                    if cmd == "entry":
+                        api_post_ack(
+                            token,
+                            message_channel_id or channel_id,
+                            mid,
+                            exit_guide_text(),
+                        )
                 except Exception:
                     # ACK failure should not block DB reflection.
                     pass

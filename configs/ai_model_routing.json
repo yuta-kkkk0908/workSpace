@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "defaults": {
+    "provider": "openai",
+    "model": "gpt-5-mini"
+  },
+  "routes": {
+    "investment_digest": {
+      "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    "pokemon_collection_summary": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    },
+    "generic_collection_summary": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    },
+    "weekly_deep_review_openai": {
+      "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    "weekly_deep_review_claude": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6"
+    },
+    "scenario_promotion_review": {
+      "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    "signal_quality_alert_analysis": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    },
+    "pokemon_collection_dedupe": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    },
+    "weekly_tuning_ai_review": {
+      "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    "ai_analyst_report": {
+      "provider": "openai",
+      "model": "gpt-5-mini"
+    }
+  }
+}

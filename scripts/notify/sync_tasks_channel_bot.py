@@ -25,6 +25,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--exec-timeout-sec", type=int, default=1800)
     p.add_argument("--post-run-summary", action="store_true", help="post poll summary to task channel")
+    p.add_argument("--enable-task-exec", action="store_true", help="enable command execution/memory writes (default: disabled)")
+    p.add_argument("--enable-replies", action="store_true", help="enable replying to channel messages (default: disabled)")
+    p.add_argument("--only-task-keywords", action="store_true", help="react only to Japanese task keywords; ignore other posts")
     return p.parse_args()
 
 
@@ -182,30 +185,6 @@ def parse_command(content: str) -> tuple[str, dict] | tuple[None, dict]:
     # Japanese shortcuts
     if txt_norm in {"ヘルプ", "使い方", "コマンド一覧"}:
         return "help", {}
-    if txt_norm.startswith("メモ一覧"):
-        toks = txt_norm.split()
-        topic = toks[1] if len(toks) >= 2 else "general"
-        limit = int(toks[2]) if len(toks) >= 3 and toks[2].isdigit() else 5
-        return "memory_list", {"topic": topic, "limit": max(1, min(limit, 20))}
-    if txt_norm.startswith("メモ:") or txt_norm.startswith("メモ："):
-        body = txt_norm.split(":", 1)[1] if ":" in txt_norm else txt_norm.split("：", 1)[1]
-        body = body.strip()
-        topic = "general"
-        mtype = "note"
-        # 形式: メモ: topic=ops type=decision 本文...
-        toks = body.split()
-        content_start = 0
-        for i, t in enumerate(toks[:3]):
-            if t.startswith("topic="):
-                topic = t.split("=", 1)[1] or "general"
-                content_start = i + 1
-            elif t.startswith("type="):
-                mtype = t.split("=", 1)[1] or "note"
-                content_start = i + 1
-        memo_text = " ".join(toks[content_start:]).strip() if toks else body
-        if not memo_text:
-            return None, {"error": "empty_memory", "raw": txt}
-        return "memory_add", {"topic": topic, "memory_type": mtype, "content": memo_text}
     if txt_norm.startswith("母数強化"):
         d = datetime.now().strftime("%Y-%m-%d")
         return "run_weekly_samples365", {"date": d}
@@ -259,7 +238,7 @@ def parse_command(content: str) -> tuple[str, dict] | tuple[None, dict]:
         if len(toks) >= 3:
             slot = toks[2]
             d = toks[3] if len(toks) >= 4 else datetime.now().strftime("%Y-%m-%d")
-            if slot not in {"night", "inv-morning", "inv-noon", "inv-evening", "inv-scenario"}:
+            if slot not in {"night", "inv-morning", "inv-noon", "inv-evening", "inv-heavy", "inv-scenario"}:
                 return None, {"error": "invalid_slot", "raw": txt}
             return "run_slot", {"slot": slot, "date": d}
         return None, {"error": "invalid_slot", "raw": txt}
@@ -286,7 +265,7 @@ def parse_command(content: str) -> tuple[str, dict] | tuple[None, dict]:
     if cmd0 == "run" and len(parts) >= 3 and parts[1].lower() == "slot":
         slot = parts[2]
         d = parts[3] if len(parts) >= 4 else datetime.now().strftime("%Y-%m-%d")
-        if slot not in {"night", "inv-morning", "inv-noon", "inv-evening", "inv-scenario"}:
+        if slot not in {"night", "inv-morning", "inv-noon", "inv-evening", "inv-heavy", "inv-scenario"}:
             return None, {"error": "invalid_slot", "raw": txt}
         return "run_slot", {"slot": slot, "date": d}
     if cmd0 == "collect" and len(parts) >= 2 and parts[1].lower() == "harvest":
@@ -295,11 +274,33 @@ def parse_command(content: str) -> tuple[str, dict] | tuple[None, dict]:
     if cmd0 == "outcomes" and len(parts) >= 2 and parts[1].lower() == "full":
         d = parts[2] if len(parts) >= 3 else datetime.now().strftime("%Y-%m-%d")
         return "fill_outcomes_full", {"date": d}
-    # Fallback: treat free comment as memory note instead of format error.
-    free = txt_norm.strip()
-    if free:
-        return "memory_add", {"topic": "general", "memory_type": "note", "content": free}
     return None, {"error": "unknown_command", "raw": txt}
+
+
+def is_task_keyword_post(content: str) -> bool:
+    t = (content or "").strip().replace("　", " ")
+    keywords = [
+        "母数強化",
+        "週次30再収集",
+        "週次365再収集",
+        "月次ローテA",
+        "月次ローテB",
+        "月次ローテC",
+        "outcomes補完",
+        "アウトカム補完",
+        "投資補完",
+        "エラー詳細",
+        "状態",
+        "投資情報収集",
+        "昼の投資情報",
+        "夕の投資情報",
+        "シナリオ",
+        "スロット 実行",
+        "スロット実行",
+        "収集 実行",
+        "収集実行",
+    ]
+    return any(t.startswith(k) for k in keywords)
 
 
 def build_exec(cmd: str, payload: dict) -> list[str] | None:
@@ -486,7 +487,7 @@ def help_text() -> str:
         "- 夕の投資情報 [YYYY-MM-DD]\n"
         "- シナリオ [YYYY-MM-DD]\n"
         "- 状態 [YYYY-MM-DD]\n"
-        "- スロット 実行 night|inv-morning|inv-noon|inv-evening|inv-scenario [YYYY-MM-DD]\n"
+        "- スロット 実行 night|inv-morning|inv-noon|inv-evening|inv-heavy|inv-scenario [YYYY-MM-DD]\n"
         "- 収集 実行 [YYYY-MM-DD]\n"
         "（英語互換）help / status / run slot ... / collect harvest ... / error detail"
     )
@@ -533,7 +534,10 @@ def main() -> int:
             if already_processed(conn, mid):
                 continue
             content = str(m.get("content", "") or "")
-            cmd, payload = parse_command(content)
+            if args.only_task_keywords and not is_task_keyword_post(content):
+                cmd, payload = (None, {"ignored": "non_task_keyword"})
+            else:
+                cmd, payload = parse_command(content)
             result = {}
             status = "ignored"
             mark_processing(
@@ -550,62 +554,79 @@ def main() -> int:
                 if cmd == "help":
                     status = "help"
                     helped += 1
-                    if not args.dry_run:
+                    if args.enable_replies and not args.dry_run:
                         api_post_reply(token, channel_id, mid, "処理: helpを返答")
                         api_post_reply(token, channel_id, mid, help_text())
                 elif cmd == "status":
-                    status = "executed"
-                    executed += 1
-                    exec_argv = build_exec(cmd, payload)
-                    if exec_argv:
-                        result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
-                    if not args.dry_run:
-                        rc = int(result.get("exit_code", 1))
-                        api_post_reply(token, channel_id, mid, f"処理: status実行 rc={rc}")
+                    if args.enable_task_exec:
+                        status = "executed"
+                        executed += 1
+                        exec_argv = build_exec(cmd, payload)
+                        if exec_argv:
+                            result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
+                        if args.enable_replies and not args.dry_run:
+                            rc = int(result.get("exit_code", 1))
+                            api_post_reply(token, channel_id, mid, f"処理: status実行 rc={rc}")
+                    else:
+                        status = "disabled"
+                        result = {"disabled": "task_exec"}
                 elif cmd == "error_detail":
-                    status = "executed"
-                    executed += 1
-                    if not args.dry_run:
+                    status = "executed" if args.enable_task_exec else "disabled"
+                    if args.enable_task_exec:
+                        executed += 1
+                    if args.enable_task_exec and args.enable_replies and not args.dry_run:
                         detail = load_scheduler_health_detail(str(payload.get("task") or "").strip())
                         api_post_reply(token, channel_id, mid, detail[:1800])
                 elif cmd == "memory_add":
-                    status = "executed"
-                    executed += 1
-                    rid = memory_add(
-                        memory_db,
-                        topic=str(payload.get("topic") or "general"),
-                        memory_type=str(payload.get("memory_type") or "note"),
-                        content=str(payload.get("content") or ""),
-                        channel_id=channel_id,
-                        message_id=mid,
-                        author_id=str(author.get("id", "")),
-                    )
-                    result = {"memory_id": rid, **payload}
-                    if not args.dry_run:
-                        api_post_reply(token, channel_id, mid, f"処理: メモ保存 id={rid} topic={payload.get('topic','general')}")
+                    if args.enable_task_exec:
+                        status = "executed"
+                        executed += 1
+                        rid = memory_add(
+                            memory_db,
+                            topic=str(payload.get("topic") or "general"),
+                            memory_type=str(payload.get("memory_type") or "note"),
+                            content=str(payload.get("content") or ""),
+                            channel_id=channel_id,
+                            message_id=mid,
+                            author_id=str(author.get("id", "")),
+                        )
+                        result = {"memory_id": rid, **payload}
+                        if args.enable_replies and not args.dry_run:
+                            api_post_reply(token, channel_id, mid, f"処理: メモ保存 id={rid} topic={payload.get('topic','general')}")
+                    else:
+                        status = "disabled"
+                        result = {"disabled": "task_exec"}
                 elif cmd == "memory_list":
-                    status = "executed"
-                    executed += 1
-                    rows = memory_list(memory_db, str(payload.get("topic") or "general"), int(payload.get("limit") or 5))
-                    result = {"rows": len(rows), **payload}
-                    if not args.dry_run:
-                        if not rows:
-                            api_post_reply(token, channel_id, mid, "処理: メモ一覧 0件")
-                        else:
-                            lines = [f"処理: メモ一覧 topic={payload.get('topic')} 件数={len(rows)}"]
-                            for r in rows:
-                                lines.append(f"- #{r[0]} {r[1]} [{r[2]}] {str(r[3])[:80]}")
-                            api_post_reply(token, channel_id, mid, "\n".join(lines)[:1800])
+                    if args.enable_task_exec:
+                        status = "executed"
+                        executed += 1
+                        rows = memory_list(memory_db, str(payload.get("topic") or "general"), int(payload.get("limit") or 5))
+                        result = {"rows": len(rows), **payload}
+                        if args.enable_replies and not args.dry_run:
+                            if not rows:
+                                api_post_reply(token, channel_id, mid, "処理: メモ一覧 0件")
+                            else:
+                                lines = [f"処理: メモ一覧 topic={payload.get('topic')} 件数={len(rows)}"]
+                                for r in rows:
+                                    lines.append(f"- #{r[0]} {r[1]} [{r[2]}] {str(r[3])[:80]}")
+                                api_post_reply(token, channel_id, mid, "\n".join(lines)[:1800])
+                    else:
+                        status = "disabled"
+                        result = {"disabled": "task_exec"}
                 elif cmd == "keyword_action":
-                    status = "executed"
-                    executed += 1
-                    exec_argv = build_exec(cmd, payload)
-                    if exec_argv:
-                        result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
-                    if not args.dry_run:
-                        rc = int(result.get("exit_code", 1))
-                        kw = str(payload.get("keyword") or "")
-                        api_post_reply(token, channel_id, mid, f"処理: {kw} 実行 rc={rc}")
+                    if args.enable_task_exec:
+                        status = "executed"
+                        executed += 1
+                        exec_argv = build_exec(cmd, payload)
+                        if exec_argv:
+                            result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
+                        if args.enable_replies and not args.dry_run:
+                            rc = int(result.get("exit_code", 1))
+                            kw = str(payload.get("keyword") or "")
+                            api_post_reply(token, channel_id, mid, f"処理: {kw} 実行 rc={rc}")
+                    else:
+                        status = "disabled"
+                        result = {"disabled": "task_exec"}
                 elif cmd in {
                     "run_slot",
                     "collect_harvest",
@@ -616,20 +637,21 @@ def main() -> int:
                     "run_monthly_rot_c",
                     "fill_outcomes_full",
                 }:
-                    status = "executed"
-                    executed += 1
-                    exec_argv = build_exec(cmd, payload)
-                    if exec_argv:
-                        result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
-                    if not args.dry_run:
-                        rc = int(result.get("exit_code", 1))
-                        api_post_reply(token, channel_id, mid, f"処理: {cmd} 実行 rc={rc}")
+                    if args.enable_task_exec:
+                        status = "executed"
+                        executed += 1
+                        exec_argv = build_exec(cmd, payload)
+                        if exec_argv:
+                            result = run_exec(exec_argv, args.exec_timeout_sec) if not args.dry_run else {"argv": exec_argv, "exit_code": 0}
+                        if args.enable_replies and not args.dry_run:
+                            rc = int(result.get("exit_code", 1))
+                            api_post_reply(token, channel_id, mid, f"処理: {cmd} 実行 rc={rc}")
+                    else:
+                        status = "disabled"
+                        result = {"disabled": "task_exec"}
                 else:
-                    status = "invalid"
-                    invalid += 1
+                    status = "ignored"
                     result = payload
-                    if not args.dry_run:
-                        api_post_reply(token, channel_id, mid, "処理: 形式エラー（help参照）")
             except Exception as exc:
                 status = "error"
                 result = {"error": f"{type(exc).__name__}: {exc}", **payload}

@@ -39,6 +39,18 @@ SCHEMA = [
       PRIMARY KEY(topic, date, path, url)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS topic_ai_summaries (
+      topic TEXT NOT NULL,
+      date TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      provider TEXT,
+      model TEXT,
+      summary TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY(topic, date, kind)
+    )
+    """,
 ]
 
 
@@ -65,4 +77,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-06-01T21:20:04+09:00",
+  "lookbackHours": 168,
+  "status": "ALERT",
+  "alerts": [
+    "AIOS-Night: ERROR 1件",
+    "AIOS-Inv-Morning: ERROR 5件",
+    "AIOS-Inv-Noon: ERROR 7件",
+    "AIOS-Inv-Evening: ERROR 6件",
+    "AIOS-Inv-Scenario-0810: ERROR 3件"
+  ],
+  "warnings": [
+    "discord-generic.log: 更新遅延 11536分",
+    "discord-scenario.log: 更新遅延 14337分"
+  ],
+  "tasks": {
+    "AIOS-Night": {
+      "start_count": 8,
+      "ok_count": 14,
+      "error_count": 1,
+      "last_event": "[2026-06-01 19:00:03] [AIOS-Night] [START] begin file=E:\\workSpace\\scripts\\ops\\do_night_and_post_generic.ps1"
+    },
+    "AIOS-Inv-Morning": {
+      "start_count": 7,
+      "ok_count": 8,
+      "error_count": 5,
+      "last_event": "[2026-06-01 07:34:04] [AIOS-Inv-Morning] [OK] foreground restored: YourChronicle"
+    },
+    "AIOS-Inv-Noon": {
+      "start_count": 7,
+      "ok_count": 9,
+      "error_count": 7,
+      "last_event": "[2026-06-01 12:10:40] [AIOS-Inv-Noon] [OK] foreground restored: YourChronicle"
+    },
+    "AIOS-Inv-Evening": {
+      "start_count": 5,
+      "ok_count": 9,
+      "error_count": 6,
+      "last_event": "[2026-06-01 17:12:49] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle"
+    },
+    "AIOS-Inv-Heavy-2000": {
+      "start_count": 3,
+      "ok_count": 6,
+      "error_count": 0,
+      "last_event": "[2026-05-31 20:00:06] [AIOS-Inv-Heavy-2000] [OK] foreground restored: YourChronicle"
+    },
+    "AIOS-Inv-Scenario-0810": {
+      "start_count": 5,
+      "ok_count": 6,
+      "error_count": 3,
+      "last_event": "[2026-06-01 08:11:13] [AIOS-Inv-Scenario-0810] [OK] foreground restored: YourChronicle"
+    }
+  },
+  "freshnessMinutes": {
+    "discord-signal.log": 247.40270283333334,
+    "discord-generic.log": 11536.102702833334,
+    "discord-scenario.log": 14336.919478433332,
+    "discord-paper-stats.log": 247.31109788333333
+  },
+  "taskLog": "logs\\task-scheduler.log",
+  "recommendedKeyword": "投資補完"
+}

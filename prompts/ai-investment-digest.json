@@ -1,0 +1,146 @@
+{
+  "date": "2026-05-31",
+  "dry_run": true,
+  "model": "gpt-5.3-chat-latest",
+  "provider": "openai",
+  "stats": {
+    "date": "2026-05-31",
+    "signals_total": 12,
+    "entry_candidates_total": 12,
+    "open_trades_total": 0,
+    "gate_summary": [
+      {
+        "gate_status": "pass",
+        "cnt": 6
+      },
+      {
+        "gate_status": "hold_credit_unknown",
+        "cnt": 6
+      }
+    ],
+    "long_top": [
+      {
+        "ticker": "3282",
+        "company": "Ｒ－コンフォリア",
+        "score": 13,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_003"
+      },
+      {
+        "ticker": "6062",
+        "company": "チャーム・ケア・コーポレーション",
+        "score": 13,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_004"
+      },
+      {
+        "ticker": "8967",
+        "company": "Ｒ－ニホンロジ",
+        "score": 13,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_002"
+      },
+      {
+        "ticker": "9692",
+        "company": "シーイーシー",
+        "score": 13,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_005"
+      },
+      {
+        "ticker": "3063",
+        "company": "Ｇ－ｊＧｒｏｕｐ",
+        "score": 11,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_001"
+      }
+    ],
+    "short_top": [
+      {
+        "ticker": "4099",
+        "company": "四国化成ＨＤ",
+        "score": 11,
+        "candidate_type": "watch",
+        "signal_id": "signal_20260531_009"
+      },
+      {
+        "ticker": "6228",
+        "company": "ジェイ・イー・ティ",
+        "score": 11,
+        "candidate_type": "watch",
+        "signal_id": "signal_20260531_007"
+      },
+      {
+        "ticker": "9238",
+        "company": "Ｇ－バリューＣ",
+        "score": 11,
+        "candidate_type": "watch",
+        "signal_id": "signal_20260531_008"
+      },
+      {
+        "ticker": "9272",
+        "company": "Ｇ－ブティックス",
+        "score": 11,
+        "candidate_type": "primary",
+        "signal_id": "signal_20260531_012"
+      },
+      {
+        "ticker": "3495",
+        "company": "香陵住販",
+        "score": 9,
+        "candidate_type": "watch",
+        "signal_id": "signal_20260531_010"
+      }
+    ],
+    "scenario_promote_long": [
+      {
+        "ticker": "3282",
+        "company": "Ｒ－コンフォリア",
+        "score": 13,
+        "signal_id": "signal_20260531_003",
+        "gate_status": "pass"
+      },
+      {
+        "ticker": "6062",
+        "company": "チャーム・ケア・コーポレーション",
+        "score": 13,
+        "signal_id": "signal_20260531_004",
+        "gate_status": "pass"
+      },
+      {
+        "ticker": "8967",
+        "company": "Ｒ－ニホンロジ",
+        "score": 13,
+        "signal_id": "signal_20260531_002",
+        "gate_status": "pass"
+      },
+      {
+        "ticker": "9692",
+        "company": "シーイーシー",
+        "score": 13,
+        "signal_id": "signal_20260531_005",
+        "gate_status": "pass"
+      },
+      {
+        "ticker": "3063",
+        "company": "Ｇ－ｊＧｒｏｕｐ",
+        "score": 11,
+        "signal_id": "signal_20260531_001",
+        "gate_status": "pass"
+      }
+    ],
+    "scenario_promote_short": [
+      {
+        "ticker": "9272",
+        "company": "Ｇ－ブティックス",
+        "score": 11,
+        "signal_id": "signal_20260531_012",
+        "gate_status": "pass"
+      }
+    ]
+  },
+  "response": {
+    "mode": "dry-run"
+  },
+  "generated_at": "2026-05-31T22:28:09"
+}

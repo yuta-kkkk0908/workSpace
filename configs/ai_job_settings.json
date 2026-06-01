@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "monthly_budget_usd": 10,
+  "warn_budget_usd": 7,
+  "hard_stop_budget_usd": 10,
+  "jobs": [
+    {
+      "job_name": "AIOS-Inv-AI-2100",
+      "stage": "generate_ai_investment_digest.py",
+      "model_route": "investment_digest",
+      "mode": "always",
+      "purpose": "投資分析サマリと昇格判断材料"
+    },
+    {
+      "job_name": "AIOS-Inv-Morning",
+      "stage": "analyze_signal_quality_alert_ai.py",
+      "model_route": "signal_quality_alert_analysis",
+      "mode": "conditional",
+      "condition": "signal-quality-metrics.status == ALERT",
+      "purpose": "品質アラートの原因切り分け"
+    },
+    {
+      "job_name": "AIOS-Inv-Noon",
+      "stage": "analyze_signal_quality_alert_ai.py",
+      "model_route": "signal_quality_alert_analysis",
+      "mode": "conditional",
+      "condition": "signal-quality-metrics.status == ALERT",
+      "purpose": "品質アラートの原因切り分け"
+    },
+    {
+      "job_name": "AIOS-Inv-Evening",
+      "stage": "analyze_signal_quality_alert_ai.py",
+      "model_route": "signal_quality_alert_analysis",
+      "mode": "conditional",
+      "condition": "signal-quality-metrics.status == ALERT",
+      "purpose": "品質アラートの原因切り分け"
+    },
+    {
+      "job_name": "AIOS-Inv-Scenario-0810",
+      "stage": "review_scenario_promotion_ai.py",
+      "model_route": "scenario_promotion_review",
+      "mode": "always",
+      "purpose": "シナリオ昇格/見送りの事前レビュー"
+    },
+    {
+      "job_name": "AIOS-Inv-Scenario-0810",
+      "stage": "generate_ai_analyst_report.py",
+      "model_route": "ai_analyst_report",
+      "mode": "always",
+      "limits": {
+        "long": 3,
+        "short": 3,
+        "watch": 3
+      },
+      "purpose": "投資分析官レポート（論点整理）"
+    },
+    {
+      "job_name": "AIOS-Night",
+      "stage": "enrich_pokemon_daily_with_ai.py",
+      "model_route": "pokemon_collection_summary",
+      "mode": "always",
+      "purpose": "ポケカ収集要約の付与"
+    },
+    {
+      "job_name": "AIOS-Night",
+      "stage": "consolidate_pokemon_sources_ai.py",
+      "model_route": "pokemon_collection_dedupe",
+      "mode": "always",
+      "purpose": "ポケカ記事の重複統合と優先リンク化"
+    },
+    {
+      "job_name": "AIOS-Night",
+      "stage": "generate_weekly_tuning_ai_review.py",
+      "model_route": "weekly_tuning_ai_review",
+      "mode": "always",
+      "purpose": "週次チューニングレビューのAI整理"
+    }
+  ]
+}

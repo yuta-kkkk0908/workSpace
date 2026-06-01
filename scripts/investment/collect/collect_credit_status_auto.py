@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import html
 import re
 import sqlite3
 import urllib.error
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DB = ROOT / "data" / "investment.db"
 JST = timezone(timedelta(hours=9))
 USER_AGENT = "AIOSResearchBot/1.0 (credit auto collector)"
+RAKUTEN_MARGIN_URL = "https://www.rakuten-sec.co.jp/ITS/Companyfile/margin_restriction.html"
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,6 +85,121 @@ def fetch_html(url: str, timeout: float) -> str:
         except Exception:
             continue
     return raw.decode("utf-8", "ignore")
+
+
+def strip_tags(text: str) -> str:
+    s = re.sub(r"<[^>]+>", "", text or "")
+    s = html.unescape(s)
+    s = " ".join(s.split())
+    return s.strip()
+
+
+def parse_table_rows_with_rowspan(table_html: str) -> list[list[str]]:
+    rows_html = re.findall(r"<tr[^>]*>(.*?)</tr>", table_html, re.I | re.S)
+    out: list[list[str]] = []
+    pending: dict[int, tuple[int, str]] = {}
+    for row_html in rows_html:
+        cells = re.findall(r"<t[dh]([^>]*)>(.*?)</t[dh]>", row_html, re.I | re.S)
+        if not cells and not pending:
+            continue
+        row_vals: list[str] = []
+        pos = 0
+        ci = 0
+        while ci < len(cells) or pending:
+            while pos in pending:
+                remain, val = pending[pos]
+                row_vals.append(val)
+                if remain <= 1:
+                    del pending[pos]
+                else:
+                    pending[pos] = (remain - 1, val)
+                pos += 1
+            if ci >= len(cells):
+                break
+            attrs, body = cells[ci]
+            ci += 1
+            val = strip_tags(body)
+            row_vals.append(val)
+            m = re.search(r'rowspan\s*=\s*["\']?(\d+)', attrs or "", re.I)
+            if m:
+                span = max(1, int(m.group(1)))
+                if span > 1:
+                    pending[pos] = (span - 1, val)
+            pos += 1
+        out.append(row_vals)
+    return out
+
+
+def parse_rakuten_margin_map(timeout: float) -> dict[str, list[str]]:
+    html_text = fetch_html(RAKUTEN_MARGIN_URL, timeout)
+    tables = re.findall(r"<table[^>]*>.*?</table>", html_text, re.I | re.S)
+    target_rows: list[list[str]] = []
+    for t in tables:
+        rows = parse_table_rows_with_rowspan(t)
+        if not rows:
+            continue
+        header = rows[0]
+        if any("銘柄コード" in c for c in header) and any("摘要" in c for c in header):
+            target_rows = rows
+            break
+    if not target_rows:
+        return {}
+
+    header = target_rows[0]
+    code_idx = next((i for i, c in enumerate(header) if "銘柄コード" in c), 0)
+    note_idx = next((i for i, c in enumerate(header) if "摘要" in c), 3 if len(header) > 3 else 0)
+    out: dict[str, list[str]] = {}
+    for row in target_rows[1:]:
+        if code_idx >= len(row) or note_idx >= len(row):
+            continue
+        code_raw = row[code_idx]
+        note = row[note_idx]
+        m = re.search(r"\b(\d{4})\b", code_raw or "")
+        if not m:
+            continue
+        code = m.group(1)
+        note = (note or "").strip()
+        if not note:
+            continue
+        out.setdefault(code, []).append(note)
+    return out
+
+
+def infer_credit_from_rakuten_notes(notes: list[str]) -> tuple[str, str, str, dict]:
+    txt = " | ".join(notes)
+    buy = "unknown"
+    sell = "unknown"
+
+    sell_ng_keys = [
+        "新規売停止",
+        "一般信用新規売停止",
+        "全取引停止",
+        "売建停止",
+        "売停止",
+        "売禁",
+    ]
+    buy_ng_keys = [
+        "現物買付停止",
+        "新規買停止",
+        "全取引停止",
+        "買停止",
+    ]
+    if any(k in txt for k in sell_ng_keys):
+        sell = "ng"
+    if any(k in txt for k in buy_ng_keys):
+        buy = "ng"
+
+    # Positive inference for margin-buy when only short-side restriction is shown.
+    if buy == "unknown" and any(k in txt for k in ["新規売停止", "売禁", "一般信用新規売停止"]):
+        buy = "ok"
+
+    if buy == "ok" and sell == "ok":
+        status = "auto_marginable"
+    elif buy == "ng" or sell == "ng":
+        status = "auto_non_marginable"
+    else:
+        status = "auto_unknown"
+    return status, buy, sell, {"notes": notes[:20], "summary": txt[:500], "url": RAKUTEN_MARGIN_URL}
 
 
 def infer_flag(text: str) -> str:
@@ -157,6 +274,7 @@ def upsert_credit(
     buy: str,
     sell: str,
     detail: dict,
+    source_kind: str = "auto_sbi",
 ) -> None:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     detail_json = json.dumps(detail, ensure_ascii=False, separators=(",", ":"))
@@ -178,7 +296,7 @@ def upsert_credit(
             credit_status,
             buy,
             sell,
-            "auto_sbi",
+            source_kind,
             detail_json,
             now,
         ),
@@ -197,14 +315,56 @@ def main() -> int:
             return 0
         updated = 0
         errors = 0
+        rakuten_map: dict[str, list[str]] = {}
+        try:
+            rakuten_map = parse_rakuten_margin_map(args.timeout)
+        except Exception:
+            rakuten_map = {}
         for t in tickers:
-            url = f"https://site2.sbisec.co.jp/ETGate/?_ControlID=WPLETsiR001Control&_PageID=WPLETsiR001Mdtl20&_DataStoreID=DSWPLETsiR001Control&_ActionID=DefaultAID&s_rkbn=2&i_stock_sec={t}&i_dom_flg=1&i_exchange_code=TKY&i_output_type=1"
             try:
-                html = fetch_html(url, args.timeout)
-                cs, buy, sell, detail = parse_credit_from_html(html)
-                detail["url"] = url
-                if not args.dry_run:
-                    upsert_credit(conn, args.date, t, cs, buy, sell, detail)
+                notes = rakuten_map.get(t, [])
+                if rakuten_map:
+                    if notes:
+                        cs, buy, sell, detail = infer_credit_from_rakuten_notes(notes)
+                        if not args.dry_run:
+                            upsert_credit(
+                                conn,
+                                args.date,
+                                t,
+                                cs,
+                                buy,
+                                sell,
+                                {**detail, "source": "rakuten_margin_restriction"},
+                                source_kind="auto_rakuten",
+                            )
+                    else:
+                        # "信用取引規制銘柄一覧" is a restriction list.
+                        # If ticker is not listed, treat as not restricted by this source.
+                        cs, buy, sell = "auto_marginable", "ok", "ok"
+                        detail = {
+                            "url": RAKUTEN_MARGIN_URL,
+                            "source": "rakuten_margin_restriction",
+                            "summary": "not_listed_in_restriction_table",
+                        }
+                        if not args.dry_run:
+                            upsert_credit(
+                                conn,
+                                args.date,
+                                t,
+                                cs,
+                                buy,
+                                sell,
+                                detail,
+                                source_kind="auto_rakuten",
+                            )
+                else:
+                    url = f"https://site2.sbisec.co.jp/ETGate/?_ControlID=WPLETsiR001Control&_PageID=WPLETsiR001Mdtl20&_DataStoreID=DSWPLETsiR001Control&_ActionID=DefaultAID&s_rkbn=2&i_stock_sec={t}&i_dom_flg=1&i_exchange_code=TKY&i_output_type=1"
+                    html = fetch_html(url, args.timeout)
+                    cs, buy, sell, detail = parse_credit_from_html(html)
+                    detail["url"] = url
+                    detail["source"] = "sbi_stock_detail"
+                    if not args.dry_run:
+                        upsert_credit(conn, args.date, t, cs, buy, sell, detail, source_kind="auto_sbi")
                 updated += 1
             except urllib.error.HTTPError as e:
                 errors += 1

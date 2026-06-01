@@ -5,12 +5,16 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PROMPTS = ROOT / "prompts"
 DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.pipeline_events import write_pipeline_event
 
 HEAD_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$")
 FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")
@@ -88,12 +92,14 @@ def main() -> int:
     args = parse_args()
     target = datetime.strptime(args.date, "%Y-%m-%d").date()
     alerts: list[str] = []
+    reason_codes: list[str] = []
     metrics: dict[str, object] = {"date": args.date, "path": "db:signals"}
     rows = load_signals_from_db(args.db, args.date)
     metrics["exists"] = bool(rows)
     metrics["signalCount"] = len(rows)
     if len(rows) < args.min_signals:
         alerts.append(f"シグナル件数不足: {len(rows)} < {args.min_signals}")
+        reason_codes.append("DATA_THIN")
 
     up = 0
     down = 0
@@ -150,10 +156,13 @@ def main() -> int:
     metrics["quality3YesCount"] = q3_yes
     if abs(up - down) > args.max_side_imbalance:
         alerts.append(f"方向偏り過大: up={up}, down={down}, diff={abs(up-down)}")
+        reason_codes.append("SIDE_IMBALANCE")
     if stale:
         alerts.append("材料日付が古い(2営業日超): " + "; ".join(stale[:6]))
+        reason_codes.append("MATERIAL_STALE")
     if rows and new_count == 0:
         alerts.append("当日材料の新規シグナルが0件")
+        reason_codes.append("MATERIAL_NONE_TODAY")
 
     conn = sqlite3.connect(args.db)
     try:
@@ -185,6 +194,41 @@ def main() -> int:
             + ", ".join(scenario_bias_reasons)
             + f" (trade={trade_count}, watch={watch_count})"
         )
+        reason_codes.append("SCENARIO_BIAS")
+
+    # Noon coverage diagnostics: snapshot coverage over today's signals.
+    conn = sqlite3.connect(args.db)
+    try:
+        signal_ticker_count = conn.execute(
+            "SELECT COUNT(DISTINCT ticker) FROM signals WHERE date=? AND COALESCE(ticker,'')<>''",
+            (args.date,),
+        ).fetchone()[0]
+        noon_snapshot_ticker_count = conn.execute(
+            """
+            SELECT COUNT(DISTINCT ticker)
+            FROM market_signal_snapshots
+            WHERE date=? AND slot='inv-noon'
+            """,
+            (args.date,),
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        signal_ticker_count = 0
+        noon_snapshot_ticker_count = 0
+    finally:
+        conn.close()
+    noon_coverage = (
+        (float(noon_snapshot_ticker_count) / float(signal_ticker_count))
+        if signal_ticker_count > 0
+        else 0.0
+    )
+    metrics["noonSnapshotTickerCount"] = int(noon_snapshot_ticker_count)
+    metrics["noonSignalTickerCount"] = int(signal_ticker_count)
+    metrics["noonCoverageRate"] = round(noon_coverage, 4)
+    if signal_ticker_count > 0 and noon_coverage < 0.6:
+        alerts.append(
+            f"noon snapshot coverage低下: {noon_snapshot_ticker_count}/{signal_ticker_count} ({noon_coverage:.0%})"
+        )
+        reason_codes.append("NOON_DATA_GAP")
 
     status = "ALERT" if alerts else "OK"
     metrics["status"] = status
@@ -198,7 +242,20 @@ def main() -> int:
         inferred_root = "RULE_THIN_RANK"
     elif q3_yes == 0:
         inferred_root = "RULE_THIN_QUALITY"
+    elif "NOON_DATA_GAP" in reason_codes:
+        inferred_root = "NOON_DATA_GAP"
+    elif unknown_ratio := (
+        (sum(v for k, v in gate_hold_breakdown.items() if "credit_unknown" in k) / gate_hold)
+        if gate_hold > 0
+        else 0.0
+    ) >= 0.6:
+        inferred_root = "CREDIT_THIN"
+        reason_codes.append("CREDIT_THIN")
+    reason_codes_sorted = sorted(set(reason_codes))
+    if inferred_root == "OK" and reason_codes_sorted:
+        inferred_root = reason_codes_sorted[0]
     metrics["inferredRootCause"] = inferred_root
+    metrics["qualityReasonCodes"] = reason_codes_sorted
 
     if args.write_files:
         out_json = Path(args.out_json)
@@ -218,7 +275,11 @@ def main() -> int:
         "tradeScenarioCount": trade_count,
         "watchScenarioCount": watch_count,
         "watchShare": round(watch_share, 4),
+        "noonSnapshotTickerCount": int(noon_snapshot_ticker_count),
+        "noonSignalTickerCount": int(signal_ticker_count),
+        "noonCoverageRate": round(noon_coverage, 4),
         "alerts": alerts,
+        "qualityReasonCodes": reason_codes_sorted,
     }
     if args.write_files:
         out_diag = Path(args.out_diagnostics_json)
@@ -236,21 +297,46 @@ def main() -> int:
         lines.append(
             f"- summary: signals={len(rows)} new={new_count} trade={trade_count} watch={watch_count} watchShare={watch_share:.0%}"
         )
+        lines.append(
+            f"- noonCoverage: {noon_snapshot_ticker_count}/{signal_ticker_count} ({noon_coverage:.0%})"
+        )
         if gate_hold_breakdown:
             detail = ", ".join(f"{k}={v}" for k, v in sorted(gate_hold_breakdown.items()))
             lines.append(f"- hold内訳: {detail}")
+        if reason_codes_sorted:
+            lines.append("- reasonCodes: " + ", ".join(reason_codes_sorted))
         if args.write_files:
             out_alert = Path(args.out_alert)
             out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
         if not args.print_json:
             print(f"ALERT: {Path(args.out_alert)}")
-        return 2
+        write_pipeline_event(
+            pipeline="investment_quality",
+            slot="quality-check",
+            stage="check_signal_quality.py",
+            status="alert",
+            event_date=args.date,
+            return_code=0,
+            payload=diag,
+            source_path="scripts/investment/signals/check_signal_quality.py",
+        )
+        return 0
     else:
         if args.write_files:
             out_alert = Path(args.out_alert)
             out_alert.write_text("", encoding="utf-8")
         if not args.print_json:
             print("OK: signal quality")
+        write_pipeline_event(
+            pipeline="investment_quality",
+            slot="quality-check",
+            stage="check_signal_quality.py",
+            status="ok",
+            event_date=args.date,
+            return_code=0,
+            payload=diag,
+            source_path="scripts/investment/signals/check_signal_quality.py",
+        )
         return 0
 
 

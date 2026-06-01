@@ -67,9 +67,43 @@ def build_decisions(example_mode: str) -> str:
 """
 
 
-def build_tasks(example_mode: str, task_prefix: str) -> str:
+def build_tasks(example_mode: str, task_prefix: str, topic_slug: str, kind: str) -> str:
+    data = []
+    if kind in {"daily-watch", "need-watch"}:
+        data.append(
+            {
+                "id": f"{task_prefix}_ingest_001",
+                "title": "DB ingest runner で当日分を取り込む",
+                "status": "todo",
+                "priority": "high",
+                "relatedFiles": ["topic-manifest.json", "inbox/"],
+                "notes": "実行例: make topic-db-ingest DATE=YYYY-MM-DD",
+            }
+        )
+    if kind == "daily-watch":
+        data.append(
+            {
+                "id": f"{task_prefix}_daily_001",
+                "title": "daily-watch の初回収集と digest 確認",
+                "status": "todo",
+                "priority": "high",
+                "relatedFiles": ["summary.md", "decisions.md"],
+                "notes": f"check: topic_daily_digest topic={topic_slug}",
+            }
+        )
+    if kind == "need-watch":
+        data.append(
+            {
+                "id": f"{task_prefix}_need_001",
+                "title": "need-item の抽出項目を確認する",
+                "status": "todo",
+                "priority": "high",
+                "relatedFiles": ["summary.md", "decisions.md"],
+                "notes": "need_items / need_item_state への投入を確認",
+            }
+        )
     if example_mode == "research":
-        data = [
+        data.append(
             {
                 "id": f"{task_prefix}_001",
                 "title": "調査対象と比較観点を定義する",
@@ -78,17 +112,19 @@ def build_tasks(example_mode: str, task_prefix: str) -> str:
                 "relatedFiles": ["summary.md", "decisions.md"],
                 "notes": "topic の目的に沿って最初の評価軸を揃える",
             }
-        ]
-        return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+        )
 
-    return "[]\n"
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
 
 
-def build_index(topic_title: str, purpose: str) -> str:
+def build_index(topic_title: str, purpose: str, kind: str) -> str:
     return f"""# Topic: {topic_title}
 
 ## Purpose
 {purpose}
+
+## Kind
+{kind}
 
 ## Canonical Files
 - `topic-manifest.json`
@@ -109,11 +145,16 @@ def build_index(topic_title: str, purpose: str) -> str:
 - 判断履歴は `decisions.md` を優先
 - 次アクションは `tasks.json` を優先
 - 根拠は `sources.json` と `inbox/` を参照
+
+## DB Ingest Hook
+- 共通 ingest 実行: `make topic-db-ingest DATE=YYYY-MM-DD`
+- 個別実行:
+  - topic digest: `make topics-db-ingest DATE=YYYY-MM-DD`
+  - needs digest: `make needs-db-ingest DATE=YYYY-MM-DD`
 """
 
 
-def build_manifest(topic_slug: str, topic_title: str, purpose: str, example_mode: str) -> str:
-    kind = "research" if example_mode == "research" else "reference"
+def build_manifest(topic_slug: str, topic_title: str, purpose: str, kind: str) -> str:
     data = {
         "slug": topic_slug,
         "title": topic_title,
@@ -152,12 +193,18 @@ def main() -> int:
         help="Optional starter shape for the topic contents.",
     )
     parser.add_argument(
+        "--kind",
+        choices=["research", "daily-watch", "need-watch", "demo", "ops", "reference"],
+        help="topic-manifest kind. If omitted, inferred from --from-example.",
+    )
+    parser.add_argument(
         "--open-task-id-prefix",
         default="task",
         help="Prefix for starter task IDs when using a non-blank example.",
     )
     args = parser.parse_args()
 
+    kind = args.kind or ("research" if args.from_example == "research" else "reference")
     topic_slug = slugify(args.slug or args.topic)
     if not topic_slug:
         print("Failed: topic slug is empty after normalization", file=sys.stderr)
@@ -171,20 +218,21 @@ def main() -> int:
 
     shutil.copytree(TEMPLATE_DIR, target_dir)
     (target_dir / "topic-manifest.json").write_text(
-        build_manifest(topic_slug, topic_title, args.purpose, args.from_example),
+        build_manifest(topic_slug, topic_title, args.purpose, kind),
         encoding="utf-8",
     )
-    (target_dir / "index.md").write_text(build_index(topic_title, args.purpose), encoding="utf-8")
+    (target_dir / "index.md").write_text(build_index(topic_title, args.purpose, kind), encoding="utf-8")
     (target_dir / "summary.md").write_text(build_summary(args.from_example), encoding="utf-8")
     (target_dir / "decisions.md").write_text(build_decisions(args.from_example), encoding="utf-8")
     (target_dir / "tasks.json").write_text(
-        build_tasks(args.from_example, args.open_task_id_prefix),
+        build_tasks(args.from_example, args.open_task_id_prefix, topic_slug, kind),
         encoding="utf-8",
     )
 
     print(f"Created: {target_dir.relative_to(ROOT)}")
     print(f"- title: {topic_title}")
     print(f"- slug: {topic_slug}")
+    print(f"- kind: {kind}")
     print(f"- from-example: {args.from_example}")
     print("- topic-manifest.json")
     print("- index.md")
