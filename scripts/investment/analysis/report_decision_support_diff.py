@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.alert_labels import format_decision_warning
 from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
 
@@ -178,7 +179,12 @@ def main() -> int:
             "## Warning",
         ]
         if warnings:
-            lines.extend([f"- {w}" for w in warnings])
+            for w in warnings:
+                code, _, rest = w.partition(":")
+                if rest:
+                    lines.append(f"- {format_decision_warning(code)}: {rest}")
+                else:
+                    lines.append(f"- {format_decision_warning(w)}")
         else:
             lines.append("- none")
         out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

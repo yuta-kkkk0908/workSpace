@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.alert_labels import format_ops_error_category
 from utils.investment_db_path import resolve_investment_db
 
 DEFAULT_DB = resolve_investment_db()
@@ -78,7 +79,8 @@ def main() -> int:
         "",
         f"- events: {len(rows)}",
         f"- status_counts: {dict(by_status)}",
-        f"- error_category_counts: {dict(by_category)}",
+        "- error_category_counts: "
+        + ", ".join(f"{format_ops_error_category(k)}={v}" for k, v in by_category.items()),
         f"- stage_counts: {dict(by_stage)}",
     ]
     out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

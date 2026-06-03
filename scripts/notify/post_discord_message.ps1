@@ -70,6 +70,15 @@ function Get-AsOfLine([string]$path) {
   }
 }
 
+function Get-SafeEmbedTitle([string]$title, [string]$fallback = "Update") {
+  $t = if ($null -eq $title) { "" } else { [string]$title }
+  $t = ($t -replace "[^\x20-\x7E]", "").Trim()
+  if ([string]::IsNullOrWhiteSpace($t)) {
+    return $fallback
+  }
+  return $t
+}
+
 Load-EnvFile (Join-Path $Repo ".env")
 $primaryUrl = [Environment]::GetEnvironmentVariable($PrimaryWebhookEnv, "Process")
 if (-not $primaryUrl) { throw "$PrimaryWebhookEnv is empty" }
@@ -109,7 +118,7 @@ if ($SkipIfUnchanged -and $HashFile) {
         $payload = @{
           embeds = @(
             @{
-              title = "{0} Update" -f $kindUpper
+              title = Get-SafeEmbedTitle ("{0} Update" -f $kindUpper) $kindUpper
               description = $unchangedText
               color = 9807270
             }
@@ -145,7 +154,7 @@ $deliveryFailed = $false
 for ($i = 0; $i -lt $parts.Count; $i++) {
   $content = if ($parts.Count -gt 1) { "[{0}/{1}]`n{2}" -f ($i + 1), $parts.Count, $parts[$i] } else { $parts[$i] }
   if ($AsEmbed) {
-    $title = "{0} Update" -f $kindUpper
+    $title = Get-SafeEmbedTitle ("{0} Update" -f $kindUpper) $kindUpper
     if ($parts.Count -gt 1) { $title = "{0} ({1}/{2})" -f $title, ($i + 1), $parts.Count }
     $payload = @{
       embeds = @(
@@ -174,7 +183,7 @@ for ($i = 0; $i -lt $parts.Count; $i++) {
         content = "[{0}-FALLBACK] primary webhook unreachable." -f $kindUpper
         embeds = @(
           @{
-            title = "{0} Fallback" -f $kindUpper
+            title = Get-SafeEmbedTitle ("{0} Fallback" -f $kindUpper) $kindUpper
             description = $parts[$i]
             color = 15158332
           }

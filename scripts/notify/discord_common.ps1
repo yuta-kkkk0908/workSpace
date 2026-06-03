@@ -38,6 +38,65 @@ function Split-ForDiscord([string]$text, [int]$limit = 1800) {
   return $chunks
 }
 
+function Get-WebExceptionBody {
+  param(
+    [Parameter(Mandatory = $false)]$Exception
+  )
+  try {
+    if ($null -eq $Exception) { return "" }
+    $resp = $Exception.Response
+    if ($null -eq $resp) { return "" }
+    $stream = $resp.GetResponseStream()
+    if ($null -eq $stream) { return "" }
+    $reader = New-Object System.IO.StreamReader($stream, [Text.Encoding]::UTF8)
+    try {
+      return $reader.ReadToEnd()
+    } finally {
+      $reader.Dispose()
+    }
+  } catch {
+    return ""
+  }
+}
+
+function Invoke-DiscordWebhookJson {
+  param(
+    [Parameter(Mandatory = $true)][string]$WebhookUrl,
+    [Parameter(Mandatory = $true)][string]$Body,
+    [Parameter(Mandatory = $true)][scriptblock]$WriteLog,
+    [int]$MaxAttempts = 3
+  )
+  $iwrParams = @{
+    Method = "Post"
+    Uri = $WebhookUrl
+    ContentType = "application/json; charset=utf-8"
+    Body = $Body
+    TimeoutSec = 20
+    ErrorAction = "Stop"
+  }
+  try {
+    if ((Get-Command Invoke-WebRequest).Parameters.ContainsKey("UseBasicParsing")) {
+      $iwrParams["UseBasicParsing"] = $true
+    }
+  } catch {
+    # Ignore parameter introspection failures and fall back to default behavior.
+  }
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    try {
+      $null = Invoke-WebRequest @iwrParams
+      return $true
+    } catch {
+      $respBody = Get-WebExceptionBody $_.Exception
+      & $WriteLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $MaxAttempts, $_.Exception.Message, $respBody)
+      if ($attempt -lt $MaxAttempts) {
+        Start-Sleep -Seconds (2 * $attempt)
+        continue
+      }
+    }
+  }
+  return $false
+}
+
 function Send-DiscordContent {
   param(
     [Parameter(Mandatory = $true)][string]$WebhookUrl,
@@ -46,36 +105,7 @@ function Send-DiscordContent {
     [int]$MaxAttempts = 3
   )
   $body = @{ content = $Content } | ConvertTo-Json -Compress -Depth 3
-  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-    $client = $null
-    $httpContent = $null
-    try {
-      $client = [System.Net.Http.HttpClient]::new()
-      $client.Timeout = [TimeSpan]::FromSeconds(20)
-      $httpContent = [System.Net.Http.StringContent]::new($body, [System.Text.Encoding]::UTF8, "application/json")
-      $response = $client.PostAsync($WebhookUrl, $httpContent).GetAwaiter().GetResult()
-      $response.EnsureSuccessStatusCode() | Out-Null
-      return $true
-    } catch {
-      $respBody = ""
-      if ($_.Exception.Response) {
-        try {
-          $respBody = $_.Exception.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-        } catch {
-          $respBody = ""
-        }
-      }
-      & $WriteLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $MaxAttempts, $_.Exception.Message, $respBody)
-      if ($attempt -lt $MaxAttempts) {
-        Start-Sleep -Seconds (2 * $attempt)
-        continue
-      }
-    } finally {
-      if ($httpContent) { $httpContent.Dispose() }
-      if ($client) { $client.Dispose() }
-    }
-  }
-  return $false
+  return Invoke-DiscordWebhookJson -WebhookUrl $WebhookUrl -Body $body -WriteLog $WriteLog -MaxAttempts $MaxAttempts
 }
 
 function Send-DiscordPayload {
@@ -86,34 +116,5 @@ function Send-DiscordPayload {
     [int]$MaxAttempts = 3
   )
   $body = $Payload | ConvertTo-Json -Compress -Depth 8
-  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-    $client = $null
-    $httpContent = $null
-    try {
-      $client = [System.Net.Http.HttpClient]::new()
-      $client.Timeout = [TimeSpan]::FromSeconds(20)
-      $httpContent = [System.Net.Http.StringContent]::new($body, [System.Text.Encoding]::UTF8, "application/json")
-      $response = $client.PostAsync($WebhookUrl, $httpContent).GetAwaiter().GetResult()
-      $response.EnsureSuccessStatusCode() | Out-Null
-      return $true
-    } catch {
-      $respBody = ""
-      if ($_.Exception.Response) {
-        try {
-          $respBody = $_.Exception.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-        } catch {
-          $respBody = ""
-        }
-      }
-      & $WriteLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $MaxAttempts, $_.Exception.Message, $respBody)
-      if ($attempt -lt $MaxAttempts) {
-        Start-Sleep -Seconds (2 * $attempt)
-        continue
-      }
-    } finally {
-      if ($httpContent) { $httpContent.Dispose() }
-      if ($client) { $client.Dispose() }
-    }
-  }
-  return $false
+  return Invoke-DiscordWebhookJson -WebhookUrl $WebhookUrl -Body $body -WriteLog $WriteLog -MaxAttempts $MaxAttempts
 }

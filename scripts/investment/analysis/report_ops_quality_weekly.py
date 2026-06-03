@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.alert_labels import format_ops_error_category, format_quality_reason
 from utils.investment_db_path import resolve_investment_db
 
 DEFAULT_DB = resolve_investment_db()
@@ -90,19 +91,19 @@ def main() -> int:
     recommendations: list[str] = []
     if ops_error_categories.get("discord_delivery", 0) > 0:
         recommendations.append(
-            f"discord_deliveryエラー {ops_error_categories['discord_delivery']}件。通知経路/再送タイミングを優先点検。"
+            f"{format_ops_error_category('discord_delivery')} {ops_error_categories['discord_delivery']}件。通知経路/再送タイミングを優先点検。"
         )
     if quality_reasons.get("CREDIT_THIN", 0) > 0:
         recommendations.append(
-            f"CREDIT_THIN {quality_reasons['CREDIT_THIN']}件。credit取得対象拡張（max_tickers引き上げ）を継続。"
+            f"{format_quality_reason('CREDIT_THIN')} {quality_reasons['CREDIT_THIN']}件。credit取得対象拡張（max_tickers引き上げ）を継続。"
         )
     if quality_reasons.get("NOON_DATA_GAP", 0) > 0:
         recommendations.append(
-            f"NOON_DATA_GAP {quality_reasons['NOON_DATA_GAP']}件。noon snapshot coverage改善を優先。"
+            f"{format_quality_reason('NOON_DATA_GAP')} {quality_reasons['NOON_DATA_GAP']}件。noon snapshot coverage改善を優先。"
         )
     if quality_reasons.get("MATERIAL_NONE_TODAY", 0) > 0:
         recommendations.append(
-            f"MATERIAL_NONE_TODAY {quality_reasons['MATERIAL_NONE_TODAY']}件。一次ソース母数拡張を優先。"
+            f"{format_quality_reason('MATERIAL_NONE_TODAY')} {quality_reasons['MATERIAL_NONE_TODAY']}件。一次ソース母数拡張を優先。"
         )
     if not recommendations:
         recommendations.append("ops/qualityとも大きな劣化なし。現行運用を継続。")
@@ -114,7 +115,7 @@ def main() -> int:
         "window_end": end,
         "ops_post": {
             "status_counts": dict(ops_status),
-            "error_category_counts": dict(ops_error_categories),
+            "error_category_counts": {format_ops_error_category(k): v for k, v in ops_error_categories.items()},
         },
         "quality": {
             "status_counts": dict(quality_status),
@@ -132,7 +133,7 @@ def main() -> int:
         "",
         f"- window: {start} .. {end} ({int(args.window_days)}d)",
         f"- ops_post.status_counts: {dict(ops_status)}",
-        f"- ops_post.error_category_counts: {dict(ops_error_categories)}",
+        f"- ops_post.error_category_counts: { {format_ops_error_category(k): v for k, v in ops_error_categories.items()} }",
         f"- quality.status_counts: {dict(quality_status)}",
         f"- quality.reason_counts: {dict(quality_reasons)}",
         "",

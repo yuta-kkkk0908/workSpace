@@ -16,6 +16,12 @@ ROOT = Path(__file__).resolve().parents[3]
 TOPICS_DIR = ROOT / "topics"
 JST = timezone(timedelta(hours=9))
 POKEMON_WATCH_CONFIG = TOPICS_DIR / "pokemon-card-watch" / "watch-sources.json"
+TECH_STACK_WATCH_CONFIG = TOPICS_DIR / "tech-stack-reads" / "watch-sources.json"
+URL_RE = re.compile(r"https?://[^\s\])>]+")
+FEED_LINK_RE = re.compile(
+    r'<link[^>]+rel=["\']alternate["\'][^>]+type=["\'](?:application/(?:rss|atom|\w*\+xml))["\'][^>]*href=["\']([^"\']+)["\']',
+    re.IGNORECASE,
+)
 
 TOPIC_QUERIES: dict[str, list[str]] = {
     "ai-news-watch": [
@@ -31,6 +37,15 @@ TOPIC_QUERIES: dict[str, list[str]] = {
         "infra engineering",
         "platform engineering incident postmortem",
         "SRE reliability engineering",
+        "InfoQ software architecture",
+        "Martin Fowler architecture",
+        "Cloudflare engineering blog",
+        "GitHub engineering blog",
+        "AWS architecture blog",
+        "Google Cloud blog architecture",
+        "OpenAI engineering blog",
+        "Anthropic engineering blog",
+        "Kubernetes blog",
     ],
     "pokemon-card-watch": [
         "ポケモンカード 新パック 抽選",
@@ -64,14 +79,22 @@ TOPIC_REQUIRE_KEYWORDS_ANY: dict[str, list[str]] = {
 
 TOPIC_MAX_ITEM_AGE_HOURS: dict[str, int] = {
     "pokemon-card-watch": 72,
+    "tech-stack-reads": 120,
 }
 
 TOPIC_MIN_DISTINCT_SOURCES: dict[str, int] = {
     "pokemon-card-watch": 2,
+    "tech-stack-reads": 3,
 }
 
 TOPIC_MAX_ITEMS_PER_SOURCE: dict[str, int] = {
     "pokemon-card-watch": 1,
+    "tech-stack-reads": 1,
+}
+
+TOPIC_HISTORY_LOOKBACK_DAYS: dict[str, int] = {
+    "ai-news-watch": 14,
+    "tech-stack-reads": 30,
 }
 
 
@@ -97,6 +120,15 @@ def load_pokemon_watch_config() -> dict:
         return {}
     try:
         return json.loads(POKEMON_WATCH_CONFIG.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def load_tech_stack_watch_config() -> dict:
+    if not TECH_STACK_WATCH_CONFIG.exists():
+        return {}
+    try:
+        return json.loads(TECH_STACK_WATCH_CONFIG.read_text(encoding="utf-8"))
     except Exception:
         return {}
 
@@ -127,26 +159,124 @@ def repair_mojibake_title(s: str) -> str:
     return t
 
 
+def fetch_url_bytes(url: str) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return resp.read()
+
+
+def fetch_url_text(url: str) -> str:
+    return fetch_url_bytes(url).decode("utf-8", errors="replace")
+
+
 def fetch_rss_items(query: str, max_items: int) -> list[RssItem]:
     q = urllib.parse.quote_plus(query)
     url = f"https://news.google.com/rss/search?q={q}&hl=ja&gl=JP&ceid=JP:ja"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        raw = resp.read()
+    raw = fetch_url_bytes(url)
+    return parse_feed_items(raw, source_hint="Google News", max_items=max_items)
+
+
+def parse_feed_items(raw: bytes, source_hint: str | None = None, max_items: int = 999) -> list[RssItem]:
     root = ET.fromstring(raw)
     rows: list[RssItem] = []
-    for item in root.findall(".//item"):
-        title = repair_mojibake_title((item.findtext("title") or "").strip())
-        link = (item.findtext("link") or "").strip()
-        desc = clean_text(item.findtext("description") or "")
-        pub = clean_text(item.findtext("pubDate") or "", max_len=80)
-        source = clean_text(item.findtext("source") or "", max_len=80)
+    def local_name(tag: str) -> str:
+        return tag.rsplit("}", 1)[-1].lower()
+
+    def child_text(node: ET.Element, wanted: str) -> str:
+        for child in list(node):
+            if local_name(child.tag) == wanted.lower():
+                return (child.text or "").strip()
+        return ""
+
+    def child_text_any(node: ET.Element, wanted: tuple[str, ...]) -> str:
+        for key in wanted:
+            text = child_text(node, key)
+            if text:
+                return text
+        return ""
+
+    def first_link(node: ET.Element) -> str:
+        for child in list(node):
+            if local_name(child.tag) != "link":
+                continue
+            href = (child.attrib.get("href") or child.text or "").strip()
+            if not href:
+                continue
+            rel = (child.attrib.get("rel") or "").strip().lower()
+            if rel in ("alternate", ""):
+                return href
+        for child in list(node):
+            if local_name(child.tag) == "link":
+                href = (child.attrib.get("href") or child.text or "").strip()
+                if href:
+                    return href
+        return ""
+
+    def item_source(node: ET.Element) -> str:
+        src = child_text(node, "source")
+        if src:
+            return clean_text(src, max_len=80)
+        return source_hint or "unknown"
+
+    for node in root.iter():
+        kind = local_name(node.tag)
+        if kind not in ("item", "entry"):
+            continue
+        title = repair_mojibake_title(child_text_any(node, ("title",)))
+        link = first_link(node)
+        desc = clean_text(
+            child_text_any(node, ("description", "summary", "content", "encoded")),
+        )
+        pub = clean_text(child_text_any(node, ("pubdate", "published", "updated", "modified")), max_len=80)
+        source = item_source(node)
         if not title or not link:
             continue
-        rows.append(RssItem(title=title, link=link, desc=desc, pub=pub, source=source or "unknown"))
+        rows.append(RssItem(title=title, link=link, desc=desc, pub=pub, source=source))
         if len(rows) >= max_items:
             break
     return rows
+
+
+def discover_feed_urls(page_url: str) -> list[str]:
+    try:
+        html_text = fetch_url_text(page_url)
+    except Exception:
+        return []
+    urls: list[str] = []
+    seen: set[str] = set()
+    for match in FEED_LINK_RE.finditer(html_text):
+        href = match.group(1).strip()
+        if not href:
+            continue
+        abs_url = urllib.parse.urljoin(page_url, href)
+        if abs_url in seen:
+            continue
+        seen.add(abs_url)
+        urls.append(abs_url)
+    return urls
+
+
+def collect_source_page_items(topic: str, source_spec: dict, max_items: int) -> list[RssItem]:
+    page_url = str(source_spec.get("url", "")).strip()
+    if not page_url:
+        return []
+    label = str(source_spec.get("name") or source_spec.get("label") or page_url).strip()
+    discovered = discover_feed_urls(page_url)
+    rows: list[RssItem] = []
+    feed_urls = discovered or []
+    for feed_url in feed_urls:
+        try:
+            rows.extend(fetch_feed_items(feed_url, max_items=max_items, source_hint=label))
+        except Exception:
+            continue
+        if len(rows) >= max_items:
+            break
+    return rows
+
+
+def fetch_feed_items(feed_url: str, max_items: int, source_hint: str | None = None) -> list[RssItem]:
+    raw = fetch_url_bytes(feed_url)
+    return parse_feed_items(raw, source_hint=source_hint, max_items=max_items)
 
 
 def is_excluded(topic: str, title: str, desc: str) -> bool:
@@ -194,6 +324,13 @@ def clean_title(t: str) -> str:
     return t.strip()
 
 
+def normalize_history_title(t: str) -> str:
+    s = clean_title(repair_mojibake_title(t))
+    s = re.sub(r"\s+", " ", s).strip().lower()
+    s = re.sub(r"[^\w\u3040-\u30ff\u3400-\u9fff]+", "", s)
+    return s
+
+
 def within_age_limit(topic: str, pub: str, now_utc: datetime) -> bool:
     max_hours = TOPIC_MAX_ITEM_AGE_HOURS.get(topic)
     if not max_hours:
@@ -223,6 +360,51 @@ def select_diverse_items(topic: str, rows: list[RssItem], max_items: int) -> lis
     # Do not backfill from the same source repeatedly.
     # Keep partial diverse set if available; otherwise keep only top 1 recency item.
     return picked if picked else rows[:1]
+
+
+def load_topic_history(topic: str, target_date: date) -> tuple[set[str], set[str]]:
+    """
+    Return previously seen URLs and normalized titles from the topic's inbox.
+
+    URLs are suppressed across all prior daily files.
+    Titles are suppressed within a configurable lookback window.
+    """
+    inbox = TOPICS_DIR / topic / "inbox"
+    if not inbox.exists():
+        return set(), set()
+    lookback_days = TOPIC_HISTORY_LOOKBACK_DAYS.get(topic, 14)
+    title_cutoff = target_date - timedelta(days=lookback_days)
+    seen_urls: set[str] = set()
+    seen_titles: set[str] = set()
+    for p in sorted(inbox.glob("*.md")):
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})-(.+)\.md$", p.name)
+        if not m:
+            continue
+        try:
+            file_date = date.fromisoformat(m.group(1))
+        except ValueError:
+            continue
+        if file_date >= target_date:
+            continue
+        try:
+            text = p.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for url in URL_RE.findall(text):
+            u = url.strip()
+            if u:
+                seen_urls.add(u)
+        if file_date < title_cutoff:
+            continue
+        for raw in text.splitlines():
+            s = raw.strip()
+            m_title = re.match(r"^\d+\.\s+(.+)$", s)
+            if not m_title:
+                continue
+            norm = normalize_history_title(m_title.group(1))
+            if norm:
+                seen_titles.add(norm)
+    return seen_urls, seen_titles
 
 
 def infer_sales_type(text: str) -> str:
@@ -347,7 +529,9 @@ def write_topic_daily(topic: str, target_date: str, rows: list[RssItem], overwri
 
 def main() -> int:
     args = parse_args()
+    target_date = date.fromisoformat(args.date)
     watch_cfg = load_pokemon_watch_config()
+    tech_watch_cfg = load_tech_stack_watch_config()
     extra_queries = watch_cfg.get("extraQueries", []) if isinstance(watch_cfg, dict) else []
     if isinstance(extra_queries, list) and extra_queries:
         q = TOPIC_QUERIES.get("pokemon-card-watch", [])
@@ -356,18 +540,91 @@ def main() -> int:
             if s and s not in q:
                 q.append(s)
         TOPIC_QUERIES["pokemon-card-watch"] = q
+    tech_extra_queries = tech_watch_cfg.get("queries", []) if isinstance(tech_watch_cfg, dict) else []
+    if isinstance(tech_extra_queries, list) and tech_extra_queries:
+        q = TOPIC_QUERIES.get("tech-stack-reads", [])
+        for item in tech_extra_queries:
+            s = str(item).strip()
+            if s and s not in q:
+                q.append(s)
+        TOPIC_QUERIES["tech-stack-reads"] = q
     written = 0
     now_utc = datetime.now(timezone.utc)
     for topic, queries in TOPIC_QUERIES.items():
         merged_all: list[RssItem] = []
         seen: set[str] = set()
+        history_urls, history_titles = load_topic_history(topic, target_date)
+        topic_cfg = tech_watch_cfg if topic == "tech-stack-reads" else {}
+        source_pages = topic_cfg.get("sourcePages", []) if isinstance(topic_cfg, dict) else []
+        explicit_feeds = topic_cfg.get("feedUrls", []) if isinstance(topic_cfg, dict) else []
+
+        for spec in source_pages if isinstance(source_pages, list) else []:
+            if not isinstance(spec, dict):
+                continue
+            try:
+                source_rows = collect_source_page_items(topic, spec, args.max_items)
+            except Exception:
+                source_rows = []
+            for row in source_rows:
+                norm_title = normalize_history_title(row.title)
+                if row.link in seen or row.link in history_urls:
+                    continue
+                if norm_title and norm_title in history_titles:
+                    continue
+                if is_excluded(topic, row.title, row.desc):
+                    continue
+                if is_excluded_source(topic, row.source):
+                    continue
+                if not is_required_match(topic, row.title, row.desc):
+                    continue
+                if not within_age_limit(topic, row.pub, now_utc):
+                    continue
+                seen.add(row.link)
+                merged_all.append(row)
+
+        for feed_spec in explicit_feeds if isinstance(explicit_feeds, list) else []:
+            feed_url = ""
+            feed_label = topic
+            if isinstance(feed_spec, dict):
+                feed_url = str(feed_spec.get("url", "")).strip()
+                feed_label = str(feed_spec.get("name") or feed_spec.get("label") or topic).strip() or topic
+            else:
+                feed_url = str(feed_spec).strip()
+            if not feed_url:
+                continue
+            try:
+                items = fetch_feed_items(feed_url, args.max_items, source_hint=feed_label)
+            except Exception:
+                items = []
+            for row in items:
+                norm_title = normalize_history_title(row.title)
+                if row.link in seen or row.link in history_urls:
+                    continue
+                if norm_title and norm_title in history_titles:
+                    continue
+                if is_excluded(topic, row.title, row.desc):
+                    continue
+                if is_excluded_source(topic, row.source):
+                    continue
+                if not is_required_match(topic, row.title, row.desc):
+                    continue
+                if not within_age_limit(topic, row.pub, now_utc):
+                    continue
+                seen.add(row.link)
+                merged_all.append(row)
+
         for q in queries:
             try:
                 items = fetch_rss_items(q, args.max_items)
             except Exception:
                 items = []
             for row in items:
+                norm_title = normalize_history_title(row.title)
                 if row.link in seen:
+                    continue
+                if row.link in history_urls:
+                    continue
+                if norm_title and norm_title in history_titles:
                     continue
                 if is_excluded(topic, row.title, row.desc):
                     continue

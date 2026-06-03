@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.reason_labels import format_quality_reason
 from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
 DEFAULT_DB = resolve_investment_db()
@@ -184,7 +185,7 @@ def main() -> int:
         if quality_reason_counts:
             top_reason = sorted(quality_reason_counts.items(), key=lambda x: x[1], reverse=True)[0]
             recommendations.append(
-                f"quality主因: {top_reason[0]} ({top_reason[1]}件)。該当原因の入力補完/閾値調整を優先。"
+                f"quality主因: {format_quality_reason(top_reason[0])} ({top_reason[1]}件)。該当原因の入力補完/閾値調整を優先。"
             )
         if not recommendations:
             recommendations.append("主要指標は許容範囲。現設定を維持し、来週も同基準で観測。")

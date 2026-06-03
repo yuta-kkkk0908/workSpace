@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.alert_labels import format_labeled_code, RULE_THIN_LABELS
 from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
 
@@ -158,7 +159,7 @@ def main() -> int:
             lines.append("- none")
         else:
             for k, v in payload["rejectReasonCounts"].items():
-                lines.append(f"- {k}: {v}")
+                lines.append(f"- {format_labeled_code(k, RULE_THIN_LABELS)}: {v}")
         lines.extend(
             [
                 "",
@@ -183,7 +184,7 @@ def main() -> int:
             args.date,
             payload["acceptedCount"],
             payload["rejectedCount"],
-            next(iter(payload["rejectReasonCounts"].keys()), "none"),
+            format_labeled_code(next(iter(payload["rejectReasonCounts"].keys()), "none"), RULE_THIN_LABELS),
         )
     )
     write_pipeline_event(

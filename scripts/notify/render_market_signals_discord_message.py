@@ -331,7 +331,8 @@ def build_message(
     rows = kept
 
     lines = [
-        f"シグナル速報 {date_str}",
+        f"Market Signals {date_str}",
+        f"- 種別: シグナル速報",
         f"- 参照日: {date_str}",
         f"- 件数: {len(rows)}",
         f"- 信用取引不可除外: {excluded_non_margin}件",

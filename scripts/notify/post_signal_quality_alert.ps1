@@ -78,13 +78,35 @@ $reasonCodes = @()
 if ($diag.qualityReasonCodes) {
   $reasonCodes = @($diag.qualityReasonCodes | ForEach-Object { [string]$_ })
 }
-$reasonLine = if ($reasonCodes.Count -gt 0) { ($reasonCodes -join ", ") } else { "none" }
+$reasonLabels = @{
+  "CREDIT_THIN" = "信用情報が薄い"
+  "DATA_THIN" = "シグナル件数が少ない"
+  "MATERIAL_NONE_TODAY" = "当日材料がない"
+  "MATERIAL_STALE" = "材料が古い"
+  "NOON_DATA_GAP" = "昼のスナップショット不足"
+  "REPEATED_TICKER_BIAS" = "同一銘柄の連続出現が多い"
+  "SCENARIO_BIAS" = "シナリオ配分が偏っている"
+  "SIDE_IMBALANCE" = "上昇/下落方向の偏りが大きい"
+}
+
+function Format-ReasonCode([string]$code) {
+  $k = [string]$code
+  if ([string]::IsNullOrWhiteSpace($k)) { return "" }
+  $label = $reasonLabels[$k]
+  if ($label) {
+    return ("{0}（{1}）" -f $k, $label)
+  }
+  return $k
+}
+
+$reasonLine = if ($reasonCodes.Count -gt 0) { ($reasonCodes | ForEach-Object { Format-ReasonCode $_ }) -join ", " } else { "none" }
 $root = if ($diag.inferredRootCause) { [string]$diag.inferredRootCause } else { "unknown" }
+$rootDisplay = Format-ReasonCode $root
 
 $lines = @(
   ("Signal Quality Alert {0}" -f $Date),
   "- status: ALERT",
-  ("- rootCause: {0}" -f $root),
+  ("- rootCause: {0}" -f $rootDisplay),
   ("- reasonCodes: {0}" -f $reasonLine),
   ("- summary: signals={0} trade={1} watch={2} watchShare={3:P0}" -f $diag.signalCount, $diag.tradeScenarioCount, $diag.watchScenarioCount, $watchShare)
 )

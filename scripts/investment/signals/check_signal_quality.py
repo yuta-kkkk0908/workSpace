@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[3]
 PROMPTS = ROOT / "prompts"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.reason_labels import format_quality_reason
 from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
 
@@ -337,7 +338,7 @@ def main() -> int:
             detail = ", ".join(f"{k}={v}" for k, v in sorted(gate_hold_breakdown.items()))
             lines.append(f"- hold内訳: {detail}")
         if reason_codes_sorted:
-            lines.append("- reasonCodes: " + ", ".join(reason_codes_sorted))
+            lines.append("- reasonCodes: " + ", ".join(format_quality_reason(code) for code in reason_codes_sorted))
         if args.write_files:
             out_alert = Path(args.out_alert)
             out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
