@@ -6,12 +6,17 @@ import hashlib
 import json
 import re
 import sqlite3
+import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 JPX_DAILY_URL = "https://www.jpx.co.jp/markets/statistics-equities/daily/03.html"
 JST = timezone(timedelta(hours=9))
 USER_AGENT = "AIOSResearchBot/1.0 (JPX daily collector)"

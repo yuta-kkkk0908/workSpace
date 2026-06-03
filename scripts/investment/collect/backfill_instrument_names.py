@@ -3,11 +3,28 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
+INSTRUMENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS instruments (
+  ticker TEXT PRIMARY KEY,
+  name TEXT,
+  market TEXT,
+  sector TEXT,
+  credit_eligible TEXT,
+  source_kind TEXT NOT NULL DEFAULT 'derived',
+  updated_at TEXT NOT NULL
+)
+"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -17,30 +34,65 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def reset_instruments_table(conn: sqlite3.Connection) -> None:
+    conn.execute("DROP TABLE IF EXISTS instruments")
+    conn.execute(INSTRUMENTS_SCHEMA)
+    conn.commit()
+
+
+def instruments_accessible(conn: sqlite3.Connection) -> bool:
+    try:
+        conn.execute("SELECT COUNT(*) FROM instruments").fetchone()
+        return True
+    except sqlite3.DatabaseError:
+        return False
+
+
+def ensure_instrument_rows(conn: sqlite3.Connection, now: str) -> None:
+    conn.execute(
+        """
+        INSERT INTO instruments(ticker,name,market,sector,credit_eligible,source_kind,updated_at)
+        SELECT t.ticker,'','','','','derived',?
+        FROM (
+          SELECT DISTINCT ticker FROM signals WHERE COALESCE(ticker,'')<>''
+          UNION
+          SELECT DISTINCT ticker FROM tdnet_disclosures WHERE COALESCE(ticker,'')<>''
+          UNION
+          SELECT DISTINCT ticker FROM entry_candidates WHERE COALESCE(ticker,'')<>''
+        ) t
+        LEFT JOIN instruments i ON i.ticker=t.ticker
+        WHERE i.ticker IS NULL
+        """,
+        (now,),
+    )
+
+
 def main() -> int:
     args = parse_args()
     if not args.db.exists():
         raise SystemExit(f"db not found: {args.db}")
-    conn = sqlite3.connect(args.db)
+    conn = sqlite3.connect(args.db, timeout=30)
+    conn.execute("PRAGMA busy_timeout=30000")
     try:
         now = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-        # Ensure instruments rows exist for tickers seen in core tables.
-        conn.execute(
-            """
-            INSERT INTO instruments(ticker,name,market,sector,credit_eligible,source_kind,updated_at)
-            SELECT t.ticker,'','','','','derived',?
-            FROM (
-              SELECT DISTINCT ticker FROM signals WHERE COALESCE(ticker,'')<>''
-              UNION
-              SELECT DISTINCT ticker FROM tdnet_disclosures WHERE COALESCE(ticker,'')<>''
-              UNION
-              SELECT DISTINCT ticker FROM entry_candidates WHERE COALESCE(ticker,'')<>''
-            ) t
-            LEFT JOIN instruments i ON i.ticker=t.ticker
-            WHERE i.ticker IS NULL
-            """,
-            (now,),
-        )
+        # Normal path: keep existing table and just fill missing rows.
+        # Only rebuild when the instruments table itself is unreadable.
+        if instruments_accessible(conn):
+            ensure_instrument_rows(conn, now)
+        else:
+            rebuilt = False
+            for _ in range(3):
+                try:
+                    reset_instruments_table(conn)
+                    ensure_instrument_rows(conn, now)
+                    rebuilt = True
+                    break
+                except sqlite3.OperationalError as exc:
+                    if "locked" not in str(exc).lower():
+                        raise
+                    time.sleep(3)
+            if not rebuilt:
+                raise sqlite3.OperationalError("database is locked while rebuilding instruments")
 
         if args.date:
             # Prioritize latest known company up to --date.
@@ -103,7 +155,8 @@ def main() -> int:
             )
             updated += 1
         conn.commit()
-        print(f"instrument_names_backfilled updated={updated}")
+        total = int(conn.execute("SELECT COUNT(*) FROM instruments").fetchone()[0] or 0)
+        print(f"instrument_names_backfilled updated={updated} total={total}")
         return 0
     finally:
         conn.close()
@@ -111,4 +164,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

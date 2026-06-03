@@ -19,9 +19,17 @@ tmp/
 
 # Local DB artifacts
 data/*.db
+data/*.db-*
+data/*.db-wal
+data/*.db-shm
+data/backups/
 data/rakuten_rss/board_latest.csv
 data/exports/
 resource/
+data/investment.db.broken-*
+data/investment.db.pre-recovery-*
+data/investment.db.bad-open-*
+data/investment.db.before-wal-fix
 
 # Generated brief prompts
 prompts/today-db-brief.md

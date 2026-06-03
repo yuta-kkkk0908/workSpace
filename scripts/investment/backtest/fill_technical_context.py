@@ -24,7 +24,11 @@ CACHE = ROOT / ".cache/market-outcomes/yahoo-chart-cache.json"
 JST = timezone(timedelta(hours=9))
 DEFAULT_OUTPUT_JSON = ROOT / "topics/investment-research/inbox/{date}-technical-context-data.json"
 DEFAULT_OUTPUT_MD = ROOT / "topics/investment-research/inbox/{date}-technical-context-summary.md"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402

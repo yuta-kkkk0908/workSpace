@@ -6,15 +6,20 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 JST = timezone(timedelta(hours=9))
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 DEFAULT_INPUT = ROOT / "topics/investment-research/inbox/{date}-margin-context-priority-fill.md"
 DEFAULT_FALLBACK_INPUT = ROOT / "topics/investment-research/inbox/2026-05-10-margin-context-priority-fill.md"
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-margin-context-data.json"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 
 
 def field(body: str, name: str) -> str:

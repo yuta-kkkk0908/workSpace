@@ -13,9 +13,10 @@ ROOT = Path(__file__).resolve().parents[3]
 import sys
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
 from utils.ai_model_router import resolve_model
 
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 DEFAULT_OUT = ROOT / "prompts" / "ai-investment-digest.txt"
 DEFAULT_JSON = ROOT / "prompts" / "ai-investment-digest.json"
 

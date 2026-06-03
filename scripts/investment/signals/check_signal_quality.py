@@ -11,10 +11,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 PROMPTS = ROOT / "prompts"
-DEFAULT_DB = ROOT / "data" / "investment.db"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
+
+DEFAULT_DB = resolve_investment_db()
 
 HEAD_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$")
 FIELD_RE = re.compile(r"^-\s+([A-Za-z0-9+_-]+):\s*(.*)$")

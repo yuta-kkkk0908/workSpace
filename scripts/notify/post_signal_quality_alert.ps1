@@ -9,19 +9,14 @@ $logDir = Join-Path $repo "logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $logFile = Join-Path $logDir "discord-signal-quality-alert.log"
 
+. (Join-Path $repo "scripts\notify\discord_common.ps1")
+
 function Write-QualityAlertLog([string]$level, [string]$message) {
   $ts = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
   "[$ts] [$level] $message" | Out-File -FilePath $logFile -Encoding utf8 -Append
 }
 
-$envFile = Join-Path $repo ".env"
-if (Test-Path $envFile) {
-  Get-Content $envFile | ForEach-Object {
-    if ($_ -match "^\s*#" -or $_ -match "^\s*$" -or $_ -notmatch "=") { return }
-    $k,$v = $_.Split("=",2)
-    [Environment]::SetEnvironmentVariable($k.Trim(), $v.Trim().Trim('"').Trim("'"), "Process")
-  }
-}
+Load-EnvFile (Join-Path $repo ".env")
 
 $webhook = $env:DISCORD_ALERT_WEBHOOK_URL
 if (-not $webhook) { throw "DISCORD_ALERT_WEBHOOK_URL is empty" }
@@ -109,25 +104,23 @@ if ($hash -eq $last) {
   exit 0
 }
 
-$body = @{ content = ("AIOS Signal Quality Alert`n" + $msg) } | ConvertTo-Json -Compress
-$bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
 Write-QualityAlertLog "START" ("msg_len={0}" -f $msg.Length)
 
 $maxAttempts = 3
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
   try {
-    Invoke-RestMethod -Method Post -Uri $webhook -ContentType "application/json; charset=utf-8" -Body $bodyBytes | Out-Null
+    $sent = Send-DiscordContent -WebhookUrl $webhook -Content ("AIOS Signal Quality Alert`n" + $msg) -WriteLog {
+      param($level, $message)
+      Write-QualityAlertLog $level $message
+    } -MaxAttempts 1
+    if (-not $sent) {
+      throw "discord send failed"
+    }
     Set-Content -Path $hashFile -Value $hash -Encoding UTF8
     Write-QualityAlertLog "OK" ("posted attempt={0} hash={1}" -f $attempt, $hash)
     exit 0
   } catch {
-    $respBody = ""
-    if ($_.Exception.Response -and $_.Exception.Response.GetResponseStream()) {
-      $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-      $respBody = $reader.ReadToEnd()
-      $reader.Close()
-    }
-    Write-QualityAlertLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $maxAttempts, $_.Exception.Message, $respBody)
+    Write-QualityAlertLog "ERROR" ("attempt={0}/{1} message={2}" -f $attempt, $maxAttempts, $_.Exception.Message)
     if ($attempt -lt $maxAttempts) {
       Start-Sleep -Seconds (2 * $attempt)
     } else {

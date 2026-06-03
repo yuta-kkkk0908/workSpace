@@ -5,11 +5,16 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 OUT_DIR = ROOT / "prompts"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 
 
 def expected_direction_ja(v: str) -> str:
@@ -105,61 +110,82 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            """
-            SELECT s.signal_id,s.ticker,s.company,s.expected_direction,s.long_rank,s.short_rank,s.signal_type,s.url,s.source,s.gate_status,s.payload_json,
-                   s.material_signal_checked,s.external_context_checked,s.technical_signal_checked,
-                   (
-                     SELECT s2.company FROM signals s2
-                     WHERE s2.ticker=s.ticker
-                       AND s2.company IS NOT NULL
-                       AND TRIM(s2.company) <> ''
-                       AND LOWER(TRIM(s2.company)) <> 'unknown'
-                       AND TRIM(s2.company) <> '不明'
-                     ORDER BY s2.date DESC
-                     LIMIT 1
-                   ) AS company_fallback,
-                   (
-                     SELECT ep.company FROM execution_plan ep
-                     WHERE ep.ticker=s.ticker
-                       AND ep.company IS NOT NULL
-                       AND TRIM(ep.company) <> ''
-                     ORDER BY ep.plan_date DESC
-                     LIMIT 1
-                   ) AS company_from_plan,
-                   (
-                     SELECT ec.company FROM entry_candidates ec
-                     WHERE ec.ticker=s.ticker
-                       AND ec.company IS NOT NULL
-                       AND TRIM(ec.company) <> ''
-                     ORDER BY ec.date DESC
-                     LIMIT 1
-                   ) AS company_from_candidate,
-                   (
-                     SELECT i.name FROM instruments i
-                     WHERE i.ticker=s.ticker
-                       AND i.name IS NOT NULL
-                       AND TRIM(i.name) <> ''
-                       AND LOWER(TRIM(i.name)) <> 'unknown'
-                       AND TRIM(i.name) <> '不明'
-                     LIMIT 1
-                   ) AS company_from_instruments,
-                   (
-                     SELECT sc.sector_group FROM sector_context_rows sc
-                     WHERE sc.ticker=s.ticker
-                     ORDER BY sc.date DESC LIMIT 1
-                   ) AS sector_group,
-                   (
-                     SELECT sr.borrow_status FROM short_readiness_rows sr
-                     WHERE sr.ticker=s.ticker
-                     ORDER BY sr.date DESC LIMIT 1
-                   ) AS borrow_status
-            FROM signals s
-            WHERE s.date=?
-            ORDER BY signal_id
-            """,
-            (date_str,),
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                """
+                SELECT s.signal_id,s.ticker,s.company,s.expected_direction,s.long_rank,s.short_rank,s.signal_type,s.url,s.source,s.gate_status,s.payload_json,
+                       s.material_signal_checked,s.external_context_checked,s.technical_signal_checked,
+                       (
+                         SELECT s2.company FROM signals s2
+                         WHERE s2.ticker=s.ticker
+                           AND s2.company IS NOT NULL
+                           AND TRIM(s2.company) <> ''
+                           AND LOWER(TRIM(s2.company)) <> 'unknown'
+                           AND TRIM(s2.company) <> '不明'
+                         ORDER BY s2.date DESC
+                         LIMIT 1
+                       ) AS company_fallback,
+                       (
+                         SELECT ep.company FROM execution_plan ep
+                         WHERE ep.ticker=s.ticker
+                           AND ep.company IS NOT NULL
+                           AND TRIM(ep.company) <> ''
+                         ORDER BY ep.plan_date DESC
+                         LIMIT 1
+                       ) AS company_from_plan,
+                       (
+                         SELECT ec.company FROM entry_candidates ec
+                         WHERE ec.ticker=s.ticker
+                           AND ec.company IS NOT NULL
+                           AND TRIM(ec.company) <> ''
+                         ORDER BY ec.date DESC
+                         LIMIT 1
+                       ) AS company_from_candidate,
+                       (
+                         SELECT i.name FROM instruments i
+                         WHERE i.ticker=s.ticker
+                           AND i.name IS NOT NULL
+                           AND TRIM(i.name) <> ''
+                           AND LOWER(TRIM(i.name)) <> 'unknown'
+                           AND TRIM(i.name) <> '不明'
+                         LIMIT 1
+                       ) AS company_from_instruments,
+                       (
+                         SELECT sc.sector_group FROM sector_context_rows sc
+                         WHERE sc.ticker=s.ticker
+                         ORDER BY sc.date DESC LIMIT 1
+                       ) AS sector_group,
+                       (
+                         SELECT sr.borrow_status FROM short_readiness_rows sr
+                         WHERE sr.ticker=s.ticker
+                         ORDER BY sr.date DESC LIMIT 1
+                       ) AS borrow_status
+                FROM signals s
+                WHERE s.date=?
+                ORDER BY signal_id
+                """,
+                (date_str,),
+            ).fetchall()
+        except sqlite3.DatabaseError as e:
+            if "malformed" not in str(e).lower():
+                raise
+            # Fallback path: avoid secondary table/index access and keep morning notification alive.
+            rows = conn.execute(
+                """
+                SELECT s.signal_id,s.ticker,s.company,s.expected_direction,s.long_rank,s.short_rank,s.signal_type,s.url,s.source,s.gate_status,s.payload_json,
+                       s.material_signal_checked,s.external_context_checked,s.technical_signal_checked,
+                       '' AS company_fallback,
+                       '' AS company_from_plan,
+                       '' AS company_from_candidate,
+                       '' AS company_from_instruments,
+                       '' AS sector_group,
+                       '' AS borrow_status
+                FROM signals s
+                WHERE s.date=?
+                ORDER BY signal_id
+                """,
+                (date_str,),
+            ).fetchall()
     finally:
         conn.close()
     return [dict(r) for r in rows]

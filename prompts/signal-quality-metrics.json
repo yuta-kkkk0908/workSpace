@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-01",
+  "date": "2026-06-03",
   "path": "db:signals",
   "exists": true,
   "signalCount": 12,
@@ -7,27 +7,29 @@
   "downCount": 6,
   "newMaterialCount": 0,
   "tickers": [
+    "8306",
     "9692",
-    "3282",
-    "7384",
-    "3104",
-    "8967",
     "6062",
-    "9973",
-    "8105",
-    "7794",
-    "7776",
-    "7578",
-    "6721"
+    "7384",
+    "3282",
+    "3104",
+    "4750",
+    "7865",
+    "6613",
+    "2593",
+    "9279",
+    "7545"
   ],
-  "gatePassCount": 0,
-  "gateHoldCount": 0,
-  "gateHoldBreakdown": {},
-  "longABCount": 12,
+  "gatePassCount": 11,
+  "gateHoldCount": 1,
+  "gateHoldBreakdown": {
+    "hold_credit_unknown": 1
+  },
+  "longABCount": 7,
   "shortABCount": 6,
-  "quality3YesCount": 0,
+  "quality3YesCount": 12,
   "openingScenariosPath": "db:opening_scenarios",
-  "openingScenariosDate": "2026-06-01",
+  "openingScenariosDate": "2026-06-03",
   "tradeScenarioCount": 12,
   "watchScenarioCount": 0,
   "watchShare": 0.0,
@@ -35,19 +37,26 @@
   "noonSignalTickerCount": 12,
   "noonCoverageRate": 1.0,
   "repeatedTickers": [
+    "2593",
+    "3104",
     "3282",
     "6062",
-    "8967",
+    "6613",
+    "7384",
+    "7865",
     "9692"
   ],
-  "repeatedTickerCount": 4,
-  "repeatedTickerRatio": 0.3333,
+  "repeatedTickerCount": 8,
+  "repeatedTickerRatio": 0.6667,
   "status": "ALERT",
   "alerts": [
-    "当日材料の新規シグナルが0件"
+    "当日材料の新規シグナルが0件",
+    "同一銘柄の連日出現が多い: repeated=8/12 (67%)"
   ],
-  "inferredRootCause": "RULE_THIN_QUALITY",
+  "inferredRootCause": "CREDIT_THIN",
   "qualityReasonCodes": [
-    "MATERIAL_NONE_TODAY"
+    "CREDIT_THIN",
+    "MATERIAL_NONE_TODAY",
+    "REPEATED_TICKER_BIAS"
   ]
 }

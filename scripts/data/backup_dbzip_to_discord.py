@@ -4,7 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
+import sqlite3
+import sys
 import urllib.request
 import uuid
 import zipfile
@@ -13,6 +14,10 @@ from datetime import timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 DATA_DIR = ROOT / "data"
 BACKUP_DIR = DATA_DIR / "backups"
 MANIFEST_PATH = BACKUP_DIR / "discord-backups-manifest.json"
@@ -32,7 +37,7 @@ def load_dotenv() -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Zip and upload investment.db to Discord webhook")
-    p.add_argument("--db", default=str(DATA_DIR / "investment.db"))
+    p.add_argument("--db", default=str(resolve_investment_db()))
     p.add_argument("--label", default="investment-db-backup")
     p.add_argument("--keep-local", type=int, default=7, help="Number of local zip files to keep")
     p.add_argument("--retention-days", type=int, default=14, help="Delete Discord backup posts older than this")
@@ -47,6 +52,25 @@ def create_zip(src_db: Path, label: str) -> Path:
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.write(src_db, arcname="investment.db")
     return zip_path
+
+
+def sqlite_safe_snapshot(src_db: Path, dst_db: Path) -> None:
+    """
+    Create a consistent snapshot using SQLite backup API.
+    Avoid raw file copy while WAL is active.
+    """
+    if dst_db.exists():
+        dst_db.unlink()
+    src = sqlite3.connect(f"file:{src_db}?mode=ro", uri=True)
+    try:
+        dst = sqlite3.connect(str(dst_db))
+        try:
+            src.backup(dst)
+            dst.commit()
+        finally:
+            dst.close()
+    finally:
+        src.close()
 
 
 def build_multipart(fields: dict[str, str], file_field: str, file_path: Path) -> tuple[bytes, str]:
@@ -187,10 +211,11 @@ def main() -> int:
     src_db = Path(args.db)
     if not src_db.exists():
         raise SystemExit(f"DB not found: {src_db}")
+    src_db_real = src_db.resolve()
 
     tmp_copy = BACKUP_DIR / "investment.db.snapshot"
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src_db, tmp_copy)
+    sqlite_safe_snapshot(src_db_real, tmp_copy)
     zip_path = create_zip(tmp_copy, args.label)
     tmp_copy.unlink(missing_ok=True)
 
@@ -200,6 +225,8 @@ def main() -> int:
     entry = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "zip_file": str(zip_path),
+        "db_arg": str(src_db),
+        "db_real": str(src_db_real),
         "message_id": resp.get("id"),
         "channel_id": resp.get("channel_id"),
         "attachment_url": a0.get("url"),

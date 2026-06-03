@@ -26,7 +26,10 @@ ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md"
 DEFAULT_AGGREGATION_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-win-loss-aggregation.md"
 CACHE = ROOT / ".cache/market-outcomes/yahoo-chart-cache.json"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 from investment_seed_config import DEFAULT_CONFIG, load_seed_paths  # noqa: E402

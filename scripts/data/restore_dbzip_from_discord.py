@@ -6,12 +6,17 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import urllib.request
 import zipfile
 from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 DATA_DIR = ROOT / "data"
 BACKUP_DIR = DATA_DIR / "backups"
 MANIFEST_PATH = BACKUP_DIR / "discord-backups-manifest.json"
@@ -33,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Restore investment.db from Discord backup message")
     p.add_argument("--channel-id", default="", help="Discord channel id containing backup message")
     p.add_argument("--message-id", default="", help="Discord message id with zip attachment")
-    p.add_argument("--target-db", default=str(DATA_DIR / "investment.db"))
+    p.add_argument("--target-db", default=str(resolve_investment_db()))
     return p.parse_args()
 
 
@@ -144,15 +149,17 @@ def main() -> int:
         extracted_db = found[0]
 
     target_db = Path(args.target_db)
-    pre = target_db.parent / f"{target_db.name}.pre-restore-{ts}"
-    if target_db.exists():
-        shutil.copy2(target_db, pre)
+    effective_target = target_db.resolve() if target_db.exists() else target_db
+    pre = effective_target.parent / f"{effective_target.name}.pre-restore-{ts}"
+    if effective_target.exists():
+        shutil.copy2(effective_target, pre)
 
-    run_recovery_if_needed(extracted_db, target_db)
+    run_recovery_if_needed(extracted_db, effective_target)
     print(
         json.dumps(
             {
-                "restored_to": str(target_db),
+                "restored_to": str(effective_target),
+                "target_arg": str(target_db),
                 "previous_backup": str(pre) if pre.exists() else "",
                 "channel_id": channel_id,
                 "message_id": message_id,

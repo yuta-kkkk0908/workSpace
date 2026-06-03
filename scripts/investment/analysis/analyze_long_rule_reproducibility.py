@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -18,7 +19,11 @@ JST = timezone(timedelta(hours=9))
 INPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check-data.json"
 OUTPUT_MD = ROOT / "topics/investment-research/inbox/{date}-long-rule-reproducibility.md"
 OUTPUT_JSON = ROOT / "topics/investment-research/inbox/{date}-long-rule-reproducibility.json"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 RULE_DEFINITION = {
     "strict_long_signal": [

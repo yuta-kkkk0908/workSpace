@@ -1,6 +1,8 @@
-Signal Quality Alert 2026-06-01
+Signal Quality Alert 2026-06-03
 - status: ALERT
 - 当日材料の新規シグナルが0件
+- 同一銘柄の連日出現が多い: repeated=8/12 (67%)
 - summary: signals=12 new=0 trade=12 watch=0 watchShare=0%
 - noonCoverage: 12/12 (100%)
-- reasonCodes: MATERIAL_NONE_TODAY
+- hold内訳: hold_credit_unknown=1
+- reasonCodes: CREDIT_THIN, MATERIAL_NONE_TODAY, REPEATED_TICKER_BIAS

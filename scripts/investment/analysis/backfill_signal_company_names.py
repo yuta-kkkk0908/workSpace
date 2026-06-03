@@ -3,10 +3,15 @@ from __future__ import annotations
 
 import argparse
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,15 +41,20 @@ def resolve_company(conn: sqlite3.Connection, ticker: str, asof: str) -> str:
     ).fetchone()
     if row and not is_placeholder(str(row[0] or "")):
         return str(row[0] or "").strip()
-    row = conn.execute("SELECT name FROM instruments WHERE ticker=? LIMIT 1", (ticker,)).fetchone()
-    if row and not is_placeholder(str(row[0] or "")):
-        return str(row[0] or "").strip()
+    try:
+        row = conn.execute("SELECT name FROM instruments WHERE ticker=? LIMIT 1", (ticker,)).fetchone()
+        if row and not is_placeholder(str(row[0] or "")):
+            return str(row[0] or "").strip()
+    except sqlite3.DatabaseError:
+        # Keep company backfill alive even if instruments is temporarily broken.
+        pass
     return ""
 
 
 def main() -> int:
     args = parse_args()
-    conn = sqlite3.connect(args.db)
+    conn = sqlite3.connect(args.db, timeout=30)
+    conn.execute("PRAGMA busy_timeout=30000")
     try:
         where_date = " AND date=?" if args.date else ""
         params = (args.date,) if args.date else tuple()

@@ -4,13 +4,18 @@ from __future__ import annotations
 import argparse
 import re
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 
 SECTION_RE = re.compile(r"^###\s+(backtest|watch|live|paper|all)\s*$")
 SAMPLE_RE = re.compile(r"^- sampleTrades:\s*(\d+)\s*$")

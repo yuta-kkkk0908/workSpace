@@ -21,7 +21,11 @@ ROOT = Path(__file__).resolve().parents[3]
 CACHE = ROOT / ".cache/market-outcomes/yahoo-sector-proxy-cache.json"
 JST = timezone(timedelta(hours=9))
 DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-sector-market-context-data.json"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402

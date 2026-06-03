@@ -16,6 +16,7 @@ from contextlib import contextmanager
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
 # Phase-2 step1 (+25% class): expand collection breadth before weekly re-tune.
 KABUTAN_DISCOVER_LATEST = "35"
@@ -34,9 +35,12 @@ MARKET_SIGNALS_MAX_SHORT = "6"
 OPENING_SCENARIOS_MAX_CANDIDATES = "12"
 LOCK_DIR = ROOT / "tmp" / "scheduler-locks"
 LOCK_STALE_SEC = 6 * 60 * 60
+LOCK_ACQUIRE_RETRIES = 8
+LOCK_ACQUIRE_WAIT_SEC = 1.0
 SIGNAL_UNCHANGED_STREAK_FILE = ROOT / "prompts" / ".signal-unchanged-streak.txt"
 CURRENT_SLOT: str | None = None
 CURRENT_DATE: str | None = None
+INVESTMENT_DB = resolve_investment_db()
 
 
 def classify_error_category(stage: str | None, cmd: list[str], rc: int) -> str:
@@ -98,32 +102,45 @@ def run(
     slot: str | None = None,
     event_date: str | None = None,
     stage: str | None = None,
+    retries: int = 0,
+    retry_wait_sec: float = 3.0,
 ) -> int:
     slot = slot or CURRENT_SLOT
     event_date = event_date or CURRENT_DATE
     if not stage and len(cmd) >= 2:
         stage = Path(cmd[1]).name
-    print('[run]', ' '.join(cmd))
-    started = time.perf_counter()
-    rc = subprocess.run(cmd, cwd=ROOT).returncode
-    elapsed_ms = int((time.perf_counter() - started) * 1000)
-    write_pipeline_event(
-        pipeline="ops_scheduler",
-        slot=slot,
-        stage=stage,
-        status="ok" if rc == 0 else "error",
-        command=cmd,
-        return_code=rc,
-        duration_ms=elapsed_ms,
-        event_date=event_date,
-        payload={
-            "allow_fail": bool(allow_fail),
-            "error_category": classify_error_category(stage, cmd, rc),
-        },
-    )
-    if rc != 0 and allow_fail:
+    attempt = 0
+    last_rc = 0
+    while True:
+        prefix = f"[run retry {attempt}/{retries}]" if attempt else "[run]"
+        print(prefix, ' '.join(cmd))
+        started = time.perf_counter()
+        rc = subprocess.run(cmd, cwd=ROOT).returncode
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        write_pipeline_event(
+            pipeline="ops_scheduler",
+            slot=slot,
+            stage=stage,
+            status="ok" if rc == 0 else "error",
+            command=cmd,
+            return_code=rc,
+            duration_ms=elapsed_ms,
+            event_date=event_date,
+            payload={
+                "allow_fail": bool(allow_fail),
+                "error_category": classify_error_category(stage, cmd, rc),
+                "attempt": attempt,
+                "retries": retries,
+            },
+        )
+        last_rc = rc
+        if rc == 0 or attempt >= retries:
+            break
+        attempt += 1
+        time.sleep(max(0.0, retry_wait_sec))
+    if last_rc != 0 and allow_fail:
         return 0
-    return rc
+    return last_rc
 
 
 def read_int_file(path: Path) -> int:
@@ -131,6 +148,55 @@ def read_int_file(path: Path) -> int:
         return int(path.read_text(encoding="utf-8").strip() or "0")
     except Exception:
         return 0
+
+
+def is_pid_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            cp = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            out = (cp.stdout or "").strip()
+            if not out or "No tasks are running" in out:
+                return False
+            return str(pid) in out
+        except Exception:
+            return True
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+
+
+def cleanup_lock_dir(lock_path: Path) -> None:
+    for p in lock_path.glob("*"):
+        p.unlink(missing_ok=True)
+    os.rmdir(lock_path)
+
+
+def lock_pid_is_stale(lock_path: Path) -> bool:
+    meta_path = lock_path / "meta.json"
+    if not meta_path.exists():
+        return False
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    try:
+        pid = int(meta.get("pid") or 0)
+    except Exception:
+        return False
+    return not is_pid_running(pid)
 
 
 def kabutan_collection_profile(slot: str) -> tuple[str, str]:
@@ -157,25 +223,27 @@ def kabutan_collection_profile(slot: str) -> tuple[str, str]:
 def slot_lock(slot: str):
     LOCK_DIR.mkdir(parents=True, exist_ok=True)
     lock_path = LOCK_DIR / f"{slot}.lock"
-    now = datetime.now().timestamp()
     acquired = False
     try:
-        try:
-            os.mkdir(lock_path)
-            acquired = True
-        except FileExistsError:
-            # stale lock cleanup
+        for _ in range(LOCK_ACQUIRE_RETRIES):
+            now = datetime.now().timestamp()
             try:
-                st = lock_path.stat()
-                if (now - st.st_mtime) > LOCK_STALE_SEC:
-                    for p in lock_path.glob("*"):
-                        p.unlink(missing_ok=True)
-                    os.rmdir(lock_path)
-                    os.mkdir(lock_path)
-                    acquired = True
-            except FileNotFoundError:
                 os.mkdir(lock_path)
                 acquired = True
+                break
+            except FileExistsError:
+                # stale lock cleanup
+                try:
+                    if lock_pid_is_stale(lock_path):
+                        cleanup_lock_dir(lock_path)
+                        continue
+                    st = lock_path.stat()
+                    if (now - st.st_mtime) > LOCK_STALE_SEC:
+                        cleanup_lock_dir(lock_path)
+                        continue
+                except FileNotFoundError:
+                    continue
+                time.sleep(LOCK_ACQUIRE_WAIT_SEC)
         if not acquired:
             print(f"[skip] slot lock exists: {slot}")
             yield False
@@ -186,9 +254,7 @@ def slot_lock(slot: str):
     finally:
         if acquired:
             try:
-                for p in lock_path.glob("*"):
-                    p.unlink(missing_ok=True)
-                os.rmdir(lock_path)
+                cleanup_lock_dir(lock_path)
             except FileNotFoundError:
                 pass
 
@@ -393,8 +459,8 @@ def run_investment_cycle_morning(py: str, d: str, backtest: bool = False, weeken
     rc |= run([py, 'scripts/investment/signals/build_market_signals_from_batches.py', '--date', d, '--lookback-days', '2', '--max-signals', MARKET_SIGNALS_MAX, '--max-long', MARKET_SIGNALS_MAX_LONG, '--max-short', MARKET_SIGNALS_MAX_SHORT], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
-    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
     rc |= run([py, 'scripts/investment/signals/check_investment_signal_missing.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
@@ -418,8 +484,8 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_c
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals_noon.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
-    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
@@ -449,8 +515,8 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weeken
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals.py', '--date', d, '--fallback-days', '1'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
-    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
+    rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
@@ -646,7 +712,7 @@ def main() -> int:
                 if is_jp_market_weekend(d):
                     print(f"[skip] inv-scenario weekend: {d}")
                     return rc
-                max_tickers = str(scenario_credit_max_tickers(ROOT / "data" / "investment.db", d, base=80))
+                max_tickers = str(scenario_credit_max_tickers(INVESTMENT_DB, d, base=80))
                 rc |= run(
                     [
                         py,
@@ -733,8 +799,8 @@ def main() -> int:
                 # Persist scenario/execution artifacts to DB in the same slot.
                 rc |= run([py, 'scripts/data/init_investment_db.py'])
                 rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
-                rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True)
-                rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True)
+                rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
+                rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
                 rc |= run([py, 'scripts/investment/analysis/cleanup_investment_inbox.py', '--date', d, '--keep-days', '14'], allow_fail=True)
                 if not args.backtest:
                     rc |= run([py, 'scripts/notify/render_opening_scenarios_discord_message.py', '--date', d], allow_fail=True)

@@ -1,57 +1,59 @@
 ```text
-シグナル速報 2026-06-01
-- 参照日: 2026-06-01
+シグナル速報 2026-06-03
+- 参照日: 2026-06-03
 - 件数: 12
 - 信用取引不可除外: 0件
 
-1. 9692 シーイーシー (不明) / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
+1. 8306 三菱ＵＦＪ (不明) / 上昇 / L:A- S:該当なし
+  根拠: 判定情報不足（分類未設定） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260601558034.pdf
+
+2. 3083 スターシーズ (不明) / 上昇 / L:B S:該当なし
+  根拠: upward_revision / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260602560880.pdf
+
+3. 3104 富士紡ＨＤ (不明) / 上昇 / L:A- S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
   出典: 一次情報URL未設定
 
-2. 3282 Ｒ－コンフォリア (不明) / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
+4. 3282 Ｒ－コンフォリア (不明) / 上昇 / L:A- S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
   出典: 一次情報URL未設定
 
-3. 7384 (不明) / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
-  出典: 一次情報URL未設定
-
-4. 3104 富士紡ＨＤ (不明) / 上昇 / L:A- S:該当なし
-  根拠: highest_profit_guidance_dividend_revision / ruleHits=0
-  出典: 一次情報URL未設定
-
-5. 8967 Ｒ－ニホンロジ (不明) / 上昇 / L:A- S:該当なし
-  根拠: upward_revision_plus_dividend / ruleHits=0
+5. 7384 (不明) / 上昇 / L:A- S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
   出典: 一次情報URL未設定
 
 6. 6062 チャーム・ケア・コーポレーション (不明) / 上昇 / L:A- S:該当なし
-  根拠: upward_revision_plus_dividend / ruleHits=0
+  根拠: 上方修正＋配当材料 / ruleHits=0
   出典: 一次情報URL未設定
 
-7. 9973 ＫＯＺＯＨＤ (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557774.pdf
+7. 2593 伊藤園 (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260529556144.pdf
 
-8. 8105 ＢｉｔｃｏｉｎＪＰＮ (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557918.pdf
+8. 6613 Ｇ－ＱＤレーザ (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260527551490.pdf
 
-9. 7794 Ｇ－イーディーピー (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557932.pdf
+9. 7865 ピープル (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260529555582.pdf
 
-10. 7776 Ｇ－セルシード (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557346.pdf
+10. 4750 ダイサン (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260602559311.pdf
 
-11. 7578 ニチリョク (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557034.pdf
+11. 9279 ギフトＨＤ (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260603561188.pdf
 
-12. 6721 ウインテスト (不明) / 下落 / L:B S:B
-  根拠: offering_or_dilution / ruleHits=0
-  出典: https://www.release.tdnet.info/inbs/140120260601557740.pdf
+12. 9439 ＭＨグループ (不明) / 下落 / L:B S:B
+  根拠: 希薄化（増資・売出） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260602560872.pdf
 
-保有中ウォッチ（open）:
-- 該当なし
+VWAP運用（昼）:
+- ロング: 価格がVWAPを下回ったら継続見直し/撤退候補
+- ショート: 価格がVWAPを上回ったら継続見直し/撤退候補
+- VWAP逆行中の追撃・ナンピンは禁止
 ```

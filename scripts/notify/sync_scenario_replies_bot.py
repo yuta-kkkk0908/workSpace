@@ -6,13 +6,18 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 
 ENTRY_RE = re.compile(r"^entry(?:\s+(?P<lots>\d+))?(?:\s+(?P<price>\d+(?:\.\d+)?))?$", re.I)
 EXIT_RE = re.compile(r"^exit(?:\s+(?P<price>\d+(?:\.\d+)?))?$", re.I)

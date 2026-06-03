@@ -5,12 +5,17 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 COMPANY_OVERRIDE_PATH = ROOT / "configs" / "ticker_company_overrides.json"
 
 SIG_RE = re.compile(r"^###\s+([^:]+):\s*(.+)$", re.MULTILINE)
@@ -168,37 +173,52 @@ def _resolve_company_name(conn: sqlite3.Connection, ticker: str, current_company
         return overrides[t]
 
     # 1) existing signals (most recent <= asof_date)
-    row = conn.execute(
-        """
-        SELECT company FROM signals
-        WHERE ticker=? AND date<=?
-        ORDER BY date DESC, signal_id DESC
-        LIMIT 1
-        """,
-        (t, asof_date),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            """
+            SELECT company FROM signals
+            WHERE ticker=? AND date<=?
+            ORDER BY date DESC, signal_id DESC
+            LIMIT 1
+            """,
+            (t, asof_date),
+        ).fetchone()
+    except sqlite3.DatabaseError as e:
+        if "malformed" in str(e).lower():
+            return c
+        raise
     if row:
         v = str(row[0] or "").strip()
         if not _is_placeholder_company(v):
             return v
 
     # 2) tdnet disclosures
-    row = conn.execute(
-        """
-        SELECT company FROM tdnet_disclosures
-        WHERE ticker=? AND date<=?
-        ORDER BY date DESC, disclosed_at DESC
-        LIMIT 1
-        """,
-        (t, asof_date),
-    ).fetchone()
+    try:
+        row = conn.execute(
+            """
+            SELECT company FROM tdnet_disclosures
+            WHERE ticker=? AND date<=?
+            ORDER BY date DESC, disclosed_at DESC
+            LIMIT 1
+            """,
+            (t, asof_date),
+        ).fetchone()
+    except sqlite3.DatabaseError as e:
+        if "malformed" in str(e).lower():
+            return c
+        raise
     if row:
         v = str(row[0] or "").strip()
         if not _is_placeholder_company(v):
             return v
 
     # 3) instruments master
-    row = conn.execute("SELECT name FROM instruments WHERE ticker=? LIMIT 1", (t,)).fetchone()
+    try:
+        row = conn.execute("SELECT name FROM instruments WHERE ticker=? LIMIT 1", (t,)).fetchone()
+    except sqlite3.DatabaseError as e:
+        if "malformed" in str(e).lower():
+            return c
+        raise
     if row:
         v = str(row[0] or "").strip()
         if not _is_placeholder_company(v):
@@ -330,7 +350,11 @@ def upsert_signals(conn: sqlite3.Connection, path: Path):
                 str(path.relative_to(ROOT)), now(),
             ),
         )
+        # Keep write units small on drvfs-backed SQLite files to avoid
+        # long transactions that have been correlating with corruption.
+        conn.commit()
     conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "signals", str(path.relative_to(ROOT)), len(rows)))
+    conn.commit()
 
 
 def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
@@ -369,7 +393,9 @@ def upsert_entry_candidates(conn: sqlite3.Connection, path: Path):
                 ),
             )
             rows += 1
+            conn.commit()
     conn.execute("INSERT INTO ingest_log(run_at,kind,source_path,rows) VALUES(?,?,?,?)", (now(), "entry_candidates", str(path.relative_to(ROOT)), rows))
+    conn.commit()
 
 
 def parse_outcome_chunks(text: str):
@@ -641,6 +667,9 @@ def main() -> int:
     db.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db)
     try:
+        conn.execute("PRAGMA journal_mode=DELETE")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
         for p in files_for("{date}-daily.md", args.date):
             if p.exists() and p.parent.name == "inbox":
                 upsert_daily(conn, p)

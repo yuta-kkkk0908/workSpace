@@ -5,11 +5,16 @@ import json
 import os
 import sqlite3
 import importlib.util
+import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 JST = timezone(timedelta(hours=9))
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 
@@ -61,7 +66,7 @@ def collect_daily_status() -> tuple[str, bool]:
     hard, soft = mod.db_warnings(
         targets,
         mod.ROOT / "data" / "topics.db",
-        mod.ROOT / "data" / "investment.db",
+        resolve_investment_db(),
         mod.ROOT / "data" / "needs.db",
     )
     hard2, soft2 = mod.discord_log_warnings(targets)

@@ -10,6 +10,10 @@ from pathlib import Path
 import jsonschema
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 TOPICS_DIR = ROOT / "topics"
 SAMPLE_TOPICS_DIR = ROOT / "sample-topics"
 TEMPLATES_DIR = ROOT / "templates" / "topic"
@@ -27,7 +31,7 @@ DB_SPECS = {
         "tables": {"ingest_log", "need_items", "need_item_state"},
     },
     "investment": {
-        "path": ROOT / "data" / "investment.db",
+        "path": resolve_investment_db(),
         "tables": {"raw_events", "signals", "entry_candidates", "backtest_outcomes", "opening_scenarios", "execution_plan"},
     },
     "ops": {
@@ -343,7 +347,7 @@ def validate_db_first(db_date: str) -> tuple[list[str], list[str]]:
             continue
         validated.append(f"{relpath(manifest_path)}: kind={kind} -> {relpath(expected_db_path)}")
         # Daily existence checks are for runtime topics only (exclude sample-topics).
-        if kind == "daily-watch" and manifest_path.parent.parent == TOPICS_DIR:
+        if kind == "daily-watch" and manifest_path.parent.parent == TOPICS_DIR and slug != "investment-research":
             daily_watch_slugs.append(slug)
 
     topics_db_path = DB_SPECS["topics"]["path"]

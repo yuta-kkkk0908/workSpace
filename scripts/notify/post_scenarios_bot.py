@@ -6,13 +6,18 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 JST = timezone(timedelta(hours=9))
 
 
@@ -121,7 +126,43 @@ def rationale(row: dict) -> str:
     return " / ".join(fallback) if fallback else "根拠情報不足"
 
 
-def to_message(date_str: str, idx: int, row: dict) -> str:
+def load_ai_analyst_summary(db_path: Path, date_str: str, max_lines: int = 4) -> str:
+    conn = sqlite3.connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT payload_json
+            FROM collection_artifacts
+            WHERE artifact_key='ai_analyst_report' AND artifact_date=?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (date_str,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or not row[0]:
+        return ""
+    try:
+        payload = json.loads(str(row[0]))
+    except Exception:
+        return ""
+    text = str(payload.get("report") or "").strip()
+    if not text:
+        return ""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    lines = [ln for ln in lines if not ln.startswith("注意事項：")]
+    # Prefer concise actionable section if present.
+    start = 0
+    for i, ln in enumerate(lines):
+        if "今日の要点" in ln:
+            start = i
+            break
+    picked = lines[start : start + max_lines]
+    return "\n".join(picked).strip()
+
+
+def to_message(date_str: str, idx: int, row: dict, ai_summary: str = "") -> str:
     hold_code = str(row.get("suggestedHorizon", "") or "")
     tier = str(row.get("scenarioTier", "trade"))
     tier_label = "TRADE" if tier == "trade" else ("PAPER" if tier == "paper_trade_only" else "WATCH")
@@ -165,6 +206,8 @@ def to_message(date_str: str, idx: int, row: dict) -> str:
             lines.append("注意: WATCH枠（監視優先）。entry時は paper_trades.mode=watch で記録")
     else:
         lines.append("注意: TRADE枠は執行候補の提案です。発注可否は運用者が最終判断してください。")
+    if ai_summary:
+        lines.extend(["", "AI分析官メモ（要約）:", ai_summary])
     msg = "\n".join(lines)
     return msg[:1900]
 
@@ -607,6 +650,7 @@ def main() -> int:
     for r in watch_rows:
         r["watchLadder"] = bucket_watch_ladder(r)
     rows = (trade_rows + paper_rows + watch_rows)[:max_posts]
+    ai_summary = load_ai_analyst_summary(db, args.date) or (load_ai_analyst_summary(db, src_date) if src_date else "")
 
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
@@ -630,7 +674,7 @@ def main() -> int:
                     f"skip_duplicate ticker={row.get('ticker','')} direction={row.get('direction','')} tier={row.get('scenarioTier','trade')}"
                 )
                 continue
-            content = to_message(args.date, idx, row)
+            content = to_message(args.date, idx, row, ai_summary=ai_summary)
             anchor = to_anchor_message(args.date, idx, row)
             thread_name = to_thread_name(args.date, idx, row)
             if args.dry_run:

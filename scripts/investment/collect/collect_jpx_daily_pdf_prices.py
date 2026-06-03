@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import re
 import sqlite3
+import sys
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,11 @@ import pdfplumber
 
 ROOT = Path(__file__).resolve().parents[3]
 JST = timezone(timedelta(hours=9))
-DEFAULT_DB = ROOT / "data" / "investment.db"
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
+DEFAULT_DB = resolve_investment_db()
 DEFAULT_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/daily/index.html"
 DEFAULT_OUT_DIR = ROOT / "resource" / "invest"
 

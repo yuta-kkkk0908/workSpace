@@ -23,10 +23,13 @@ DEFAULT_JSON_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-rule-check
 DEFAULT_OUTCOME = ROOT / "topics/investment-research/inbox/{date}-rough-backtest-outcomes-batch-1.md"
 DEFAULT_SEED_CONFIG = ROOT / "configs" / "investment" / "rough_backtest_seed_lists.json"
 WINDOWS = ("t1", "t5", "t20")
-DEFAULT_DB = ROOT / "data" / "investment.db"
+sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
 
+DEFAULT_DB = resolve_investment_db()
 sys.path.insert(0, str(ROOT / "scripts/investment/analysis"))
 import analyze_market_outcomes as outcomes  # noqa: E402
+from investment_seed_config import load_seed_paths  # noqa: E402
 
 
 def display_path(path: Path) -> str:
@@ -298,7 +301,7 @@ def main() -> int:
         source_log = "db:backtest_outcomes"
     else:
         outcomes.OUTCOME = args.outcome or Path(str(DEFAULT_OUTCOME).format(date=args.date))
-        outcomes.BATCH_FILES = outcomes.load_seed_paths(args.seed_config, args.seed_list)
+        outcomes.BATCH_FILES = load_seed_paths(args.seed_config, args.seed_list)
         outcomes.MARGIN_DATA = args.margin_data or Path(str(outcomes.DEFAULT_MARGIN_DATA).format(date=args.date))
         outcomes.SESSION_DATA = args.session_data or Path(str(outcomes.DEFAULT_SESSION_DATA).format(date=args.date))
         outcomes.MARKET_CONTEXT_DATA = args.market_context_data or Path(str(outcomes.DEFAULT_MARKET_CONTEXT_DATA).format(date=args.date))

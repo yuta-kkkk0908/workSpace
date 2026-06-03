@@ -1,48 +1,43 @@
 # Investment DB Table Inventory
 
-## Objects
-- tables:
-  - `raw_events`
-  - `facts_price_daily`
-  - `signals`
-  - `entry_candidates`
-  - `backtest_outcomes`
-  - `opening_scenarios`
-  - `execution_plan`
-  - `instruments`
-  - `credit_status_rows`
-  - `sector_context_rows`
-  - `market_context_rows`
-  - `technical_context_rows`
-  - `board_snapshots`
-  - `margin_context_rows`
-  - `collection_progress`
-  - `collection_artifacts`
-  - `observations`
-  - `daily_digest`
-  - `ingest_log`
-  - `rule_dashboard_rows`
-  - `rule_history_snapshots`
-  - `rule_check_candidates`
-  - `short_readiness_rows`
-  - `short_chart_reviews`
-  - `short_rebound_reviews`
-  - `short_conviction_rows`
-  - `paper_trades`
-  - `scenario_messages`
-  - `scenario_reply_events`
-  - `tdnet_disclosures`
-  - `sector_market_context_rows`
-- views:
-  - `v_price_daily`
-  - `v_signal_candidates`
-  - `v_collection_status`
-
-## Key Rules (summary)
-- `raw_events`: `UNIQUE(source_kind, event_hash)`
-- `facts_price_daily`: `PRIMARY KEY(date, ticker)`
-- `signals`: `PRIMARY KEY(signal_id, date)`
-- `entry_candidates`: `PRIMARY KEY(date, side, candidate_type, signal_id)`
-- `backtest_outcomes`: `PRIMARY KEY(outcome_id, date)` + identity unique index
-- `collection_progress`: `PRIMARY KEY(source, partition_key)`
-- `collection_artifacts`: `PRIMARY KEY(artifact_key, artifact_date)`
+| object | kind | domain | primary_key | unique_indexes |
+|---|---|---|---|---|
+| backtest_outcomes | table | facts | outcome_id,date | ux_backtest_outcomes_identity(source_signal_id,signal_date,signal_type)<br>sqlite_autoindex_backtest_outcomes_1(outcome_id,date) |
+| board_snapshots | table | dimensions | date,ticker | sqlite_autoindex_board_snapshots_1(date,ticker) |
+| collection_artifacts | table | ops | artifact_key,artifact_date | sqlite_autoindex_collection_artifacts_1(artifact_key,artifact_date) |
+| collection_progress | table | ops | source,partition_key | sqlite_autoindex_collection_progress_1(source,partition_key) |
+| credit_status_rows | table | dimensions | date,ticker | sqlite_autoindex_credit_status_rows_1(date,ticker) |
+| daily_digest | table | ops | topic,date | sqlite_autoindex_daily_digest_1(topic,date) |
+| discord_task_events | table | ops | message_id | sqlite_autoindex_discord_task_events_1(message_id) |
+| entry_candidates | table | facts | date,side,candidate_type,signal_id | ux_entry_candidates_identity(date,side,candidate_type,signal_id)<br>sqlite_autoindex_entry_candidates_1(date,side,candidate_type,signal_id) |
+| execution_plan | table | facts | plan_id | sqlite_autoindex_execution_plan_1(plan_id) |
+| facts_price_daily | table | facts | date,ticker | sqlite_autoindex_facts_price_daily_1(date,ticker) |
+| ingest_log | table | ops | id | - |
+| instruments | table | dimensions | ticker | sqlite_autoindex_instruments_1(ticker) |
+| margin_context_rows | table | dimensions | date,ticker | sqlite_autoindex_margin_context_rows_1(date,ticker) |
+| market_context_rows | table | dimensions | date,ticker,signal_date | sqlite_autoindex_market_context_rows_1(date,ticker,signal_date) |
+| market_signal_snapshots | table | dimensions | date,ticker,slot,snapshot_time | sqlite_autoindex_market_signal_snapshots_1(date,ticker,slot,snapshot_time) |
+| observations | table | ops | id | - |
+| opening_scenarios | table | facts | scenario_date,scenario_index,source_kind | sqlite_autoindex_opening_scenarios_1(scenario_date,scenario_index,source_kind) |
+| paper_trades | table | ops | trade_id | sqlite_autoindex_paper_trades_1(trade_id) |
+| pipeline_events | table | ops | id | - |
+| raw_events | table | raw | id | sqlite_autoindex_raw_events_1(source_kind,event_hash) |
+| rule_check_candidates | table | ops | date,min_count,candidate_index | sqlite_autoindex_rule_check_candidates_1(date,min_count,candidate_index) |
+| rule_dashboard_rows | table | ops | date,side,bucket,rule | sqlite_autoindex_rule_dashboard_rows_1(date,side,bucket,rule) |
+| rule_history_snapshots | table | ops | rule_id,date | sqlite_autoindex_rule_history_snapshots_1(rule_id,date) |
+| scenario_gate_diagnostics | table | ops | scenario_date,signal_id,ticker,direction,gate_result | sqlite_autoindex_scenario_gate_diagnostics_1(scenario_date,ticker,direction,gate_result,signal_id) |
+| scenario_messages | table | ops | message_id | sqlite_autoindex_scenario_messages_1(message_id) |
+| scenario_reply_events | table | ops | reply_message_id | sqlite_autoindex_scenario_reply_events_1(reply_message_id) |
+| sector_context_rows | table | dimensions | date,ticker | sqlite_autoindex_sector_context_rows_1(date,ticker) |
+| sector_market_context_rows | table | dimensions | date,ticker,signal_date | sqlite_autoindex_sector_market_context_rows_1(date,ticker,signal_date) |
+| short_chart_reviews | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_chart_reviews_1(date,ticker,signal_date,signal_type) |
+| short_conviction_rows | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_conviction_rows_1(date,ticker,signal_date,signal_type) |
+| short_readiness_rows | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_readiness_rows_1(date,ticker,signal_date,signal_type) |
+| short_rebound_reviews | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_rebound_reviews_1(date,ticker,signal_date,signal_type) |
+| signal_type_coverage_rows | table | ops | date,window_days,signal_type | sqlite_autoindex_signal_type_coverage_rows_1(date,window_days,signal_type) |
+| signals | table | facts | signal_id,date | sqlite_autoindex_signals_1(signal_id,date) |
+| tdnet_disclosures | table | ops | date,ticker,title,tdnet_url | sqlite_autoindex_tdnet_disclosures_1(date,ticker,title,tdnet_url) |
+| technical_context_rows | table | dimensions | date,ticker,signal_date | sqlite_autoindex_technical_context_rows_1(date,ticker,signal_date) |
+| v_collection_status | view | ops | - | - |
+| v_price_daily | view | ops | - | - |
+| v_signal_candidates | view | ops | - | - |

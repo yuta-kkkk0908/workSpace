@@ -10,10 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
 from utils.ai_model_router import resolve_model
 from utils.openai_responses import call_openai_text
 
-DEFAULT_DB = ROOT / "data" / "investment.db"
+DEFAULT_DB = resolve_investment_db()
 ARTIFACT_KEY = "ai_analyst_report"
 
 
@@ -38,7 +39,27 @@ def fetch_rows(conn: sqlite3.Connection, date_s: str, side: str, ctype: str, lim
                  SELECT sc.sector_group FROM sector_context_rows sc
                  WHERE sc.ticker=ec.ticker
                  ORDER BY sc.date DESC LIMIT 1
-               ) AS sector_group
+               ) AS sector_group,
+               (
+                 SELECT i.sector FROM instruments i
+                 WHERE i.ticker=ec.ticker
+                 LIMIT 1
+               ) AS instrument_sector,
+               (
+                 SELECT tc.technical_pattern FROM technical_context_rows tc
+                 WHERE tc.ticker=ec.ticker
+                 ORDER BY tc.date DESC LIMIT 1
+               ) AS technical_pattern,
+               (
+                 SELECT tc.ma_trend FROM technical_context_rows tc
+                 WHERE tc.ticker=ec.ticker
+                 ORDER BY tc.date DESC LIMIT 1
+               ) AS ma_trend,
+               (
+                 SELECT mc.market_context FROM market_context_rows mc
+                 WHERE mc.ticker=ec.ticker
+                 ORDER BY mc.date DESC LIMIT 1
+               ) AS market_context
         FROM entry_candidates ec
         LEFT JOIN signals s ON s.date=ec.date AND s.signal_id=ec.signal_id
         WHERE ec.date=? AND ec.side=? AND ec.candidate_type=?
@@ -112,11 +133,29 @@ def main() -> int:
             },
         }
         user_text = (
-            "以下のDB情報のみを根拠に、投資分析官レポートを作成してください。\n"
+            "以下のDB情報のみを根拠に、寄り前の判断補助メモを作成してください。\n"
             "売買推奨、発注指示、ロット判断は禁止。\n"
-            "強気シナリオ/弱気シナリオ/見送り理由/追加確認ポイント/リスク警告を整理し、"
-            "不明点は必ず「不明」と書いてください。\n"
-            "勝率や期待値は入力の機械集計値がある場合のみ記載可。\n\n"
+            "冗長な説明は禁止。銘柄ごとに3行以内で、まず特徴が伝わる形にしてください。\n"
+            "不明な値は必ず「不明」と明記。\n"
+            "勝率・期待値は入力にある数値のみ使用可。\n\n"
+            "出力フォーマット（厳守）:\n"
+            "## 今日の要点\n"
+            "- 地合い要点: ...\n"
+            "- 注意点: ...\n"
+            "\n"
+            "## LONG候補\n"
+            "- <ticker> <company> | セクター:<sector_group優先、無ければinstrument_sector、無ければ不明> | "
+            "型:<signal_type> | 技術:<technical_pattern/ma_trend> | 地合い:<market_context>\n"
+            "  判断補助: <なぜ見るか/何が不足か>\n"
+            "\n"
+            "## SHORT候補\n"
+            "- (同形式)\n"
+            "\n"
+            "## WATCH候補\n"
+            "- (同形式、見送り理由を短く)\n"
+            "\n"
+            "## エントリー前チェック(最大3項目)\n"
+            "- ...\n\n"
             f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
         )
         text, raw = call_openai_text(

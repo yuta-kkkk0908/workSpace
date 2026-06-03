@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 function Load-EnvFile([string]$envFilePath) {
   if (-not (Test-Path $envFilePath)) { return }
-  Get-Content $envFilePath | ForEach-Object {
+  Get-Content $envFilePath -Encoding UTF8 | ForEach-Object {
     if ($_ -match "^\s*#") { return }
     if ($_ -match "^\s*$") { return }
     if ($_ -notmatch "=") { return }
@@ -46,23 +46,33 @@ function Send-DiscordContent {
     [int]$MaxAttempts = 3
   )
   $body = @{ content = $Content } | ConvertTo-Json -Compress -Depth 3
-  $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    $client = $null
+    $httpContent = $null
     try {
-      Invoke-RestMethod -Method Post -Uri $WebhookUrl -ContentType "application/json; charset=utf-8" -Body $bodyBytes | Out-Null
+      $client = [System.Net.Http.HttpClient]::new()
+      $client.Timeout = [TimeSpan]::FromSeconds(20)
+      $httpContent = [System.Net.Http.StringContent]::new($body, [System.Text.Encoding]::UTF8, "application/json")
+      $response = $client.PostAsync($WebhookUrl, $httpContent).GetAwaiter().GetResult()
+      $response.EnsureSuccessStatusCode() | Out-Null
       return $true
     } catch {
       $respBody = ""
-      if ($_.Exception.Response -and $_.Exception.Response.GetResponseStream()) {
-        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $respBody = $reader.ReadToEnd()
-        $reader.Close()
+      if ($_.Exception.Response) {
+        try {
+          $respBody = $_.Exception.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        } catch {
+          $respBody = ""
+        }
       }
       & $WriteLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $MaxAttempts, $_.Exception.Message, $respBody)
       if ($attempt -lt $MaxAttempts) {
         Start-Sleep -Seconds (2 * $attempt)
         continue
       }
+    } finally {
+      if ($httpContent) { $httpContent.Dispose() }
+      if ($client) { $client.Dispose() }
     }
   }
   return $false
@@ -76,23 +86,33 @@ function Send-DiscordPayload {
     [int]$MaxAttempts = 3
   )
   $body = $Payload | ConvertTo-Json -Compress -Depth 8
-  $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($body)
   for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    $client = $null
+    $httpContent = $null
     try {
-      Invoke-RestMethod -Method Post -Uri $WebhookUrl -ContentType "application/json; charset=utf-8" -Body $bodyBytes | Out-Null
+      $client = [System.Net.Http.HttpClient]::new()
+      $client.Timeout = [TimeSpan]::FromSeconds(20)
+      $httpContent = [System.Net.Http.StringContent]::new($body, [System.Text.Encoding]::UTF8, "application/json")
+      $response = $client.PostAsync($WebhookUrl, $httpContent).GetAwaiter().GetResult()
+      $response.EnsureSuccessStatusCode() | Out-Null
       return $true
     } catch {
       $respBody = ""
-      if ($_.Exception.Response -and $_.Exception.Response.GetResponseStream()) {
-        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-        $respBody = $reader.ReadToEnd()
-        $reader.Close()
+      if ($_.Exception.Response) {
+        try {
+          $respBody = $_.Exception.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        } catch {
+          $respBody = ""
+        }
       }
       & $WriteLog "ERROR" ("attempt={0}/{1} message={2} body={3}" -f $attempt, $MaxAttempts, $_.Exception.Message, $respBody)
       if ($attempt -lt $MaxAttempts) {
         Start-Sleep -Seconds (2 * $attempt)
         continue
       }
+    } finally {
+      if ($httpContent) { $httpContent.Dispose() }
+      if ($client) { $client.Dispose() }
     }
   }
   return $false

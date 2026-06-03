@@ -11,18 +11,23 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 TOPICS_DIR = ROOT / "topics"
 PENDING_DIR = ROOT / "prompts" / "pending-daily"
 PROMPT_PATH = PENDING_DIR / "latest.prompt.md"
 STATUS_PATH = PENDING_DIR / "latest.status.txt"
 JST = timezone(timedelta(hours=9))
 DEFAULT_TOPICS_DB = ROOT / "data" / "topics.db"
-DEFAULT_INVESTMENT_DB = ROOT / "data" / "investment.db"
+DEFAULT_INVESTMENT_DB = resolve_investment_db()
 DEFAULT_NEEDS_DB = ROOT / "data" / "needs.db"
 DEFAULT_OPS_DB = ROOT / "data" / "ops.db"
 

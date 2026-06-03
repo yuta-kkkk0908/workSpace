@@ -5,10 +5,15 @@ import argparse
 import json
 import re
 import sqlite3
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from utils.investment_db_path import resolve_investment_db
+
 LOG_DIR = ROOT / "logs"
 PROMPTS_DIR = ROOT / "prompts"
 DATA_DIR = ROOT / "data"
@@ -136,7 +141,7 @@ def main() -> int:
             alerts.append(f"{t}: ERROR {len(errs)}件")
 
     # DB integrity check for backtest_outcomes duplicate identity.
-    inv_db = DATA_DIR / "investment.db"
+    inv_db = resolve_investment_db()
     if inv_db.exists():
         try:
             conn = sqlite3.connect(inv_db)

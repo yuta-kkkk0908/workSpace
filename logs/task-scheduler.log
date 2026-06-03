@@ -1945,3 +1945,431 @@
 [2026-06-01 23:21:03] [AIOS-Data-Harvest-Weekly-Samples365] [ERROR] exit_code=1
 [2026-06-01 23:21:06] [AIOS-Data-Harvest-Weekly-Samples365] [OK] foreground restored: YourChronicle
 [2026-06-01 23:21:06] [AIOS-Data-Harvest-Weekly-Samples365] [END] elapsed_ms=155461057
+[2026-06-01 23:40:03] [AIOS-Data-Harvest] [START] begin cmd=Set-Location E:\workSpace; $d=(Get-Date -Format yyyy-MM-dd); py scripts/investment/collect/run_harvest_backfill.py --end-date $d --days 21 --discover-latest 120 --max-pages 120 --tdnet-max-items 800 --seed-list rough_backtest_full --max-signals 12 --max-long 6 --max-short 6; $LASTEXITCODE
+[2026-06-02 00:00:09] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 00:00:11] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 00:00:12] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 00:00:12] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3012
+[2026-06-02 01:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 01:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 01:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 01:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=4430
+[2026-06-02 02:00:04] [AIOS-DB-Backup-2230] [START] begin cmd=Set-Location E:\workSpace; py scripts/data/backup_dbzip_to_discord.py --db data/investment.db --label investment-db-backup --keep-local 14; $LASTEXITCODE
+[2026-06-02 02:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 02:00:08] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 02:00:09] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 02:00:09] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=5160
+[2026-06-02 02:00:37] [AIOS-DB-Backup-2230] [ERROR] exit_code=1
+[2026-06-02 02:00:37] [AIOS-DB-Backup-2230] [OK] foreground restored: YourChronicle
+[2026-06-02 02:00:37] [AIOS-DB-Backup-2230] [END] elapsed_ms=33656
+[2026-06-02 03:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 03:00:06] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 03:00:07] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 03:00:07] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2641
+[2026-06-02 04:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 04:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 04:00:07] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 04:00:07] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2609
+[2026-06-02 05:02:08] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 05:02:33] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 05:02:53] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 05:02:53] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=45741
+[2026-06-02 06:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 06:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 06:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 06:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2595
+[2026-06-02 06:55:38] [AIOS-Data-Harvest] [ERROR] exit_code=1
+[2026-06-02 06:55:40] [AIOS-Data-Harvest] [OK] foreground restored: YourChronicle
+[2026-06-02 06:55:40] [AIOS-Data-Harvest] [END] elapsed_ms=26136569
+[2026-06-02 07:00:06] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 07:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 07:00:07] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 07:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1928
+[2026-06-02 07:30:02] [AIOS-Inv-Morning] [START] begin file=E:\workSpace\scripts\ops\do_inv_morning_and_post.ps1
+[2026-06-02 07:33:49] [AIOS-Inv-Morning] [ERROR] exit_code=1
+[2026-06-02 07:33:51] [AIOS-Inv-Morning] [OK] foreground restored: YourChronicle
+[2026-06-02 07:33:51] [AIOS-Inv-Morning] [END] elapsed_ms=228732
+[2026-06-02 08:00:05] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 08:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 08:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 08:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3079
+[2026-06-02 08:10:03] [AIOS-Inv-Scenario-0810] [START] begin file=E:\workSpace\scripts\ops\do_inv_scenario_and_post.ps1
+[2026-06-02 08:10:25] [AIOS-Inv-Scenario-0810] [ERROR] exit_code=1
+[2026-06-02 08:10:26] [AIOS-Inv-Scenario-0810] [OK] foreground restored: YourChronicle
+[2026-06-02 08:10:26] [AIOS-Inv-Scenario-0810] [END] elapsed_ms=23019
+[2026-06-02 09:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 09:00:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 09:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2029
+[2026-06-02 09:00:28] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:00:28] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:00:28] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=24430
+[2026-06-02 09:05:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:05:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:05:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:05:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19946
+[2026-06-02 09:10:06] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:10:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:10:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:10:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20566
+[2026-06-02 09:15:06] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:15:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:15:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:15:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20432
+[2026-06-02 09:20:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:20:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:20:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:20:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19493
+[2026-06-02 09:25:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:25:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:25:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:25:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20453
+[2026-06-02 09:30:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:30:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:30:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:30:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21314
+[2026-06-02 09:35:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:35:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:35:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:35:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20787
+[2026-06-02 09:40:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:40:27] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:40:27] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:40:27] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21884
+[2026-06-02 09:45:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:45:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:45:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:45:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20907
+[2026-06-02 09:50:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:50:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:50:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:50:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19656
+[2026-06-02 09:55:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 09:55:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 09:55:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 09:55:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21503
+[2026-06-02 10:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 10:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 10:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 10:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2028
+[2026-06-02 10:00:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 10:00:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 10:00:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20733
+[2026-06-02 11:28:52] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 11:28:54] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 11:28:55] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 11:28:55] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3663
+[2026-06-02 17:11:59] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 17:12:03] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 17:12:04] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:12:04] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=5120
+[2026-06-02 17:12:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:12:23] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:12:23] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=23119
+[2026-06-02 17:12:35] [AIOS-Inv-Noon] [ERROR] exit_code=1
+[2026-06-02 17:12:35] [AIOS-Inv-Noon] [OK] foreground restored: YourChronicle
+[2026-06-02 17:12:35] [AIOS-Inv-Noon] [END] elapsed_ms=34791
+[2026-06-02 17:16:36] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:16:54] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:16:54] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:16:54] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=17528
+[2026-06-02 17:21:35] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:21:54] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:21:55] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:21:55] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19132
+[2026-06-02 17:26:35] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:26:53] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:26:53] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:26:53] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=17550
+[2026-06-02 17:31:36] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:31:54] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:31:54] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:31:54] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=18153
+[2026-06-02 17:36:36] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:36:54] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:36:54] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:36:54] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=17970
+[2026-06-02 17:41:36] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 17:41:53] [AIOS-Inv-Evening] [ERROR] exit_code=1
+[2026-06-02 17:41:53] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 17:41:54] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 17:41:54] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=17815
+[2026-06-02 17:41:54] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle
+[2026-06-02 17:41:54] [AIOS-Inv-Evening] [END] elapsed_ms=1793428
+[2026-06-02 18:59:09] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 18:59:11] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 18:59:11] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 18:59:11] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2183
+[2026-06-02 18:59:30] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 18:59:30] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 18:59:30] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20826
+[2026-06-02 19:00:01] [AIOS-Night] [START] begin file=E:\workSpace\scripts\ops\do_night_and_post_generic.ps1
+[2026-06-02 19:00:02] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 19:00:03] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 19:00:04] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:00:04] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2067
+[2026-06-02 19:00:59] [AIOS-Night] [OK] exit_code=0
+[2026-06-02 19:01:00] [AIOS-Night] [OK] foreground restored: YourChronicle
+[2026-06-02 19:01:00] [AIOS-Night] [END] elapsed_ms=58810
+[2026-06-02 19:01:36] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 19:01:57] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 19:01:57] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:01:57] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21237
+[2026-06-02 19:06:38] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 19:06:57] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 19:06:57] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:06:57] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19255
+[2026-06-02 19:11:37] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 19:11:57] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 19:11:57] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:11:57] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20326
+[2026-06-02 19:16:39] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 19:17:01] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 19:17:01] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:17:01] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21722
+[2026-06-02 19:21:37] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-02 19:21:57] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-02 19:21:57] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 19:21:57] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20471
+[2026-06-02 20:00:02] [AIOS-Inv-Heavy-2000] [START] begin file=E:\workSpace\scripts\ops\do_inv_heavy_and_post.ps1
+[2026-06-02 20:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 20:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 20:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 20:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2045
+[2026-06-02 20:50:47] [AIOS-Inv-Heavy-2000] [ERROR] exit_code=1
+[2026-06-02 20:50:50] [AIOS-Inv-Heavy-2000] [OK] foreground restored: YourChronicle
+[2026-06-02 20:50:50] [AIOS-Inv-Heavy-2000] [END] elapsed_ms=3048245
+[2026-06-02 21:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 21:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 21:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 21:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3861
+[2026-06-02 21:20:08] [AIOS-Alert-Healthcheck] [START] begin file=E:\workSpace\scripts\ops\do_alert_and_post.ps1
+[2026-06-02 21:20:18] [AIOS-Alert-Healthcheck] [ERROR] exit_code=2
+[2026-06-02 21:20:20] [AIOS-Alert-Healthcheck] [OK] foreground restored: YourChronicle
+[2026-06-02 21:20:20] [AIOS-Alert-Healthcheck] [END] elapsed_ms=12298
+[2026-06-02 22:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 22:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 22:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 22:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=4695
+[2026-06-02 22:17:34] [AIOS-Inv-Evening] [START] begin file=E:\workSpace\scripts\ops\do_inv_evening_and_post.ps1
+[2026-06-02 22:23:58] [AIOS-Inv-Morning] [START] begin file=E:\workSpace\scripts\ops\do_inv_morning_and_post.ps1
+[2026-06-02 23:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-02 23:00:06] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-02 23:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-02 23:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2493
+[2026-06-02 23:40:17] [AIOS-Data-Harvest] [START] begin cmd=Set-Location E:\workSpace; $d=(Get-Date -Format yyyy-MM-dd); py scripts/investment/collect/run_harvest_backfill.py --end-date $d --days 21 --discover-latest 120 --max-pages 120 --tdnet-max-items 800 --seed-list rough_backtest_full --max-signals 12 --max-long 6 --max-short 6; $LASTEXITCODE
+[2026-06-03 00:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 00:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 00:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 00:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2909
+[2026-06-03 01:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 01:00:06] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 01:00:07] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 01:00:07] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2607
+[2026-06-03 02:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 02:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 02:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 02:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=4425
+[2026-06-03 02:00:53] [AIOS-DB-Backup-2230] [ERROR] exit_code=1
+[2026-06-03 02:00:53] [AIOS-DB-Backup-2230] [OK] foreground restored: YourChronicle
+[2026-06-03 02:00:53] [AIOS-DB-Backup-2230] [END] elapsed_ms=48897
+[2026-06-03 03:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 03:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 03:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 03:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2485
+[2026-06-03 04:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 04:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 04:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 04:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2338
+[2026-06-03 05:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 05:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 05:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 05:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2249
+[2026-06-03 06:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 06:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 06:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 06:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2664
+[2026-06-03 06:46:13] [AIOS-Data-Harvest] [ERROR] exit_code=1
+[2026-06-03 06:46:15] [AIOS-Data-Harvest] [OK] foreground restored: YourChronicle
+[2026-06-03 06:46:15] [AIOS-Data-Harvest] [END] elapsed_ms=25557462
+[2026-06-03 07:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 07:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 07:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 07:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1895
+[2026-06-03 07:30:01] [AIOS-Inv-Morning] [WARN] previous run may be incomplete (last START has no END)
+[2026-06-03 07:30:01] [AIOS-Inv-Morning] [START] begin file=E:\workSpace\scripts\ops\do_inv_morning_and_post.ps1
+[2026-06-03 07:34:08] [AIOS-Inv-Morning] [OK] exit_code=0
+[2026-06-03 07:34:09] [AIOS-Inv-Morning] [OK] foreground restored: YourChronicle
+[2026-06-03 07:34:09] [AIOS-Inv-Morning] [END] elapsed_ms=248096
+[2026-06-03 08:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 08:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 08:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 08:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2954
+[2026-06-03 08:10:01] [AIOS-Inv-Scenario-0810] [START] begin file=E:\workSpace\scripts\ops\do_inv_scenario_and_post.ps1
+[2026-06-03 08:10:28] [AIOS-Inv-Scenario-0810] [ERROR] exit_code=1
+[2026-06-03 08:10:28] [AIOS-Inv-Scenario-0810] [OK] foreground restored: YourChronicle
+[2026-06-03 08:10:28] [AIOS-Inv-Scenario-0810] [END] elapsed_ms=27528
+[2026-06-03 09:00:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 09:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2174
+[2026-06-03 09:00:27] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:00:27] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:00:27] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=23944
+[2026-06-03 09:05:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:05:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:05:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:05:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20297
+[2026-06-03 09:10:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:10:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:10:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:10:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20603
+[2026-06-03 09:15:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:15:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:15:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:15:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20864
+[2026-06-03 09:20:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:20:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:20:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:20:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21396
+[2026-06-03 09:25:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:25:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:25:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:25:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20158
+[2026-06-03 09:30:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:30:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:30:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:30:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20481
+[2026-06-03 09:35:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:35:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:35:23] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:35:23] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19192
+[2026-06-03 09:40:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:40:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:40:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:40:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21579
+[2026-06-03 09:45:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:45:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:45:23] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:45:23] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19711
+[2026-06-03 09:50:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:50:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:50:27] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:50:27] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=22701
+[2026-06-03 09:55:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 09:55:27] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 09:55:28] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 09:55:28] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=24251
+[2026-06-03 10:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 10:00:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 10:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 10:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 10:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1981
+[2026-06-03 10:00:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 10:00:23] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 10:00:23] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20368
+[2026-06-03 11:00:04] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 11:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 11:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 11:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2742
+[2026-06-03 12:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 12:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 12:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2863
+[2026-06-03 12:10:01] [AIOS-Inv-Noon] [START] begin file=E:\workSpace\scripts\ops\do_inv_noon_and_post.ps1
+[2026-06-03 12:10:50] [AIOS-Inv-Noon] [OK] exit_code=0
+[2026-06-03 12:10:51] [AIOS-Inv-Noon] [OK] foreground restored: YourChronicle
+[2026-06-03 12:10:51] [AIOS-Inv-Noon] [END] elapsed_ms=50022
+[2026-06-03 12:30:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:30:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:30:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:30:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20491
+[2026-06-03 12:35:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:35:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:35:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:35:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19536
+[2026-06-03 12:40:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:40:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:40:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:40:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19956
+[2026-06-03 12:45:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:45:26] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:45:27] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:45:27] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=22476
+[2026-06-03 12:50:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:50:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:50:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:50:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19454
+[2026-06-03 12:55:03] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 12:55:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 12:55:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 12:55:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21522
+[2026-06-03 13:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 13:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 13:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1695
+[2026-06-03 13:00:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:00:23] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:00:23] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19875
+[2026-06-03 13:05:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:05:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:05:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:05:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21765
+[2026-06-03 13:10:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:10:23] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:10:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:10:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19962
+[2026-06-03 13:15:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:15:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:15:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:15:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20048
+[2026-06-03 13:20:05] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:20:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:20:25] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:20:25] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=20001
+[2026-06-03 13:25:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:25:24] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:25:24] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:25:24] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=19924
+[2026-06-03 13:30:04] [AIOS-Scenario-Replies-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_scenario_replies.ps1
+[2026-06-03 13:30:25] [AIOS-Scenario-Replies-Sync] [OK] exit_code=0
+[2026-06-03 13:30:26] [AIOS-Scenario-Replies-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 13:30:26] [AIOS-Scenario-Replies-Sync] [END] elapsed_ms=21668
+[2026-06-03 14:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 14:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 14:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 14:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2317
+[2026-06-03 15:00:07] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 15:00:08] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 15:00:09] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 15:00:09] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2410
+[2026-06-03 16:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 16:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 16:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 16:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2483
+[2026-06-03 17:00:02] [AIOS-Inv-Evening] [WARN] previous run may be incomplete (last START has no END)
+[2026-06-03 17:00:02] [AIOS-Inv-Evening] [START] begin file=E:\workSpace\scripts\ops\do_inv_evening_and_post.ps1
+[2026-06-03 17:00:02] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 17:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 17:00:04] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 17:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2373
+[2026-06-03 17:32:18] [AIOS-Inv-Evening] [OK] exit_code=0
+[2026-06-03 17:32:18] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle
+[2026-06-03 17:32:19] [AIOS-Inv-Evening] [END] elapsed_ms=1936621
+[2026-06-03 18:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 18:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 18:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 18:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2306
+[2026-06-03 19:32:52] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 19:32:54] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 19:32:55] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 19:32:55] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2851
+[2026-06-03 19:34:12] [AIOS-Night] [OK] exit_code=0
+[2026-06-03 19:34:12] [AIOS-Night] [OK] foreground restored: YourChronicle
+[2026-06-03 19:34:12] [AIOS-Night] [END] elapsed_ms=79369
+[2026-06-03 20:00:02] [AIOS-Inv-Heavy-2000] [START] begin file=E:\workSpace\scripts\ops\do_inv_heavy_and_post.ps1
+[2026-06-03 20:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-03 20:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-03 20:00:04] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-03 20:00:04] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1660
