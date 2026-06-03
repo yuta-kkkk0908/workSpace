@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import sqlite3
-import urllib.request
 from datetime import date, datetime
 from pathlib import Path
 
@@ -13,8 +12,12 @@ ROOT = Path(__file__).resolve().parents[3]
 import sys
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.platform_core_bootstrap import ensure_platform_core_importable
+
+ensure_platform_core_importable()
 from utils.investment_db_path import resolve_investment_db
-from utils.ai_model_router import resolve_model
+from platform_core.model_router import resolve_model
+from platform_core.openai_client import call_openai_text
 
 DEFAULT_DB = resolve_investment_db()
 DEFAULT_OUT = ROOT / "prompts" / "ai-investment-digest.txt"
@@ -134,66 +137,6 @@ def build_user_prompt(stats: dict) -> str:
     )
 
 
-def call_openai(model: str, user_prompt: str) -> tuple[str, dict]:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is empty")
-    req_body = {
-        "model": model,
-        "input": [
-            {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "input_text",
-                        "text": "あなたは投資情報の運用アナリストです。簡潔で実務的に、材料整理のみを返してください。",
-                    }
-                ],
-            },
-            {"role": "user", "content": [{"type": "input_text", "text": user_prompt}]},
-        ],
-    }
-    data = json.dumps(req_body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "aios-investment-digest/1.0",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8")
-    parsed = json.loads(raw)
-    text = (parsed.get("output_text") or "").strip()
-    if not text:
-        out = parsed.get("output") or []
-        chunks: list[str] = []
-        if isinstance(out, list):
-            for item in out:
-                if not isinstance(item, dict):
-                    continue
-                content = item.get("content") or []
-                if not isinstance(content, list):
-                    continue
-                for c in content:
-                    if not isinstance(c, dict):
-                        continue
-                    if c.get("type") == "output_text":
-                        t = str(c.get("text") or "").strip()
-                        if t:
-                            chunks.append(t)
-        text = "\n".join(chunks).strip()
-    if not text:
-        err = parsed.get("error")
-        if err:
-            raise RuntimeError(f"OpenAI API error: {err}")
-        raise RuntimeError("empty response text from OpenAI")
-    return text, parsed
-
-
 def make_dry_run_message(stats: dict) -> str:
     long_items = [f"- {r.get('ticker')}: score={r.get('score')}" for r in stats.get("long_top", [])[:3]]
     short_items = [f"- {r.get('ticker')}: score={r.get('score')}" for r in stats.get("short_top", [])[:3]]
@@ -269,7 +212,11 @@ def main() -> int:
         digest_text = make_dry_run_message(stats)
         raw_response: dict = {"mode": "dry-run"}
     else:
-        digest_text, raw_response = call_openai(model, build_user_prompt(stats))
+        digest_text, raw_response = call_openai_text(
+            model=model,
+            system_text="あなたは投資情報の運用アナリストです。簡潔で実務的に、材料整理のみを返してください。",
+            user_text=build_user_prompt(stats),
+        )
 
     final_text = f"AsOf: {datetime.now().strftime('%Y-%m-%d %H:%M')} JST\n{digest_text.strip()}\n"
     db_saved = False

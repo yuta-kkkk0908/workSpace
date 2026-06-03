@@ -6,7 +6,6 @@ import json
 import os
 import re
 import sqlite3
-import urllib.request
 from datetime import date
 from pathlib import Path
 import sys
@@ -14,7 +13,11 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from utils.ai_model_router import resolve_model
+from utils.platform_core_bootstrap import ensure_platform_core_importable
+
+ensure_platform_core_importable()
+from platform_core.model_router import resolve_model
+from platform_core.openai_client import call_openai_text
 
 DEFAULT_TOPIC = "pokemon-card-watch"
 AI_HEADER = "## AI Collection Summary"
@@ -63,58 +66,6 @@ def build_prompt(md: str, target_date: str) -> str:
         "- 追加収集すべき観点2件\n\n"
         f"{trimmed}"
     )
-
-
-def call_openai(model: str, prompt: str) -> str:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is empty")
-    req_body = {
-        "model": model,
-        "input": [
-            {"role": "system", "content": [{"type": "input_text", "text": "あなたはポケカ情報収集アナリストです。"}]},
-            {"role": "user", "content": [{"type": "input_text", "text": prompt}]},
-        ],
-    }
-    data = json.dumps(req_body, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "User-Agent": "aios-pokemon-collection-summary/1.0",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        raw = resp.read().decode("utf-8")
-    parsed = json.loads(raw)
-    text = (parsed.get("output_text") or "").strip()
-    if not text:
-        out = parsed.get("output") or []
-        chunks: list[str] = []
-        if isinstance(out, list):
-            for item in out:
-                if not isinstance(item, dict):
-                    continue
-                content = item.get("content") or []
-                if not isinstance(content, list):
-                    continue
-                for c in content:
-                    if not isinstance(c, dict):
-                        continue
-                    if c.get("type") == "output_text":
-                        t = str(c.get("text") or "").strip()
-                        if t:
-                            chunks.append(t)
-        text = "\n".join(chunks).strip()
-    if not text:
-        err = parsed.get("error")
-        if err:
-            raise RuntimeError(f"OpenAI API error: {err}")
-        raise RuntimeError("empty response text from OpenAI")
-    return text
 
 
 def remove_existing_ai_block(md: str) -> str:
@@ -188,7 +139,11 @@ def main() -> int:
         if not os.getenv("OPENAI_API_KEY", "").strip():
             print("[skip] OPENAI_API_KEY is empty")
             return 0
-        summary = call_openai(model, build_prompt(md, args.date))
+        summary, _raw = call_openai_text(
+            model=model,
+            system_text="あなたはポケカ情報収集アナリストです。",
+            user_text=build_prompt(md, args.date),
+        )
 
     db_saved = False
     try:

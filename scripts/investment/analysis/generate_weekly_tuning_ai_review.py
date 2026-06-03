@@ -10,9 +10,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
+from utils.platform_core_bootstrap import ensure_platform_core_importable
+
+ensure_platform_core_importable()
 from utils.investment_db_path import resolve_investment_db
-from utils.ai_model_router import resolve_model
-from utils.openai_responses import call_openai_text
+from platform_core.model_router import resolve_model
+from platform_core.openai_client import call_openai_text
 
 DEFAULT_DB = resolve_investment_db()
 
