@@ -643,6 +643,12 @@ def main() -> int:
                 rc |= run([py, 'scripts/investment/analysis/report_weekly_tuning_review.py', '--date', d, '--window-days', '7'], allow_fail=True)
                 if datetime.strptime(d, "%Y-%m-%d").weekday() == 0:
                     rc |= run([py, 'scripts/investment/analysis/generate_weekly_tuning_ai_review.py', '--date', d], allow_fail=True)
+                    rc |= run([py, 'scripts/investment/analysis/generate_improvement_audit.py', '--date', d], allow_fail=True)
+                    rc |= run([py, 'scripts/investment/analysis/generate_improvement_proposals.py', '--date', d], allow_fail=True)
+                    rc |= run([py, 'scripts/investment/analysis/materialize_improvement_work_items.py', '--date', d], allow_fail=True)
+                    rc |= run([py, 'scripts/investment/analysis/claim_improvement_work_items.py', '--date', d, '--limit', '3'], allow_fail=True)
+                    if os.getenv("ENABLE_IMPROVEMENT_EXECUTION", "").strip().lower() in {"1", "true", "yes"}:
+                        rc |= run([py, 'scripts/investment/analysis/execute_improvement_work_items.py', '--date', d, '--limit', '1'], allow_fail=True)
                 rc |= run([py, 'scripts/investment/analysis/decide_collection_intensity.py', '--date', d, '--window-days', '3'], allow_fail=True)
                 print("[skip] investment pipeline detached from night slot; use inv-morning/inv-noon/inv-evening/inv-scenario.")
 

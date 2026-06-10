@@ -1,22 +1,20 @@
 ```text
-汎用トピック日次 2026-06-09
+汎用トピック日次 2026-06-10
 - トピック数: 3
 
 [AIニュース]
-  1) Interop Tokyo 2026、明日開幕 AI・宇宙・データセンターの現在地を幕張で体感（FINDERS） - Yahoo!ニュース
-     URL: <https://news.google.com/rss/articles/CBMif0FVX3lxTE1qRkpHcTE1YzEtSEtqbVZOWmNXazhyTW1nN25pU1JpOVBqVmlyaG9ndWU0WTJuZElyblQyY1EwemdXOUh6MURGYXpjYi1zRDJBYlBXdmhoZmVMaFU3RGVzaE1wVlpGbzMyRWFjYkRIMFNkNXktdzNDbXh1RnAyT1k?oc=5>
-  2) 長崎総合科学大学、高専を28年度設立へ AI人材育成へ企業と連携 - 日本経済新聞
-     URL: <https://news.google.com/rss/articles/CBMiVEFVX3lxTE5jME9pUjRMajhleklNNHhSOXNKQmJTaUItWDdCWmhCSGZjSEg5QTNvYk5uTHhrRC1GLU5LSEVka3NOVHV6OWFBVlduNDk2RVdJdFo0VA?oc=5>
+  1) NTT、800億円規模のAIファンド「IOWN AI Fund」組成 シリコンバレーと東京に新会社拠点 - ITmedia
+     URL: <https://news.google.com/rss/articles/CBMibEFVX3lxTE9wd0xYWWhOeXRob0QzTFFyeEdHb2RwREFQTDUxUTItWi0zU19MaDRyeU9TVlZSaXZmRThBVFlwVmVFY1dWU1I0TWZHc3l2RjhVbmNZUWo0bTRpVnAyVmxyZS1hVVhqZk5MRkYxdg?oc=5>
+  2) 津別で28日にAI活用講座 - 北海道新聞デジタル
+     URL: <https://news.google.com/rss/articles/CBMiWkFVX3lxTFB0OXBqX2l3X2hhaGQ0NVRhdl96Rml5ZFNsRlhVck9TOWZSdGhONUtUTGpxRVZoODRmY2N6ZVh2dzlOSVJuUnFLZnc1MS02ZHdGU1Rtd2NRSkxVQQ?oc=5>
 
 [ポケモンカード]
-  1) 商品名: 【ポケカ】30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード・予約抽選情報まとめ - SNKRDUNK
-     URL: <https://news.google.com/rss/articles/CBMiTEFVX3lxTE5hMW53cGE2X2J5UDNaLWRXTkIwaGV0UzZNaC1wYUVSZVNtTWZqenpFMWUyYUpuZDZsZFlkXzFNOXpnMnd3VXB2RElJQU0?oc=5>
+  - 要約データなし
 
 [技術記事]
-  1) AWS Releases Next Generation of Amazon OpenSearch Serverless
-     要約: Amazon Web Services has recently announced the general availability of the next generatio…
-     URL: <https://www.infoq.com/news/2026/06/aws-opensearch-serverless/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=Architecture+%26+Design>
-  2) GitHub for Beginners: Answers to some common questions
-     要約: Find the answers to some of the most common GitHub-related questions. The post GitHub for…
-     URL: <https://blog.cloudflare.com/realtime-threat-intel-waf-rules/>
+  1) Azure API Management Ships Unified Model API and MCP Content Safety at Buil…
+     要約: Azure API Management shipped a Unified Model API that lets clients speak one format while…
+     URL: <https://www.infoq.com/news/2026/06/azure-apim-ai-gateway-build/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=Architecture+%26+Design>
+  2) Anthropic、安全化したMythosクラスモデル「Claude Fable 5」を一般提供開始 - gihyo.jp
+     URL: <https://aws.amazon.com/blogs/architecture/automate-medical-record-digitization-with-amazon-bedrock-data-automation-and-aws-healthlake/>
 ```

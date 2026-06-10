@@ -74,6 +74,22 @@
       "model_route": "weekly_tuning_ai_review",
       "mode": "always",
       "purpose": "週次チューニングレビューのAI整理"
+    },
+    {
+      "job_name": "AIOS-Night",
+      "stage": "generate_improvement_audit.py",
+      "model_route": "improvement_audit_weekly",
+      "mode": "weekly",
+      "weekday": 0,
+      "purpose": "改善候補の週次監査とDB蓄積"
+    },
+    {
+      "job_name": "AIOS-Night",
+      "stage": "execute_improvement_work_items.py",
+      "model_route": "improvement_execution_engine",
+      "mode": "conditional",
+      "condition": "ENABLE_IMPROVEMENT_EXECUTION == 1",
+      "purpose": "Codex CLI で doing work item を改修・検証しDBへ書き戻す"
     }
   ]
 }

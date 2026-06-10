@@ -3876,3 +3876,31 @@
 [2026-06-10 15:00:05] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
 [2026-06-10 15:00:06] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
 [2026-06-10 15:00:06] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2085
+[2026-06-10 16:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 16:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 16:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 16:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1728
+[2026-06-10 17:00:02] [AIOS-Inv-Evening] [START] begin file=E:\workSpace\scripts\ops\do_inv_evening_and_post.ps1
+[2026-06-10 17:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 17:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 17:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 17:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=2403
+[2026-06-10 17:52:41] [AIOS-Inv-Evening] [ERROR] exit_code=1
+[2026-06-10 17:52:42] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle
+[2026-06-10 17:52:42] [AIOS-Inv-Evening] [END] elapsed_ms=3160003
+[2026-06-10 18:00:03] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 18:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 18:00:04] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 18:00:04] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1685
+[2026-06-10 19:00:04] [AIOS-Night] [START] begin file=E:\workSpace\scripts\ops\do_night_and_post_generic.ps1
+[2026-06-10 19:00:07] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 19:00:08] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 19:00:08] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3154
+[2026-06-10 19:01:20] [AIOS-Night] [OK] exit_code=0
+[2026-06-10 19:01:21] [AIOS-Night] [OK] foreground restored: YourChronicle
+[2026-06-10 19:01:21] [AIOS-Night] [END] elapsed_ms=76087
+[2026-06-10 20:00:02] [AIOS-Inv-Heavy-2000] [START] begin file=E:\workSpace\scripts\ops\do_inv_heavy_and_post.ps1
+[2026-06-10 20:00:02] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 20:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 20:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 20:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3297

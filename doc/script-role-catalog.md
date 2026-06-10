@@ -72,6 +72,15 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
   - `market-signals` / `entry-candidates` / `rule-dashboard` 等をDB投入
 - `scripts/data/build_today_brief_from_db.py`
   - DBから日次要約生成
+- `scripts/investment/analysis/generate_improvement_proposals.py`
+  - 改善候補を proposal として `ops.db` に保存し、必要なら `codex-log` に投稿
+- `scripts/investment/analysis/materialize_improvement_work_items.py`
+  - proposal を work item として `ops.db` に昇格する
+- `scripts/investment/analysis/claim_improvement_work_items.py`
+  - open work item を claim して `doing` に進める
+- `scripts/investment/analysis/execute_improvement_work_items.py`
+  - doing work item を読んで Codex CLI で修正・検証し、結果を DB に書き戻す
+  - `ENABLE_IMPROVEMENT_EXECUTION=1` で scheduler からの自動実行を有効化する
 
 ### 検証（仮想トレード）
 - `scripts/investment/backtest/register_paper_trades.py`

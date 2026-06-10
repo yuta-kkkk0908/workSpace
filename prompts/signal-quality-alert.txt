@@ -3,5 +3,4 @@
 - 警告: 当日材料の新規シグナルが0件
 - 要約: シグナル=12 新規=0 有望=10 監視=2 監視比率=17%
 - 昼時点カバレッジ: 12/12 (100%)
-- 保留内訳: hold_credit_unknown=7, hold_noon_recheck=1
-- 理由コード: CREDIT_THIN（信用情報が薄い）, MATERIAL_NONE_TODAY（当日材料がない）
+- 理由コード: MATERIAL_NONE_TODAY（当日材料がない）

@@ -83,6 +83,107 @@ SCHEMA = [
     CREATE INDEX IF NOT EXISTS idx_agent_memory_source_message
       ON agent_memory_events(source_channel_id, source_message_id)
     """,
+    """
+    CREATE TABLE IF NOT EXISTS improvement_candidate (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      candidate_date TEXT NOT NULL,
+      source_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      source TEXT NOT NULL,
+      description TEXT NOT NULL,
+      impact_score INTEGER NOT NULL DEFAULT 0,
+      effort_score INTEGER NOT NULL DEFAULT 0,
+      priority INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'open',
+      evidence_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(candidate_date, source_key)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_candidate_date_priority
+      ON improvement_candidate(candidate_date, priority DESC, status)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_candidate_category
+      ON improvement_candidate(category, candidate_date)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS improvement_audit_runs (
+      audit_date TEXT PRIMARY KEY,
+      window_days INTEGER NOT NULL,
+      model_provider TEXT NOT NULL,
+      model_name TEXT NOT NULL,
+      summary_json TEXT NOT NULL,
+      report_text TEXT NOT NULL,
+      raw_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS improvement_proposals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      candidate_date TEXT NOT NULL,
+      source_key TEXT NOT NULL,
+      repository_full_name TEXT NOT NULL,
+      proposal_title TEXT NOT NULL,
+      proposal_body TEXT NOT NULL,
+      proposal_body_json TEXT NOT NULL,
+      labels_json TEXT NOT NULL DEFAULT '[]',
+      priority INTEGER NOT NULL DEFAULT 0,
+      proposal_status TEXT NOT NULL DEFAULT 'draft',
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(candidate_date, source_key, repository_full_name)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_proposals_status
+      ON improvement_proposals(candidate_date, proposal_status, priority DESC)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS improvement_work_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      proposal_id INTEGER NOT NULL,
+      candidate_date TEXT NOT NULL,
+      source_key TEXT NOT NULL,
+      repository_full_name TEXT NOT NULL,
+      work_title TEXT NOT NULL,
+      work_body_json TEXT NOT NULL,
+      work_plan_json TEXT NOT NULL,
+      target_files_json TEXT NOT NULL DEFAULT '[]',
+      execution_commands_json TEXT NOT NULL DEFAULT '[]',
+      validation_commands_json TEXT NOT NULL DEFAULT '[]',
+      execution_result_json TEXT NOT NULL DEFAULT '{}',
+      validation_result_json TEXT NOT NULL DEFAULT '{}',
+      changed_files_json TEXT NOT NULL DEFAULT '[]',
+      diff_summary_json TEXT NOT NULL DEFAULT '{}',
+      work_status TEXT NOT NULL DEFAULT 'open',
+      work_priority INTEGER NOT NULL DEFAULT 0,
+      review_status TEXT NOT NULL DEFAULT 'pending',
+      claimed_by TEXT,
+      claimed_at TEXT,
+      started_at TEXT,
+      completed_at TEXT,
+      branch_name TEXT,
+      commit_sha TEXT,
+      pr_url TEXT,
+      blocked_reason TEXT,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at TEXT,
+      error_message TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(proposal_id)
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_work_items_status
+      ON improvement_work_items(candidate_date, work_status, work_priority DESC)
+    """,
 ]
 
 
@@ -98,6 +199,8 @@ def main() -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        conn.execute("DROP TABLE IF EXISTS improvement_work_items")
+        conn.execute("DROP TABLE IF EXISTS improvement_proposals")
         for ddl in SCHEMA:
             conn.execute(ddl)
         conn.commit()

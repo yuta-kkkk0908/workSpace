@@ -27,9 +27,15 @@ DEFAULT_TASKS = [
     "AIOS-Inv-Evening",
     "AIOS-Inv-Heavy-2000",
     "AIOS-Inv-Scenario-0810",
+    "AIOS-Alert-Healthcheck",
 ]
 
 LINE_RE = re.compile(r"^\[(?P<ts>[^\]]+)\]\s+\[(?P<task>[^\]]+)\]\s+\[(?P<kind>[^\]]+)\]")
+
+
+def task_source_key(task_name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", task_name.lower()).strip("-")
+    return f"ops.task.{slug or 'unknown'}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -69,6 +75,7 @@ def load_task_events(path: Path, cutoff: datetime) -> list[dict]:
             {
                 "ts": ts.isoformat(),
                 "task": m.group("task"),
+                "source_key": task_source_key(m.group("task")),
                 "kind": m.group("kind"),
                 "line": raw.strip(),
             }
@@ -98,7 +105,16 @@ def load_task_events_from_db(db_path: Path, cutoff: datetime) -> list[dict]:
         conn.close()
     out = []
     for ts, task, level, msg in rows:
-        out.append({"ts": str(ts), "task": str(task), "kind": str(level), "line": f"[{ts}] [{task}] [{level}] {msg}"})
+        task_s = str(task)
+        out.append(
+            {
+                "ts": str(ts),
+                "task": task_s,
+                "source_key": task_source_key(task_s),
+                "kind": str(level),
+                "line": f"[{ts}] [{task}] [{level}] {msg}",
+            }
+        )
     return out
 
 
@@ -123,6 +139,7 @@ def main() -> int:
     alerts: list[str] = []
     warns: list[str] = []
     db_alerts: list[str] = []
+    recurring_source_keys: dict[str, dict] = {}
 
     for t in args.tasks:
         ev = [x for x in events if x["task"] == t]
@@ -130,6 +147,7 @@ def main() -> int:
         oks = [x for x in ev if x["kind"] == "OK"]
         errs = [x for x in ev if x["kind"] == "ERROR"]
         per_task[t] = {
+            "source_key": task_source_key(t),
             "start_count": len(starts),
             "ok_count": len(oks),
             "error_count": len(errs),
@@ -139,6 +157,12 @@ def main() -> int:
             warns.append(f"{t}: 参照期間内イベントなし")
         if errs:
             alerts.append(f"{t}: エラー {len(errs)}件")
+            key = task_source_key(t)
+            recurring_source_keys[key] = {
+                "task": t,
+                "error_count": len(errs),
+                "last_event": errs[-1]["line"],
+            }
 
     # DB integrity check for backtest_outcomes duplicate identity.
     inv_db = resolve_investment_db()
@@ -229,6 +253,7 @@ def main() -> int:
         "alerts": alerts,
         "warnings": warns,
         "tasks": per_task,
+        "recurringSourceKeys": recurring_source_keys,
         "freshnessMinutes": freshness,
         "taskLog": str(task_log.relative_to(ROOT)),
         "recommendedKeyword": recommended_action,
@@ -247,6 +272,10 @@ def main() -> int:
         lines.append("- 警告のみ")
     for w in warns[:8]:
         lines.append(f"- {w}")
+    if recurring_source_keys:
+        lines.append("- 再発 source_key:")
+        for key, stat in sorted(recurring_source_keys.items()):
+            lines.append(f"  - {key}: error={stat['error_count']} task={stat['task']}")
     lines.append(f"- 推奨キーワード: {recommended_action}")
     lines.append("- 実行: python scripts/ops/keyword_action.py <推奨キーワード>")
     if args.mode == "weekly":

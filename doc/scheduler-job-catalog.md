@@ -58,6 +58,11 @@
       - 180日: 毎月1日
   - 週次AIレビュー（月曜のみ）
     - `scripts/investment/analysis/generate_weekly_tuning_ai_review.py --date YYYY-MM-DD`
+    - `scripts/investment/analysis/generate_improvement_audit.py --date YYYY-MM-DD`（改善候補を `ops.db` に蓄積）
+    - `scripts/investment/analysis/generate_improvement_proposals.py --date YYYY-MM-DD`（改善候補を proposal 化して `codex-log` に投稿）
+    - `scripts/investment/analysis/materialize_improvement_work_items.py --date YYYY-MM-DD`（proposal を work item 化して着手対象にする）
+    - `scripts/investment/analysis/claim_improvement_work_items.py --date YYYY-MM-DD`（open work item を doing に引き上げる）
+    - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する）
 
 ---
 

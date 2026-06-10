@@ -20,12 +20,9 @@
     "8105",
     "4382"
   ],
-  "gatePassCount": 4,
-  "gateHoldCount": 8,
-  "gateHoldBreakdown": {
-    "hold_credit_unknown": 7,
-    "hold_noon_recheck": 1
-  },
+  "gatePassCount": 12,
+  "gateHoldCount": 0,
+  "gateHoldBreakdown": {},
   "longABCount": 7,
   "shortABCount": 6,
   "quality3YesCount": 12,
@@ -51,9 +48,8 @@
   "alerts": [
     "当日材料の新規シグナルが0件"
   ],
-  "inferredRootCause": "CREDIT_THIN",
+  "inferredRootCause": "MATERIAL_NONE_TODAY",
   "qualityReasonCodes": [
-    "CREDIT_THIN",
     "MATERIAL_NONE_TODAY"
   ]
 }

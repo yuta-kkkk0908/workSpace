@@ -44,6 +44,14 @@
     "ai_analyst_report": {
       "provider": "openai",
       "model": "gpt-5-mini"
+    },
+    "improvement_audit_weekly": {
+      "provider": "openai",
+      "model": "gpt-5.3-chat-latest"
+    },
+    "improvement_execution_engine": {
+      "provider": "openai",
+      "model": "gpt-5.5"
     }
   }
 }
