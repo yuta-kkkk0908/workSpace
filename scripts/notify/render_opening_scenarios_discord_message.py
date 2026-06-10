@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.terminology import scenario_tier_label
+from utils.sector_inference import resolve_sector_label
 
 OUT_DIR = ROOT / "prompts"
 DEFAULT_DB = resolve_investment_db()
@@ -151,7 +153,20 @@ def load_rows_from_db(db_path: Path, date_str: str) -> list[dict]:
                      SELECT sc.sector_group FROM sector_context_rows sc
                      WHERE sc.ticker=os.ticker
                      ORDER BY sc.date DESC LIMIT 1
-                   ) AS sector_group
+                   ) AS sector_group,
+                   (
+                     SELECT t.title FROM tdnet_disclosures t
+                     WHERE t.ticker=os.ticker
+                       AND COALESCE(NULLIF(TRIM(t.title),''),'')<>''
+                     ORDER BY t.date DESC, t.disclosed_at DESC
+                     LIMIT 1
+                   ) AS tdnet_title,
+                   (
+                     SELECT s.signal_type FROM signals s
+                     WHERE s.signal_id=os.signal_id
+                     ORDER BY s.date DESC, s.signal_id DESC
+                     LIMIT 1
+                   ) AS signal_type
             FROM opening_scenarios os
             WHERE os.scenario_date=? AND os.source_kind='scenario'
             ORDER BY scenario_index
@@ -284,7 +299,7 @@ def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], 
     if not rows:
         lines.append("- 変化なし（N/C）")
         lines.append(
-            f"- 内訳: 候補={zero_case_stats.get('candidate_count',0)} / trade採用={zero_case_stats.get('trade_count',0)} / watch判定={zero_case_stats.get('rejected_count',0)} / 実行計画={zero_case_stats.get('execution_count',0)}"
+            f"- 内訳: 候補={zero_case_stats.get('candidate_count',0)} / become採用={zero_case_stats.get('trade_count',0)} / watch判定={zero_case_stats.get('rejected_count',0)} / 実行計画={zero_case_stats.get('execution_count',0)}"
         )
         lines.extend(
             [
@@ -314,15 +329,20 @@ def build_message(date: str, rows: list[dict], zero_case_stats: dict[str, int], 
         return "\n".join(lines)
 
     for i, r in enumerate(rows, 1):
-        sector = (r.get("sector_group", "") or "不明").strip() or "不明"
         company = clean_company_name(r.get("company", "")) or "不明"
+        sector = resolve_sector_label(
+            r.get("sector_group", ""),
+            company=company,
+            signal_type=r.get("signal_type", ""),
+            title=r.get("tdnet_title", ""),
+        )
         lines.extend(
             [
                 f"{i}. {r.get('ticker','')} {company} ({sector}) [{direction_ja(r.get('direction',''))}]",
                 f"  方向: {direction_ja(r.get('direction',''))}",
                 f"  品質: score={r.get('scenario_score',0)} / ruleHits={r.get('rule_hit_count',0)} / {r.get('estimated_winrate_text','')}",
                 f"  価格: {limit_range_ja(r.get('prev_close'))} (基準日={r.get('prev_close_date') or '不明'})",
-                f"  補足: 種別={r.get('scenario_tier','trade')}",
+                f"  補足: 種別={scenario_tier_label(r.get('scenario_tier','trade'))}",
                 "",
             ]
         )

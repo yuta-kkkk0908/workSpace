@@ -129,7 +129,7 @@ def main() -> int:
     out_md = ROOT / "topics" / "investment-research" / "inbox" / f"{args.date}-ops-quality-weekly.md"
     out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = [
-        f"# {args.date} Ops/Quality Weekly",
+        f"# {args.date} 運用/品質 週次",
         "",
         f"- window: {start} .. {end} ({int(args.window_days)}d)",
         f"- ops_post.status_counts: {dict(ops_status)}",
@@ -137,7 +137,7 @@ def main() -> int:
         f"- quality.status_counts: {dict(quality_status)}",
         f"- quality.reason_counts: {dict(quality_reasons)}",
         "",
-        "## Recommendations",
+        "## 推奨対応",
     ]
     lines.extend([f"- {x}" for x in recommendations])
     out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

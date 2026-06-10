@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.terminology import glossary_line
 
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
@@ -32,6 +33,13 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def find_stats_file(date_str: str, fallback_days: int) -> tuple[Path, str]:
     d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
     for i in range(0, max(0, fallback_days) + 1):
@@ -50,6 +58,27 @@ def find_weekly_review_file(date_str: str, fallback_days: int) -> tuple[Path | N
         if p.exists():
             return p, d
     return None, None
+
+
+def find_weekly_ai_review_file(date_str: str, fallback_days: int) -> tuple[Path | None, str | None]:
+    d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+    for i in range(0, max(0, fallback_days) + 1):
+        d = (d0 - timedelta(days=i)).isoformat()
+        p = INBOX / f"{d}-weekly-tuning-ai-review.md"
+        if p.exists():
+            return p, d
+    return None, None
+
+
+def load_weekly_ai_review_lines(review_path: Path | None) -> list[str]:
+    if not review_path or not review_path.exists():
+        return []
+    try:
+        review = review_path.read_text(encoding="utf-8")
+    except Exception:
+        return []
+    lines = [ln.rstrip() for ln in review.splitlines() if ln.strip()]
+    return lines[:8]
 
 
 def parse_stats(text: str) -> dict[str, dict[str, str]]:
@@ -194,7 +223,13 @@ def to_line(mode: str, row: dict[str, str]) -> str:
     t5n = row.get("t5_n", "0")
     t5wr = row.get("t5_wr", "0.0")
     t5ret = row.get("t5_ret", "0.00")
-    return f"- {mode}: サンプル={sample} / T+5 n={t5n} 勝率={t5wr}% 平均={t5ret}%"
+    display_mode = {
+        "live": "trade実績(live)",
+        "watch": "watch",
+        "paper": "paper",
+        "backtest": "backtest",
+    }.get(mode, mode)
+    return f"- {display_mode}: サンプル={sample} / T+5 n={t5n} 勝率={t5wr}% 平均={t5ret}%"
 
 
 def build_message(
@@ -204,6 +239,8 @@ def build_message(
     actions: list[str],
     action_source_date: str | None,
     ops_lines: list[str],
+    ai_review_lines: list[str],
+    ai_review_source_date: str | None,
 ) -> str:
     def rank_lines(row: dict[str, str], max_lines: int = 2) -> list[str]:
         items: list[tuple[str, int, float, float]] = []
@@ -245,6 +282,7 @@ def build_message(
         if rank_top:
             lines.extend(rank_top)
     lines.append("- caution: 仮想検証データ。売買助言ではありません。")
+    lines.append(f"- {glossary_line()}")
     if ops_lines:
         lines.append("")
         lines.append("【運用実績（シナリオ）】")
@@ -253,10 +291,17 @@ def build_message(
             lines.append(f"- {x}")
     if actions:
         lines.append("")
-        lines.append("【次週アクション（自動）】")
+        lines.append("【次週アクション（ルールベース）】")
         if action_source_date and action_source_date != target_date:
             lines.append(f"- 注意: 参照レビュー日={action_source_date}")
         for a in actions[:3]:
+            lines.append(f"- {a}")
+    if ai_review_lines:
+        lines.append("")
+        lines.append("【AIレビュー】")
+        if ai_review_source_date and ai_review_source_date != target_date:
+            lines.append(f"- 注意: 参照レビュー日={ai_review_source_date}")
+        for a in ai_review_lines[:8]:
             lines.append(f"- {a}")
     return "\n".join(lines).rstrip() + "\n"
 
@@ -271,19 +316,23 @@ def main() -> int:
     review_path, review_date = find_weekly_review_file(args.date, args.fallback_days)
     actions: list[str] = []
     ops_lines: list[str] = []
+    ai_review_lines: list[str] = []
+    ai_review_source_date: str | None = None
     if review_path:
         review_text = review_path.read_text(encoding="utf-8")
         actions = parse_next_actions(review_text)
         ops_lines = parse_ops_throughput(review_text)
-    msg = build_message(args.date, src_date, rows, actions, review_date, ops_lines)
+    ai_review_path, ai_review_source_date = find_weekly_ai_review_file(args.date, args.fallback_days)
+    ai_review_lines = load_weekly_ai_review_lines(ai_review_path)
+    msg = build_message(args.date, src_date, rows, actions, review_date, ops_lines, ai_review_lines, ai_review_source_date)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_txt = OUT_DIR / "paper-stats-discord-message.txt"
     out_md = OUT_DIR / "paper-stats-discord-message.md"
     out_txt.write_text(msg, encoding="utf-8")
     out_md.write_text("```text\n" + msg + "```\n", encoding="utf-8")
-    print(f"wrote {out_txt.relative_to(ROOT)}")
-    print(f"wrote {out_md.relative_to(ROOT)}")
+    print(f"wrote {_display_path(out_txt)}")
+    print(f"wrote {_display_path(out_md)}")
     return 0
 
 

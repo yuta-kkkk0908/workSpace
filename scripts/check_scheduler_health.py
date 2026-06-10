@@ -136,9 +136,9 @@ def main() -> int:
             "last_event": ev[-1]["line"] if ev else "",
         }
         if not ev:
-            warns.append(f"{t}: lookback内イベントなし")
+            warns.append(f"{t}: 参照期間内イベントなし")
         if errs:
-            alerts.append(f"{t}: ERROR {len(errs)}件")
+            alerts.append(f"{t}: エラー {len(errs)}件")
 
     # DB integrity check for backtest_outcomes duplicate identity.
     inv_db = resolve_investment_db()
@@ -159,9 +159,9 @@ def main() -> int:
             ).fetchone()[0]
             conn.close()
             if dup_groups > 0:
-                db_alerts.append(f"backtest_outcomes duplicate identity groups={dup_groups}")
+                db_alerts.append(f"backtest_outcomes の重複キー {dup_groups}件")
         except Exception as e:
-            warns.append(f"investment.db duplicate check failed: {type(e).__name__}")
+            warns.append(f"investment.db 重複チェック失敗: {type(e).__name__}")
 
     # Posting logs freshness checks (best-effort)
     log_targets = {
@@ -240,32 +240,32 @@ def main() -> int:
     out_status.parent.mkdir(parents=True, exist_ok=True)
     out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-    lines = [f"Scheduler Health {now.date().isoformat()} ({args.mode})", f"- status: {status}"]
+    lines = [f"スケジューラ健全性 {now.date().isoformat()} ({args.mode})", f"- 状態: {status}"]
     for a in alerts:
         lines.append(f"- {a}")
     if not alerts and warns:
-        lines.append("- WARN only")
+        lines.append("- 警告のみ")
     for w in warns[:8]:
         lines.append(f"- {w}")
     lines.append(f"- 推奨キーワード: {recommended_action}")
     lines.append("- 実行: python scripts/ops/keyword_action.py <推奨キーワード>")
     if args.mode == "weekly":
-        lines.append("- weekly-summary:")
-        lines.append(f"  - lookbackHours: {int(args.hours)}")
-        lines.append(f"  - taskCount: {len(per_task)}")
+        lines.append("- 週次要約:")
+        lines.append(f"  - 参照時間: {int(args.hours)}時間")
+        lines.append(f"  - タスク数: {len(per_task)}")
         total_start = sum(v["start_count"] for v in per_task.values())
         total_ok = sum(v["ok_count"] for v in per_task.values())
         total_err = sum(v["error_count"] for v in per_task.values())
-        lines.append(f"  - totals: start={total_start} ok={total_ok} error={total_err}")
+        lines.append(f"  - 合計: start={total_start} ok={total_ok} error={total_err}")
         for name, stat in per_task.items():
             lines.append(
                 f"  - {name}: start={stat['start_count']} ok={stat['ok_count']} error={stat['error_count']}"
             )
         for k, age in freshness.items():
             if age is None:
-                lines.append(f"  - freshness {k}: missing")
+                lines.append(f"  - 更新鮮度 {k}: なし")
             else:
-                lines.append(f"  - freshness {k}: {age:.0f} min")
+                lines.append(f"  - 更新鮮度 {k}: {age:.0f} 分")
     lines.append(f"- metrics: {out_json.relative_to(ROOT)}")
     out_status.write_text("\n".join(lines) + "\n", encoding="utf-8")
 

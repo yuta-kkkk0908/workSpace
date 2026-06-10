@@ -20,6 +20,7 @@ DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-sector-context-
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.sector_inference import infer_sector_context
 
 DEFAULT_DB = resolve_investment_db()
 
@@ -136,18 +137,74 @@ SECTOR_BY_TICKER = {
 
 
 def fallback(row: dict[str, str]) -> tuple[str, str, str]:
-    text = " ".join([row.get("title", ""), row.get("category", ""), row.get("signalType", "")]).lower()
-    if any(k in text for k in ("tob", "mbo")):
-        return "event_driven", "deal_terms_sensitive", "fallback_event"
-    if any(k in text for k in ("biotech", "clinical", "trial")):
-        return "biotech", "binary_event_sensitive", "fallback_keyword"
-    if any(k in text for k in ("semiconductor", "半導体")):
-        return "semiconductor_equipment", "semiconductor_cycle_sensitive", "fallback_keyword"
-    if any(k in text for k in ("real estate", "不動産")):
-        return "real_estate", "rate_sensitive", "fallback_keyword"
-    if any(k in text for k in ("software", "cloud", "ai", "dx")):
-        return "software_it", "growth_sensitive", "fallback_keyword"
-    return "unknown", "unknown", "unknown"
+    return infer_sector_context(row.get("title", ""), row.get("category", ""), row.get("signalType", ""), row.get("company", ""))
+
+
+def load_signal_rows(conn: sqlite3.Connection, date_s: str) -> list[dict[str, str]]:
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        """
+        SELECT s.ticker,
+               s.company,
+               s.signal_type,
+               s.source,
+               COALESCE(
+                 (
+                   SELECT t.title
+                   FROM tdnet_disclosures t
+                   WHERE t.ticker=s.ticker
+                     AND t.date<=?
+                     AND COALESCE(NULLIF(TRIM(t.title),''),'')<>''
+                   ORDER BY t.date DESC, t.disclosed_at DESC
+                   LIMIT 1
+                 ),
+                 ''
+               ) AS title
+        FROM signals s
+        WHERE s.date=?
+          AND COALESCE(NULLIF(TRIM(s.ticker),''),'')<>''
+        ORDER BY s.ticker, s.signal_id
+        """,
+        (date_s, date_s),
+    ).fetchall()
+    grouped: dict[str, dict[str, str]] = {}
+    for r in rows:
+        ticker = str(r["ticker"] or "").strip()
+        if not ticker:
+            continue
+        bucket = grouped.setdefault(
+            ticker,
+            {
+                "ticker": ticker,
+                "company": "",
+                "signalType": "",
+                "title": "",
+                "category": "",
+            },
+        )
+        company = str(r["company"] or "").strip()
+        if company and not bucket["company"]:
+            bucket["company"] = company
+        signal_type = str(r["signal_type"] or "").strip()
+        if signal_type:
+            cur = {x.strip() for x in bucket["signalType"].split(" / ") if x.strip()}
+            if signal_type not in cur:
+                bucket["signalType"] = " / ".join(sorted([*cur, signal_type])) if cur else signal_type
+        title = str(r["title"] or "").strip()
+        if title and not bucket["title"]:
+            bucket["title"] = title
+    return list(grouped.values())
+
+
+def sector_confidence_rank(v: str) -> int:
+    s = str(v or "").strip().lower()
+    if s == "manual_static_map":
+        return 3
+    if s.startswith("keyword_") or s.startswith("fallback_"):
+        return 2
+    if s and s != "unknown":
+        return 1
+    return 0
 
 
 def main() -> int:
@@ -158,30 +215,59 @@ def main() -> int:
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
     args = parser.parse_args()
     output = args.output or Path(str(DEFAULT_OUTPUT).format(date=args.date))
-    outcomes.OUTCOME = args.outcome or Path(str(outcomes.DEFAULT_OUTCOME).format(date=args.date))
+    outcomes.OUTCOME = args.outcome or Path(str(outcomes.DEFAULT_OUTPUT).format(date=args.date))
 
-    rows = outcomes.parse_outcomes()
-    seen = {}
-    out_rows = []
+    rows = outcomes.parse_outcomes_from_db(args.db, args.date)
+    source_label = "backtest_outcomes"
+    if not rows:
+        conn = sqlite3.connect(args.db)
+        try:
+            rows = load_signal_rows(conn, args.date)
+            source_label = "signals"
+        finally:
+            conn.close()
+    seen: dict[str, dict[str, str]] = {}
     for row in rows:
         ticker = row["ticker"]
-        if ticker in seen:
-            continue
         if ticker in SECTOR_BY_TICKER:
             sector_group, profile = SECTOR_BY_TICKER[ticker]
             confidence = "manual_static_map"
         else:
             sector_group, profile, confidence = fallback(row)
-        seen[ticker] = True
-        out_rows.append({
+        cur = {
             "ticker": ticker,
             "sectorGroup": sector_group,
             "sectorProfile": profile,
             "confidence": confidence,
-        })
+        }
+        seen[ticker] = cur
+
+    signal_rows: list[dict[str, str]] = []
+    conn = sqlite3.connect(args.db)
+    try:
+        signal_rows = load_signal_rows(conn, args.date)
+    finally:
+        conn.close()
+    for row in signal_rows:
+        ticker = row["ticker"]
+        if ticker in SECTOR_BY_TICKER:
+            sector_group, profile = SECTOR_BY_TICKER[ticker]
+            confidence = "manual_static_map"
+        else:
+            sector_group, profile, confidence = fallback(row)
+        cur = {
+            "ticker": ticker,
+            "sectorGroup": sector_group,
+            "sectorProfile": profile,
+            "confidence": confidence,
+        }
+        prev = seen.get(ticker)
+        if prev is None or sector_confidence_rank(confidence) >= sector_confidence_rank(prev.get("confidence", "")):
+            seen[ticker] = cur
+    out_rows = list(seen.values())
     output.write_text(json.dumps({
         "date": args.date,
-        "source": "manual static sector map for rough backtest grouping",
+        "source": f"manual static sector map for rough backtest grouping ({source_label}+signals)",
         "caution": "セクター指数の実績ではなく、銘柄属性/地合い感応度の粗分類。売買助言ではない。",
         "rows": sorted(out_rows, key=lambda r: r["ticker"]),
     }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

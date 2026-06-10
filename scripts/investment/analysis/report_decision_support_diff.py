@@ -166,17 +166,17 @@ def main() -> int:
         out_md = OUT / f"{args.date}-decision-support-diff.md"
         out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         lines = [
-            f"# {args.date} Decision Support Diff",
+            f"# {args.date} 決定支援差分",
             "",
-            f"- compare: {d_prev} -> {d_cur}",
-            f"- windowDays: {int(args.window_days)}",
-            f"- status: {status}",
-            f"- improved: {'yes' if improved else 'no'}",
-            f"- ΔwinRate(pp): {win_delta:+.3f}",
-            f"- ΔddApprox(pp): {dd_delta:+.3f}",
-            f"- acceptedDropRatio: {accepted_drop_ratio:.3f}",
+            f"- 比較: {d_prev} -> {d_cur}",
+            f"- 参照日数: {int(args.window_days)}",
+            f"- 状態: {status}",
+            f"- 改善: {'yes' if improved else 'no'}",
+            f"- 勝率差分(pp): {win_delta:+.3f}",
+            f"- DD差分(pp): {dd_delta:+.3f}",
+            f"- 採択減少率: {accepted_drop_ratio:.3f}",
             "",
-            "## Warning",
+            "## 警告",
         ]
         if warnings:
             for w in warnings:
@@ -186,7 +186,7 @@ def main() -> int:
                 else:
                     lines.append(f"- {format_decision_warning(w)}")
         else:
-            lines.append("- none")
+            lines.append("- なし")
         out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {out_md.relative_to(ROOT)}")
         print(f"wrote {out_json.relative_to(ROOT)}")

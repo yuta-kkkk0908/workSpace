@@ -114,7 +114,7 @@ def main() -> int:
         out_md = OUT / f"{args.date}-sample-health-kpi.md"
         out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         lines = [
-            f"# {args.date} Sample Health KPI",
+            f"# {args.date} サンプル健全性KPI",
             "",
             f"- window: {start} .. {end} ({int(args.window_days)}d)",
             f"- outcomesTotal: {total}",

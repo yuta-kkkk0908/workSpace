@@ -128,7 +128,7 @@ def main() -> int:
         caution.append(f"watch T+5 sample不足 n={watch['t5_n']}")
 
     if t5_wr_gap >= 8.0:
-        verdict = "trade優位（watch→trade昇格の候補抽出を強める）"
+        verdict = "trade実績優位（watch→become昇格の候補抽出を強める）"
     elif t5_wr_gap <= -8.0:
         verdict = "watch優位（trade条件が厳しすぎる可能性）"
     else:
@@ -202,19 +202,19 @@ def main() -> int:
     next_actions: list[str] = []
     # 1) trade運用の強弱
     if trade["t5_n"] < 10:
-        next_actions.append("trade母数が薄い。次週はロット固定で検証優先（拡大しない）。")
+        next_actions.append("trade実績が薄い。次週はロット固定で検証優先（拡大しない）。")
     elif trade["t5_wr"] < 50.0:
         next_actions.append("trade T+5勝率が50%未満。エントリーを絞り、見送り条件を厳格化する。")
     else:
         next_actions.append("trade側は現行維持。勝率が維持できるかを週次で再確認する。")
 
-    # 2) watch->trade昇格方針
+    # 2) watch->become昇格方針
     if watch["t5_n"] < 10:
         next_actions.append("watch母数を優先して積む。昇格判定は急がず、まずサンプル確保を継続する。")
     elif t5_wr_gap <= -8.0:
-        next_actions.append("watch優位。昇格しきい値（min_samples/min_winrate）を段階緩和して候補を増やす。")
+        next_actions.append("watch優位。become昇格しきい値（min_samples/min_winrate）を段階緩和して候補を増やす。")
     else:
-        next_actions.append("watch候補は現行しきい値で継続。週次で昇格候補を再判定する。")
+        next_actions.append("watch候補は現行しきい値で継続。週次でbecome候補を再判定する。")
 
     # 3) horizon/exit側の改善方針
     if trade["t1_n"] > 0 and trade["t5_n"] > 0 and trade["t1_wr"] >= trade["t5_wr"] + 8.0:
@@ -232,7 +232,7 @@ def main() -> int:
         f"- period: {args.start_date or 'N/A'} .. {args.end_date or 'N/A'}",
         "",
         "## Scenario Ops Throughput",
-        f"- posts: total={total_posts} (trade={trade_posts}, watch={watch_posts})",
+        f"- posts: total={total_posts} (become={trade_posts}, watch={watch_posts})",
         f"- replies: entry={entry_replies}, exit={exit_replies}, cancel={cancel_replies}",
         f"- entry conversion: {entry_rate:.1f}%",
         "",

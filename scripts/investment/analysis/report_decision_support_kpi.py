@@ -207,7 +207,7 @@ def main() -> int:
         out_md = OUT / f"{args.date}-decision-support-kpi.md"
         out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         lines = [
-            f"# {args.date} Decision Support KPI",
+            f"# {args.date} 決定支援KPI",
             "",
             "## Topic",
             "- slug: investment-research",
@@ -228,13 +228,13 @@ def main() -> int:
             lines.append(
                 f"- {g}: n={rec['n']} win={rec['win']} lose={rec['lose']} other={rec['other']} winRate={_pct(rec['win'], rec['n']):.1f}% failRate={_pct(rec['lose'], rec['n']):.1f}%"
             )
-        lines.extend(["", "## Cohort (T+5)"])
+        lines.extend(["", "## コホート (T+5)"])
         for g in ("promoted", "rejected_weak", "rejected_data_quality"):
             rec = kpi["cohort"]["t5"][g]
             lines.append(
                 f"- {g}: n={rec['n']} win={rec['win']} lose={rec['lose']} other={rec['other']} winRate={_pct(rec['win'], rec['n']):.1f}% failRate={_pct(rec['lose'], rec['n']):.1f}%"
             )
-        lines.extend(["", "## Cohort Windows (T+5)"])
+        lines.extend(["", "## コホート期間別 (T+5)"])
         for label, ck in (("7d", kpi_7["cohort"]), ("30d", kpi_30["cohort"]), ("90d", kpi_90["cohort"])):
             p = ck["t5"]["promoted"]
             rj = ck["t5"]["rejected_weak"]
@@ -243,7 +243,7 @@ def main() -> int:
             lines.append(
                 f"- {label}: promoted={pwr:.1f}% (n={p['n']}) / rejected_weak={rwr:.1f}% (n={rj['n']}) / gap={rwr - pwr:+.1f}pt"
             )
-        lines.extend(["", "## Technical Tags (T+5)"])
+        lines.extend(["", "## 技術タグ (T+5)"])
         for cohort_name in ("promoted", "rejected_weak", "rejected_data_quality"):
             lines.append(f"- {cohort_name}:")
             items = sorted(

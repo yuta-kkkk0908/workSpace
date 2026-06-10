@@ -212,30 +212,30 @@ def main() -> int:
 
     output_md = args.output_md or (ROOT / "topics" / "investment-research" / "inbox" / f"{args.date}-signal-pipeline-kpi.md")
     lines = [
-        f"# {args.date} Signal Pipeline KPI",
+        f"# {args.date} シグナルパイプラインKPI",
         "",
-        "## Funnel",
+        "## 流れ",
         f"- raw_events: {payload['kpi']['funnel']['raw_events']}",
         f"- tdnet_disclosures: {payload['kpi']['funnel']['tdnet_disclosures']}",
         f"- signals: {payload['kpi']['funnel']['signals']}",
         f"- entry_candidates: {payload['kpi']['funnel']['entry_candidates']}",
-        f"- opening_scenarios: {payload['kpi']['funnel']['opening_scenarios']}",
+        f"- become: {payload['kpi']['funnel']['opening_scenarios']}",
         "",
-        "## Rates (%)",
+        "## 率 (%)",
         f"- signals_from_tdnet: {payload['kpi']['rates_pct']['signals_from_tdnet']:.3f}",
         f"- signals_to_entry_candidates: {payload['kpi']['rates_pct']['signals_to_entry_candidates']:.3f}",
-        f"- entry_candidates_to_opening_scenarios: {payload['kpi']['rates_pct']['entry_candidates_to_opening_scenarios']:.3f}",
+        f"- entry_candidates_to_become: {payload['kpi']['rates_pct']['entry_candidates_to_opening_scenarios']:.3f}",
         f"- price_missing_rate_active_universe: {payload['kpi']['rates_pct']['price_missing_rate_active_universe']:.3f}",
         "",
-        "## Alerts",
-        f"- conversion_drop: {'ALERT' if payload['alerts']['conversion_drop']['fired'] else 'OK'} "
+        "## 警告",
+        f"- conversion_drop: {'警告' if payload['alerts']['conversion_drop']['fired'] else '正常'} "
         f"(drop={payload['kpi']['baseline']['signals_from_tdnet_drop_pct']:.3f} / threshold={payload['alerts']['conversion_drop']['threshold_pct']:.3f})",
-        f"- price_missing_rate: {'ALERT' if payload['alerts']['price_missing_rate']['fired'] else 'OK'} "
+        f"- price_missing_rate: {'警告' if payload['alerts']['price_missing_rate']['fired'] else '正常'} "
         f"(missing={payload['alerts']['price_missing_rate']['missing_tickers']}/{payload['alerts']['price_missing_rate']['active_universe_tickers']} "
         f"threshold={payload['alerts']['price_missing_rate']['threshold_pct']:.3f}%)",
     ]
     if type_alerts:
-        lines.extend(["", "## Type Alerts"])
+        lines.extend(["", "## 種別別警告"])
         lines.extend([f"- {x}" for x in type_alerts[:12]])
     output_md.parent.mkdir(parents=True, exist_ok=True)
     output_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

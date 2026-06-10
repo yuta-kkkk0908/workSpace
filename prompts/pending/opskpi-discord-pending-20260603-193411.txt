@@ -1,6 +1,6 @@
 ﻿OPS Night Watch (2026-06-03)
 - Runtime: done / 0m / commands=17 error=2
-- Funnel: raw=151 tdnet=151 signals=12 entry=12 scenario=12
+- Funnel: raw=151 tdnet=151 signals=12 entry=12 become=12
 - Trend: signals +0 / scenario +0
 - Rates: sig/tdnet=7.9% missPrice=100.0% / alerts=price miss
 - Sample: 61.9%->100.0% (+38.1pt)

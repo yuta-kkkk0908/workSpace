@@ -104,7 +104,7 @@ def main() -> int:
         out_md = OUT / f"{args.date}-samplecount-trade-trend.md"
         out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         lines = [
-            f"# {args.date} SampleCount Trade Trend",
+            f"# {args.date} サンプル数トレンド",
             "",
             "- policy: 本レポートは昇格判断の提案情報であり、自動発注は前提にしない",
             f"- windowDays: {int(args.window_days)}",
@@ -114,7 +114,7 @@ def main() -> int:
             f"- trendDelta: {trend_delta:+.1%}",
             f"- trendUp: {'yes' if trend_up else 'no'}",
             "",
-            "## Daily",
+            "## 日次",
         ]
         for d in daily:
             lines.append(

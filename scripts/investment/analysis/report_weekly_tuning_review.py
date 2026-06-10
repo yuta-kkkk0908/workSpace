@@ -180,7 +180,7 @@ def main() -> int:
             recommendations.append(f"credit unknown比率が高い: {unknown_credit_ratio:.1f}%。auto credit対象上限/優先順位を再調整。")
         if quality_warn_days >= 3:
             recommendations.append(
-                f"QUALITY_WARN日が多い: days={quality_warn_days}, total={quality_warn_total}, maxStreak={max_warn_streak}。reasonCodes別に閾値/入力不足を切り分け。"
+                f"品質警告日が多い: days={quality_warn_days}, total={quality_warn_total}, maxStreak={max_warn_streak}。reasonCodes別に閾値/入力不足を切り分け。"
             )
         if quality_reason_counts:
             top_reason = sorted(quality_reason_counts.items(), key=lambda x: x[1], reverse=True)[0]
@@ -238,7 +238,7 @@ def main() -> int:
 
     out = ROOT / "topics" / "investment-research" / "inbox" / f"{args.date}-weekly-tuning-review.md"
     lines = [
-        f"# {args.date} Weekly Tuning Review",
+        f"# {args.date} 週次チューニングレビュー",
         "",
         f"- window: {start} .. {end} ({args.window_days}d)",
         f"- trade: {trade}",

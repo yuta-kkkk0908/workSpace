@@ -41,7 +41,7 @@
 - `inv-evening` では追加で次を日次更新する
   - `paper-exit-timing`（保有期間別傾向）
   - `paper-stats`（`backtest/watch/live` のモード比較）
-  - `watch-promotion`（watch→trade昇格候補）
+  - `watch-promotion`（watch→become昇格候補）
     - `Ladder` 運用: `strict > balanced > early > none` で WATCH 優先度を扱う
   - `trade-watch-review`（trade/watch 差分レビュー）
 
@@ -52,6 +52,13 @@
 - 補完プロンプト: `prompts/pending-daily/latest.prompt.md`
 - Health出力: `prompts/scheduler-health.status.txt`
 - 補完後: 各DBへ再投入
+
+## 用語
+
+- `become`: trade候補。まだ実エントリーしていない有望シグナル。
+- `live`: 実エントリー中の記録。集計上は `trade実績` として `trade` に含める。
+- `trade`: 実エントリー全体の総称。`live` を含む。
+- `watch`: 監視継続。`trade` へ昇格する前段の候補。
 
 ## 役割分担
 

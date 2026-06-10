@@ -112,9 +112,9 @@ def build_scheduler_payload() -> dict:
             "last_event": ev[-1]["line"] if ev else "",
         }
         if not ev:
-            warns.append(f"{task_name}: lookback内イベントなし")
+            warns.append(f"{task_name}: 参照期間内イベントなし")
         if errs:
-            alerts.append(f"{task_name}: ERROR {len(errs)}件")
+            alerts.append(f"{task_name}: エラー {len(errs)}件")
 
     status = "ALERT" if alerts else "OK"
     return {
@@ -127,13 +127,14 @@ def build_scheduler_payload() -> dict:
 
 
 def format_scheduler_status(payload: dict) -> str:
-    lines = [f"Scheduler Health {datetime.now(JST).date().isoformat()} (daily)", f"- status: {payload['status']}"]
+    status_label = {"ALERT": "警告", "OK": "正常"}.get(str(payload.get("status") or ""), str(payload.get("status") or "不明"))
+    lines = [f"スケジューラ稼働状況 {datetime.now(JST).date().isoformat()}", f"- 状態: {status_label}"]
     alerts = payload.get("alerts") or []
     warns = payload.get("warnings") or []
     for item in alerts:
         lines.append(f"- {item}")
     if not alerts and warns:
-        lines.append("- WARN only")
+        lines.append("- 警告のみ")
     for item in warns[:8]:
         lines.append(f"- {item}")
     return "\n".join(lines)
@@ -185,20 +186,20 @@ def collect_decision_support_warning_status() -> tuple[str, int]:
             break
 
     if streak >= 3:
-        level = "ACTION"
-        lead = "warning 3営業日連続: 閾値調整タスクを当日対応"
+        level = "要対応"
+        lead = "警告が3営業日連続: 当日中に閾値調整タスクを対応"
     elif streak >= 2:
-        level = "WARN"
-        lead = "warning 2営業日連続: 事前レビュー"
+        level = "警告"
+        lead = "警告が2営業日連続: 事前レビュー"
     else:
-        level = "INFO"
-        lead = "warning連続なし"
-    detail = ", ".join(latest_warns) if latest_warns else "none"
+        level = "情報"
+        lead = "警告の連続なし"
+    detail = ", ".join(latest_warns) if latest_warns else "なし"
     text = (
-        f"Decision Support {latest_date} ({level})\n"
-        f"- streak: {streak}\n"
-        f"- action: {lead}\n"
-        f"- latestWarnings: {detail}"
+        f"決定支援差分 {latest_date} ({level})\n"
+        f"- 連続日数: {streak}\n"
+        f"- 対応: {lead}\n"
+        f"- 直近警告: {detail}"
     )
     return text, streak
 
@@ -207,7 +208,7 @@ def main() -> int:
     load_dotenv()
     webhook = os.getenv("DISCORD_ALERT_WEBHOOK_URL", "").strip()
     if not webhook:
-        print("ALERT skipped (webhook empty)")
+        print("通知スキップ（webhook未設定）")
         return 0
 
     daily_status, daily_ok = collect_daily_status()
@@ -219,19 +220,19 @@ def main() -> int:
     needs_weekly = collect_needs_weekly_status() if is_wednesday else ""
     ds_alert = ds_streak >= 2
     if daily_ok and not sched_alert and not needs_weekly and not ds_alert:
-        print("ALERT skipped (all healthy)")
+        print("通知スキップ（全体正常）")
         return 0
 
-    msg = "AIOS Alert\n\n[DATA_INGEST / DAILY_COVERAGE]\n" + daily_status.strip()
+    msg = "AIOS アラート\n\n[データ取り込み / 日次カバレッジ]\n" + daily_status.strip()
     if sched_status:
-        msg += "\n\n[SCHEDULER_RUNTIME]\n" + sched_status.strip()
+        msg += "\n\n[スケジューラ稼働]\n" + sched_status.strip()
     if decision_support_status:
-        msg += "\n\n[INV_SCENARIO_DECISION_SUPPORT]\n" + decision_support_status.strip()
+        msg += "\n\n[投資シナリオ決定支援]\n" + decision_support_status.strip()
     if needs_weekly:
-        msg += "\n\n[NEEDS_WEEKLY_FRESHNESS]\n" + needs_weekly
-    msg += f"\n\nAsOf: {datetime.now(JST).strftime('%Y-%m-%d %H:%M')} JST"
+        msg += "\n\n[ニーズ週次鮮度]\n" + needs_weekly
+    msg += f"\n\n基準時刻: {datetime.now(JST).strftime('%Y-%m-%d %H:%M')} JST"
     send_webhook(webhook, msg)
-    print("ALERT posted")
+    print("通知送信")
     return 0
 
 

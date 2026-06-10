@@ -236,7 +236,7 @@ class RenderOpsKpiSummaryDiscordMessageTests(unittest.TestCase):
             text = out_path.read_text(encoding="utf-8")
             self.assertIn("OPS Night Watch (2026-05-30)", text)
             self.assertIn("Runtime: done_with_error / 5m / commands=2 error=1", text)
-            self.assertIn("Trend: signals +5 / scenario +2", text)
+            self.assertIn("Trend: signals +5 / become +2", text)
             self.assertIn("alerts=price miss", text)
             self.assertIn("Sample: 20.0%->40.0% (+20.0pt) @2026-05-29", text)
             self.assertIn("Failures: ingest_topics_db.py(rc=2, db_error)", text)

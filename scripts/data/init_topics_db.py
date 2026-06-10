@@ -51,6 +51,38 @@ SCHEMA = [
       PRIMARY KEY(topic, date, kind)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS pokemon_watch_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      topic TEXT NOT NULL,
+      date TEXT NOT NULL,
+      source_path TEXT NOT NULL,
+      file_kind TEXT NOT NULL,
+      section TEXT NOT NULL,
+      item_key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      status TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      media TEXT NOT NULL DEFAULT '',
+      url TEXT NOT NULL DEFAULT '',
+      product TEXT NOT NULL DEFAULT '',
+      release_date TEXT NOT NULL DEFAULT '',
+      start_text TEXT NOT NULL DEFAULT '',
+      end_text TEXT NOT NULL DEFAULT '',
+      deadline_text TEXT NOT NULL DEFAULT '',
+      condition_text TEXT NOT NULL DEFAULT '',
+      rank_text TEXT NOT NULL DEFAULT '',
+      summary TEXT NOT NULL DEFAULT '',
+      why_it_matters TEXT NOT NULL DEFAULT '',
+      action_text TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      raw_text TEXT NOT NULL DEFAULT '',
+      collected_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(topic, date, source_path, file_kind, section, item_key, title, url)
+    )
+    """,
 ]
 
 

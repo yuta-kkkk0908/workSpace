@@ -16,6 +16,7 @@ ensure_platform_core_importable()
 from utils.investment_db_path import resolve_investment_db
 from platform_core.model_router import resolve_model
 from platform_core.openai_client import call_openai_text
+from utils.sector_inference import resolve_sector_label
 
 DEFAULT_DB = resolve_investment_db()
 ARTIFACT_KEY = "ai_analyst_report"
@@ -121,6 +122,13 @@ def main() -> int:
         watch_rows += fetch_rows(conn, args.date, "short", "watch", args.watch_n // 2)
         watch_rows = watch_rows[: args.watch_n]
         stats = fetch_paper_stats(conn, args.date)
+        for row in (*long_rows, *short_rows, *watch_rows):
+            row["sector_label"] = resolve_sector_label(
+                row.get("sector_group", ""),
+                instrument_sector=row.get("instrument_sector", ""),
+                company=row.get("company", ""),
+                signal_type=row.get("signal_type", ""),
+            )
 
         payload = {
             "date": args.date,
@@ -147,7 +155,7 @@ def main() -> int:
             "- 注意点: ...\n"
             "\n"
             "## LONG候補\n"
-            "- <ticker> <company> | セクター:<sector_group優先、無ければinstrument_sector、無ければ不明> | "
+            "- <ticker> <company> | セクター:<sector_label> | "
             "型:<signal_type> | 技術:<technical_pattern/ma_trend> | 地合い:<market_context>\n"
             "  判断補助: <なぜ見るか/何が不足か>\n"
             "\n"

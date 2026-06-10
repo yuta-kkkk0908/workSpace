@@ -41,8 +41,8 @@ topicごとの収集データをDB化し、全ファイル読込を避ける。
 - fields: date, source, title, url, domain_tag, why_read
 
 ### pokemon-card-watch
-- table: `pokemon_watch`
-- fields: date, source, pack, event_type, status, url
+- table: `pokemon_watch_items`
+- fields: date, source_path, section, item_key, title, kind, status, source_name, media, url, product, release_date, deadline_text, condition_text, rank_text, summary, why_it_matters, action_text, notes
 
 ### product-idea-watch
 - table: `needs_items`

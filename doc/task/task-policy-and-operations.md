@@ -14,15 +14,20 @@
 - DB-first: 判定・連携の正本はDB。ファイル出力は監査/可視化用途。
 - Stopしない運用: 品質劣化は `alert/warn` として扱い、処理異常（通信/DB/認証/実行不能）と分離。
 - シナリオ運用: `trade` 不成立日でも `watch` 投稿は継続。
-- サンプル運用: `sampleCount` 段階運用（0=watch, 1-2=paper_trade_only, >=3=trade候補）。
+- サンプル運用: `sampleCount` 段階運用（0=watch, 1-2=paper_trade_only, >=3=become候補）。
 - 夜間強化: outcomes補完・rule集計・週次レビューを定期実行し、母数を継続増強。
 
-## 4. 変更管理ルール
+## 4. 用語の補足
+- `become` は `trade` 候補を指す。
+- `live` は `trade` 実績で、集計上は `trade` に含める。
+- `watch` は監視継続で、`trade` の前段にある。
+
+## 5. 変更管理ルール
 - タスク追加時はまず `topics/<topic>/tasks.json` に登録。
 - 完了時は同topicの `archive` へ定期退避（スナップショット保存）し、現行ファイルを肥大化させない。
 - 方針変更は本ファイルに追記し、日付を明記する。
 
-## 5. 2026-05-27 運用反映（投資収集/評価）
+## 6. 2026-05-27 運用反映（投資収集/評価）
 - 価格ソース方針:
   - 夜間の確定日足は JPX 相場表PDF（`stq_YYYYMMDD.pdf`）を主系列とし、`facts_price_daily(source_kind='jpx_stq_pdf')` に保存する。
   - `fill_market_outcomes.py` は `facts_price_daily` を優先参照し、不足時のみ Yahoo 日足へフォールバックする。

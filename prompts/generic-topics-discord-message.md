@@ -1,20 +1,22 @@
 ```text
-汎用トピック日次 2026-06-03
+汎用トピック日次 2026-06-09
 - トピック数: 3
 
-[ai-news-watch]
-  1) ニュース AIカレンダー「aircal」にFIFAワールドカップの日程を自動登録するウィジェット - 株式会社インプレス
-     URL: <https://news.google.com/rss/articles/CBMiY0FVX3lxTE5XQVBkQTdKcThkcVVIeWFkenpHU0JLTDRmbkxIVlpxU3Y4cndERXBFbGNNdGxTeGstZV8yMFB4WVRNQjVfUU16bTRHRUM4RFhWX0pRcFMxRkhDY0FIM3pyVlBTaw?oc=5>
-  2) エンジニアやコンサルがAIに代替される理由を東大理三在学中エンジニアが喝破（みんかぶマガジン） - Yahoo!ニュース
-     URL: <https://news.google.com/rss/articles/CBMiX0FVX3lxTE9NVDdxdjB0Q3MyWFpLZDNzMzBfdFZqcGdwc3p1eHFSeFUxV0xMU24zaWhMbEtqeW5mTDBKTmE0N0hvQWxMN05GX2tETW52UEpxcy1JMzJETUxxbUY5aGFr?oc=5>
+[AIニュース]
+  1) Interop Tokyo 2026、明日開幕 AI・宇宙・データセンターの現在地を幕張で体感（FINDERS） - Yahoo!ニュース
+     URL: <https://news.google.com/rss/articles/CBMif0FVX3lxTE1qRkpHcTE1YzEtSEtqbVZOWmNXazhyTW1nN25pU1JpOVBqVmlyaG9ndWU0WTJuZElyblQyY1EwemdXOUh6MURGYXpjYi1zRDJBYlBXdmhoZmVMaFU3RGVzaE1wVlpGbzMyRWFjYkRIMFNkNXktdzNDbXh1RnAyT1k?oc=5>
+  2) 長崎総合科学大学、高専を28年度設立へ AI人材育成へ企業と連携 - 日本経済新聞
+     URL: <https://news.google.com/rss/articles/CBMiVEFVX3lxTE5jME9pUjRMajhleklNNHhSOXNKQmJTaUItWDdCWmhCSGZjSEg5QTNvYk5uTHhrRC1GLU5LSEVka3NOVHV6OWFBVlduNDk2RVdJdFo0VA?oc=5>
 
-[pokemon-card-watch]
-  1) テーマ: ポケカ世界大会初出場 金沢市諸江町小５年・向田さん、大徳小３年・西田さん ８月に米サンフランシスコ｜地域｜石川のニュース - 北國新聞
-     URL: <https://news.google.com/rss/articles/CBMiTEFVX3lxTE1ucWpSOW4zT25ORzEyS1Ezamo3YWVoaC03ODJ1SkVjMDlhbnlpNHpyb2QxbVdHdE1WVm1XTGIzRGNvaTZHNk92WGF4NGM?oc=5>
+[ポケモンカード]
+  1) 商品名: 【ポケカ】30th CELEBRATION プレミアムデッキセット エーフィ・ブラッキーの収録カード・予約抽選情報まとめ - SNKRDUNK
+     URL: <https://news.google.com/rss/articles/CBMiTEFVX3lxTE5hMW53cGE2X2J5UDNaLWRXTkIwaGV0UzZNaC1wYUVSZVNtTWZqenpFMWUyYUpuZDZsZFlkXzFNOXpnMnd3VXB2RElJQU0?oc=5>
 
-[tech-stack-reads]
-  1) AI時代の｢隠れたインフラ｣を担うエンジニアリング大手 - 四季報オンライン
-     URL: <https://news.google.com/rss/articles/CBMiV0FVX3lxTE91eTNQZll3ZHA2NHR5TWd1aHF5bGlPai1BLVdFWkE0R1BXSkl4NHZjT3RJYTJoaDI0N3B0TzNxcl9acHVFLXRIeWxsOUwtbk5tRDR3Zi1rbw?oc=5>
-  2) 顕微偏光フーリエ変換赤外分光装置（FTIR）の導入（吉田浩之・工学部准教授研究室）｜研究活動情報サイト - kwansei.ac.jp
-     URL: <https://news.google.com/rss/articles/CBMiVEFVX3lxTFA0cnFfU3RoNDRNX0VMNmxsQ3FfMVBIeF9UT2N2cWdVdFcxMzF5TzA1TzhEMzFHeVI2NHFrVVk5THhWRG8wbjFoRjNLaWdOcmFvZDFCUQ?oc=5>
+[技術記事]
+  1) AWS Releases Next Generation of Amazon OpenSearch Serverless
+     要約: Amazon Web Services has recently announced the general availability of the next generatio…
+     URL: <https://www.infoq.com/news/2026/06/aws-opensearch-serverless/?utm_campaign=infoq_content&utm_source=infoq&utm_medium=feed&utm_term=Architecture+%26+Design>
+  2) GitHub for Beginners: Answers to some common questions
+     要約: Find the answers to some of the most common GitHub-related questions. The post GitHub for…
+     URL: <https://blog.cloudflare.com/realtime-threat-intel-waf-rules/>
 ```

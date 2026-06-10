@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from scripts.notify.post_scenarios_bot import find_reusable_thread_id, thread_reuse_key
+from scripts.notify.post_scenarios_bot import find_reusable_thread_id, prepare_post_rows, thread_reuse_key
 
 
 class PostScenariosThreadReuseTests(unittest.TestCase):
@@ -78,6 +78,48 @@ class PostScenariosThreadReuseTests(unittest.TestCase):
             reuse_days=30,
         )
         self.assertEqual(not_matched, "")
+
+    def test_prepare_post_rows_keeps_watch_scenarios_even_without_trades(self) -> None:
+        rows, trade_count, paper_count, watch_count, watch_cap = prepare_post_rows(
+            [],
+            [],
+            [
+                {
+                    "ticker": "3083",
+                    "direction": "long",
+                    "scenarioTier": "watch",
+                    "scenarioScore": 40,
+                    "ruleHitCount": 1,
+                    "estimatedWinRate": "T+20想定勝率=48.0%（50%未満）",
+                    "scenarioDate": "2026-06-05",
+                    "scenarioIndex": 1,
+                }
+            ],
+            [
+                {
+                    "ticker": "9999",
+                    "direction": "short",
+                    "scenarioTier": "watch",
+                    "scenarioScore": 70,
+                    "ruleHitCount": 3,
+                    "estimatedWinRate": "T+5想定勝率=52.0%（50%超）",
+                    "scenarioDate": "2026-06-05",
+                    "scenarioIndex": 2,
+                }
+            ],
+            max_posts=12,
+            watch_posts=4,
+            min_trade_posts=3,
+        )
+
+        self.assertEqual(trade_count, 0)
+        self.assertEqual(paper_count, 0)
+        self.assertEqual(watch_count, 2)
+        self.assertEqual(watch_cap, 7)
+        self.assertEqual([r["ticker"] for r in rows], ["3083", "9999"])
+        self.assertEqual(rows[0]["scenarioTier"], "watch")
+        self.assertEqual(rows[0]["watchLadder"], "none")
+        self.assertEqual(rows[1]["watchLadder"], "early")
 
 
 if __name__ == "__main__":

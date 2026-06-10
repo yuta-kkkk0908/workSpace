@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.sector_inference import resolve_sector_label
 
 OUT_DIR = ROOT / "prompts"
 DEFAULT_DB = resolve_investment_db()
@@ -159,7 +160,14 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
                          SELECT sr.borrow_status FROM short_readiness_rows sr
                          WHERE sr.ticker=s.ticker
                          ORDER BY sr.date DESC LIMIT 1
-                       ) AS borrow_status
+                       ) AS borrow_status,
+                       (
+                         SELECT t.title FROM tdnet_disclosures t
+                         WHERE t.ticker=s.ticker
+                           AND COALESCE(NULLIF(TRIM(t.title),''),'')<>''
+                         ORDER BY t.date DESC, t.disclosed_at DESC
+                         LIMIT 1
+                       ) AS tdnet_title
                 FROM signals s
                 WHERE s.date=?
                 ORDER BY signal_id
@@ -179,7 +187,8 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
                        '' AS company_from_candidate,
                        '' AS company_from_instruments,
                        '' AS sector_group,
-                       '' AS borrow_status
+                       '' AS borrow_status,
+                       '' AS tdnet_title
                 FROM signals s
                 WHERE s.date=?
                 ORDER BY signal_id
@@ -189,6 +198,15 @@ def load_signals_from_db(db_path: Path, date_str: str) -> list[dict[str, str]]:
     finally:
         conn.close()
     return [dict(r) for r in rows]
+
+
+def sector_ja(row: dict[str, str]) -> str:
+    return resolve_sector_label(
+        row.get("sector_group", ""),
+        company=row.get("company", "") or row.get("company_fallback", "") or row.get("company_from_plan", "") or row.get("company_from_candidate", "") or row.get("company_from_instruments", ""),
+        signal_type=row.get("signal_type", ""),
+        title=row.get("tdnet_title", ""),
+    )
 
 
 def load_entry_candidates_from_db(db_path: Path, date_str: str, limit: int = 3) -> list[dict[str, str]]:
@@ -344,7 +362,7 @@ def build_message(
             lines.extend(
                 [
                     "",
-                    "補完候補（entry_candidates上位）:",
+                    "become候補（entry_candidates上位）:",
                 ]
             )
             for i, r in enumerate(fallback_rows, 1):
@@ -352,7 +370,7 @@ def build_message(
                 company = (r.get("company", "") or "").strip()
                 side = (r.get("side", "") or "").strip()
                 score = r.get("score", None)
-                sector = (r.get("sector_group", "") or "不明").strip() or "不明"
+                sector = resolve_sector_label(r.get("sector_group", ""), company=company, signal_type=r.get("signal_type", ""), title=r.get("tdnet_title", ""))
                 lr = rank_ja(r.get("long_rank", ""))
                 sr = rank_ja(r.get("short_rank", ""))
                 source_url = sanitize_source_url(r.get("url", ""))
@@ -400,7 +418,7 @@ def build_message(
             hit += 1
         if (r.get("technical_signal_checked") or "").lower() == "yes":
             hit += 1
-        sector = (r.get("sector_group", "") or "不明").strip() or "不明"
+        sector = sector_ja(r)
         company = (r.get("company", "") or "").strip()
         if not company:
             company = (r.get("company_fallback", "") or "").strip()
@@ -454,7 +472,7 @@ def build_message(
                 gate = gate_ja((p.get("gate_status_latest", "") or "").strip())
                 exp = expected_direction_ja((p.get("expected_direction_latest", "") or "").strip())
                 stype = signal_type_ja((p.get("signal_type_latest", "") or "").strip()) or "不明"
-                sector = (p.get("sector_group", "") or "不明").strip() or "不明"
+                sector = resolve_sector_label(p.get("sector_group", ""), company=company, signal_type=(p.get("signal_type_latest", "") or ""))
                 planned = p.get("planned_entry_price")
                 planned_s = f"{planned}" if planned is not None else "-"
                 head = f"{ticker} {company}".strip()

@@ -14,6 +14,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
 from utils.pipeline_events import write_pipeline_event
+from utils.sector_inference import resolve_sector_label
 
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 DEFAULT_DB = resolve_investment_db()
@@ -1228,7 +1229,12 @@ def main() -> int:
         t = str(r.get("ticker", "")).strip()
         if _is_placeholder_company(str(r.get("company", "") or "")) and t in company_map:
             r["company"] = company_map[t]
-        r["sector"] = ctx.get("sector", "")
+        signal_meta_row = signal_map.get(str(r.get("signalId", "")).strip(), {})
+        r["sector"] = resolve_sector_label(
+            ctx.get("sector", ""),
+            company=r.get("company", ""),
+            signal_type=signal_meta_row.get("signalType", ""),
+        )
         r["borrowStatus"] = ctx.get("borrow_status", "")
         r["buyStatus"] = ctx.get("buy_status", "")
         r["sellStatus"] = ctx.get("sell_status", "")
@@ -1243,7 +1249,7 @@ def main() -> int:
                 "long",
                 args.risk_per_trade_jpy,
                 long_rule_ctx,
-                signal_map.get(str(r.get("signalId", "")).strip(), {}),
+                signal_meta_row,
                 board_map.get(str(r.get("ticker", "")).strip()),
                 market_snap=market_snap_map.get(str(r.get("ticker", "")).strip()),
                 sample_hints=sample_hints,
@@ -1254,7 +1260,12 @@ def main() -> int:
         t = str(r.get("ticker", "")).strip()
         if _is_placeholder_company(str(r.get("company", "") or "")) and t in company_map:
             r["company"] = company_map[t]
-        r["sector"] = ctx.get("sector", "")
+        signal_meta_row = signal_map.get(str(r.get("signalId", "")).strip(), {})
+        r["sector"] = resolve_sector_label(
+            ctx.get("sector", ""),
+            company=r.get("company", ""),
+            signal_type=signal_meta_row.get("signalType", ""),
+        )
         r["borrowStatus"] = ctx.get("borrow_status", "")
         r["buyStatus"] = ctx.get("buy_status", "")
         r["sellStatus"] = ctx.get("sell_status", "")
@@ -1269,7 +1280,7 @@ def main() -> int:
                 "short",
                 args.risk_per_trade_jpy,
                 short_rule_ctx,
-                signal_map.get(str(r.get("signalId", "")).strip(), {}),
+                signal_meta_row,
                 board_map.get(str(r.get("ticker", "")).strip()),
                 market_snap=market_snap_map.get(str(r.get("ticker", "")).strip()),
                 sample_hints=sample_hints,

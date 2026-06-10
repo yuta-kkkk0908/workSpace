@@ -11,6 +11,12 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "topics.db"
 OUT_DIR = ROOT / "prompts"
 
+TOPIC_LABELS = {
+    "ai-news-watch": "AIニュース",
+    "pokemon-card-watch": "ポケモンカード",
+    "tech-stack-reads": "技術記事",
+}
+
 
 def normalize_headline(text: str) -> str:
     s = (text or "").strip()
@@ -250,7 +256,8 @@ def main() -> int:
         else:
             for topic, entries in parsed:
                 picked = entries[:items_per_topic]
-                lines.append(f"[{topic}]")
+                topic_label = TOPIC_LABELS.get(topic, topic)
+                lines.append(f"[{topic_label}]")
                 if not picked:
                     lines.append("  - 要約データなし")
                 for idx, p in enumerate(picked, start=1):

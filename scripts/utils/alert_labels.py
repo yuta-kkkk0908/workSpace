@@ -7,7 +7,7 @@ QUALITY_REASON_LABELS = {
     "MATERIAL_STALE": "材料が古い",
     "NOON_DATA_GAP": "昼のスナップショット不足",
     "REPEATED_TICKER_BIAS": "同一銘柄の連続出現が多い",
-    "SCENARIO_BIAS": "シナリオ配分が偏っている",
+    "SCENARIO_BIAS": "有望シグナル配分が偏っている",
     "SIDE_IMBALANCE": "上昇/下落方向の偏りが大きい",
 }
 
@@ -52,4 +52,3 @@ def format_decision_warning(code: str) -> str:
 
 def format_ops_error_category(code: str) -> str:
     return format_labeled_code(code, OPS_ERROR_CATEGORY_LABELS)
-

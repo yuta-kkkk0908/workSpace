@@ -424,6 +424,52 @@ def upsert_auto_paper_trade(conn: sqlite3.Connection, row: dict) -> None:
     )
 
 
+def prepare_post_rows(
+    trade_rows: list[dict],
+    paper_rows: list[dict],
+    watch_rows: list[dict],
+    rejected_rows: list[dict],
+    *,
+    max_posts: int,
+    watch_posts: int,
+    min_trade_posts: int,
+) -> tuple[list[dict], int, int, int, int]:
+    trade_rows = [r for r in trade_rows if str(r.get("scenarioTier", "trade") or "trade") == "trade"][:max_posts]
+    paper_rows = [r for r in paper_rows if str(r.get("scenarioTier", "trade") or "trade") == "paper_trade_only"][
+        : max(0, max_posts - len(trade_rows))
+    ]
+
+    scenario_watch_rows = []
+    for r in watch_rows:
+        x = dict(r)
+        x["scenarioTier"] = "watch"
+        x["watchLadder"] = bucket_watch_ladder(x)
+        scenario_watch_rows.append(x)
+
+    trade_count = len(trade_rows)
+    paper_count = len(paper_rows)
+    base_watch_posts = max(0, watch_posts)
+    shortfall = max(0, int(min_trade_posts) - trade_count)
+
+    rows = trade_rows + paper_rows + scenario_watch_rows
+    remaining = max(0, max_posts - len(rows))
+    watch_cap = max(0, min(remaining, base_watch_posts + shortfall))
+
+    rejected_watch_rows: list[dict] = []
+    for r in rejected_rows:
+        if len(rejected_watch_rows) >= watch_cap:
+            break
+        x = dict(r)
+        x["scenarioTier"] = "watch"
+        x["watchLadder"] = bucket_watch_ladder(x)
+        rejected_watch_rows.append(x)
+
+    rows.extend(rejected_watch_rows)
+    rows = rows[:max_posts]
+    watch_count = len(scenario_watch_rows) + len(rejected_watch_rows)
+    return rows, trade_count, paper_count, watch_count, watch_cap
+
+
 def is_recent_duplicate(
     conn: sqlite3.Connection,
     *,
@@ -519,6 +565,7 @@ def main() -> int:
         src_date = None
         trade_rows: list[dict] = []
         paper_rows: list[dict] = []
+        watch_rows: list[dict] = []
         rejected_rows: list[dict] = []
         for i in range(0, max(0, args.fallback_days) + 1):
             d = (d0 - timedelta(days=i)).isoformat()
@@ -585,23 +632,28 @@ def main() -> int:
                 continue
             src_date = d
             for r in trade_src:
-                trade_rows.append(
-                    {
-                        "scenarioDate": d,
-                        "scenarioIndex": int(r["scenario_index"] or 0),
-                        "ticker": r["ticker"] or "",
-                        "company": r["company"] or "",
-                        "direction": r["direction"] or "",
-                        "scenarioScore": int(r["scenario_score"] or 0),
-                        "ruleHitCount": int(r["rule_hit_count"] or 0),
-                        "estimatedWinRate": r["estimated_winrate_text"] or "",
-                        "sourceUrl": r["source_url"] or "",
-                        "entryPrice": r["entry_price"],
-                        "scenarioTier": str(r["scenario_tier"] or "trade"),
-                        "signalId": r["signal_id"] or "",
-                        "sourcePath": "db:opening_scenarios",
-                    }
-                )
+                row = {
+                    "scenarioDate": d,
+                    "scenarioIndex": int(r["scenario_index"] or 0),
+                    "ticker": r["ticker"] or "",
+                    "company": r["company"] or "",
+                    "direction": r["direction"] or "",
+                    "scenarioScore": int(r["scenario_score"] or 0),
+                    "ruleHitCount": int(r["rule_hit_count"] or 0),
+                    "estimatedWinRate": r["estimated_winrate_text"] or "",
+                    "sourceUrl": r["source_url"] or "",
+                    "entryPrice": r["entry_price"],
+                    "scenarioTier": str(r["scenario_tier"] or "trade"),
+                    "signalId": r["signal_id"] or "",
+                    "sourcePath": "db:opening_scenarios",
+                }
+                tier = str(row.get("scenarioTier", "trade") or "trade")
+                if tier == "trade":
+                    trade_rows.append(row)
+                elif tier == "paper_trade_only":
+                    paper_rows.append(row)
+                elif tier == "watch":
+                    watch_rows.append(row)
             for r in rej_src:
                 rejected_rows.append(
                     {
@@ -615,7 +667,7 @@ def main() -> int:
                         "estimatedWinRate": r["estimated_winrate_text"] or "",
                         "scenarioTier": "watch",
                     }
-                )
+            )
             break
         if not src_date:
             print(
@@ -625,31 +677,15 @@ def main() -> int:
             return 0
     finally:
         conn.close()
-    for r in trade_rows:
-        if str(r.get("scenarioTier", "trade")) == "paper_trade_only":
-            paper_rows.append(r)
-    trade_rows = [r for r in trade_rows if str(r.get("scenarioTier", "trade")) == "trade"][:max_posts]
-    paper_rows = paper_rows[: max(0, max_posts - len(trade_rows))]
-    trade_count = len(trade_rows)
-    paper_count = len(paper_rows)
-    base_watch_posts = max(0, args.watch_posts)
-    # If trade scenarios are thin, backfill with watch scenarios to keep observation throughput.
-    shortfall = max(0, int(args.min_trade_posts) - trade_count)
-    watch_cap = min(max_posts, base_watch_posts + shortfall)
-    # Avoid overfill beyond total post cap.
-    watch_cap = max(0, min(watch_cap, max_posts - trade_count - paper_count))
-    watch_rows = []
-    for r in rejected_rows:
-        if len(watch_rows) >= watch_cap:
-            break
-        x = dict(r)
-        x["scenarioTier"] = "watch"
-        watch_rows.append(x)
-
-    # Prioritize watch rows by ladder candidates (strict > balanced > early > none).
-    for r in watch_rows:
-        r["watchLadder"] = bucket_watch_ladder(r)
-    rows = (trade_rows + paper_rows + watch_rows)[:max_posts]
+    rows, trade_count, paper_count, watch_count, watch_cap = prepare_post_rows(
+        trade_rows,
+        paper_rows,
+        watch_rows,
+        rejected_rows,
+        max_posts=max_posts,
+        watch_posts=args.watch_posts,
+        min_trade_posts=args.min_trade_posts,
+    )
     ai_summary = load_ai_analyst_summary(db, args.date) or (load_ai_analyst_summary(db, src_date) if src_date else "")
 
     conn = sqlite3.connect(db)

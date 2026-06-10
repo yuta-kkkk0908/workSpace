@@ -78,6 +78,7 @@ Scenario Bot を使う場合は `.env` に次を設定します。
 - 返信反映は即時常駐ではなく、`inv-noon` / `inv-evening` の定期実行時に取り込む。
 - エグジット時期分析（`paper-exit-timing`）は `inv-evening` で日次更新し、`AIOS-Backtest-Weekly` でも週次更新する。
 - モード比較（`paper-stats`）は `inv-evening` で日次更新し、`AIOS-Backtest-Weekly` でも週次更新する。
+- 用語の整理は `doc/OPERATION_CURRENT.md` の「用語」を参照してください（`trade=実エントリー`, `become=有望シグナル`, `live=trade実績`）。
 - watch昇格候補（`watch-promotion`）は `inv-evening` で日次更新し、`AIOS-Backtest-Weekly` でも週次更新する。
 - 週次レビュー（`trade-watch-review`）は `inv-evening` / `AIOS-Backtest-Weekly` で自動更新する。
 

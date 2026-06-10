@@ -239,30 +239,30 @@ def main() -> int:
     rate_alerts: list[str] = []
     alerts = kpi.get("alerts") or {}
     if ((alerts.get("conversion_drop") or {}).get("fired")):
-        rate_alerts.append("sig/tdnet drop")
+        rate_alerts.append("シグナル/TDnet低下")
     if ((alerts.get("price_missing_rate") or {}).get("fired")):
-        rate_alerts.append("price miss")
+        rate_alerts.append("価格欠損")
     if ((alerts.get("conversion_drop_by_type") or {}).get("fired")):
-        rate_alerts.append("type drop")
-    rate_alert_label = ", ".join(rate_alerts) if rate_alerts else "none"
+        rate_alerts.append("種別別低下")
+    rate_alert_label = ", ".join(rate_alerts) if rate_alerts else "なし"
     runtime_label = str(runtime.get("status") or "missing")
     if runtime.get("duration_minutes") is not None:
         runtime_label += f" / {int(runtime['duration_minutes'])}m"
 
     lines = [
-        f"OPS Night Watch ({args.date})",
-        f"- Runtime: {runtime_label} / commands={int(runtime.get('command_count', 0))} error={int(runtime.get('error_count', 0))}",
-        f"- Funnel: raw={int(f.get('raw_events', 0))} tdnet={int(f.get('tdnet_disclosures', 0))} signals={int(f.get('signals', 0))} entry={int(f.get('entry_candidates', 0))} scenario={int(f.get('opening_scenarios', 0))}",
-        f"- Trend: signals {format_delta(f.get('signals', 0), f_prev.get('signals', 0))} / scenario {format_delta(f.get('opening_scenarios', 0), f_prev.get('opening_scenarios', 0))}",
-        f"- Rates: sig/tdnet={float(r.get('signals_from_tdnet', 0.0)):.1f}% missPrice={float(r.get('price_missing_rate_active_universe', 0.0)):.1f}% / alerts={rate_alert_label}",
-        f"- Sample: {sample_label}",
-        f"- Weekly: watch={float(wk.get('watch_ratio_pct', 0.0)):.1f}% lowSample={float(wk.get('low_sample_ratio_pct', 0.0)):.1f}% rejectTop={str(wk.get('dominant_reject_reason') or 'n/a')}",
-        f"- Decision(3d): {str(dec.get('decision') or 'n/a')} / businessDay={bool(dec.get('is_business_day', True))}",
-        f"- GeneratedAt: {datetime.now().strftime('%Y-%m-%d %H:%M JST')}",
+        f"運用夜間監視 ({args.date})",
+        f"- 実行状況: {runtime_label} / 実行数={int(runtime.get('command_count', 0))} エラー数={int(runtime.get('error_count', 0))}",
+        f"- 流量: 生ログ={int(f.get('raw_events', 0))} TDnet={int(f.get('tdnet_disclosures', 0))} シグナル={int(f.get('signals', 0))} 候補={int(f.get('entry_candidates', 0))} 昇格={int(f.get('opening_scenarios', 0))}",
+        f"- 推移: シグナル {format_delta(f.get('signals', 0), f_prev.get('signals', 0))} / 昇格 {format_delta(f.get('opening_scenarios', 0), f_prev.get('opening_scenarios', 0))}",
+        f"- 指標: シグナル/TDnet={float(r.get('signals_from_tdnet', 0.0)):.1f}% 価格欠損={float(r.get('price_missing_rate_active_universe', 0.0)):.1f}% / 警告={rate_alert_label}",
+        f"- サンプル推移: {sample_label}",
+        f"- 週次: 監視比率={float(wk.get('watch_ratio_pct', 0.0)):.1f}% 低サンプル={float(wk.get('low_sample_ratio_pct', 0.0)):.1f}% 却下上位={str(wk.get('dominant_reject_reason') or 'n/a')}",
+        f"- 3営業日判定: {str(dec.get('decision') or 'n/a')} / 営業日={bool(dec.get('is_business_day', True))}",
+        f"- 生成時刻: {datetime.now().strftime('%Y-%m-%d %H:%M JST')}",
     ]
     failures = runtime.get("failures") or []
     if failures:
-        lines.append(f"- Failures: {'; '.join(str(x) for x in failures)}")
+        lines.append(f"- 失敗: {'; '.join(str(x) for x in failures)}")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     try:

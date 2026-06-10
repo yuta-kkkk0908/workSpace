@@ -187,18 +187,19 @@ def main() -> int:
     metrics["openingScenariosPath"] = "db:opening_scenarios"
     metrics["openingScenariosDate"] = args.date
     metrics["tradeScenarioCount"] = trade_count
+    metrics["becomeScenarioCount"] = trade_count
     metrics["watchScenarioCount"] = watch_count
     metrics["watchShare"] = round(watch_share, 4)
     scenario_bias_reasons: list[str] = []
     if trade_count == 0 and watch_count > 0:
-        scenario_bias_reasons.append("trade=0")
+        scenario_bias_reasons.append("become=0")
     if watch_share > float(args.max_watch_share):
         scenario_bias_reasons.append(f"watchShare={watch_share:.0%}>{float(args.max_watch_share):.0%}")
     if scenario_bias_reasons:
         alerts.append(
             "シナリオ構成偏り: "
             + ", ".join(scenario_bias_reasons)
-            + f" (trade={trade_count}, watch={watch_count})"
+            + f" (become={trade_count}, watch={watch_count})"
         )
         reason_codes.append("SCENARIO_BIAS")
 
@@ -307,6 +308,7 @@ def main() -> int:
         "shortABCount": short_ab,
         "quality3YesCount": q3_yes,
         "tradeScenarioCount": trade_count,
+        "becomeScenarioCount": trade_count,
         "watchScenarioCount": watch_count,
         "watchShare": round(watch_share, 4),
         "noonSnapshotTickerCount": int(noon_snapshot_ticker_count),
@@ -325,25 +327,25 @@ def main() -> int:
 
     out_alert = Path(args.out_alert)
     if alerts:
-        lines = [f"Signal Quality Alert {args.date}", f"- status: {status}"]
+        lines = [f"シグナル品質アラート {args.date}", "- 判定: 警告"]
         for a in alerts:
-            lines.append(f"- {a}")
+            lines.append(f"- 警告: {a}")
         lines.append(
-            f"- summary: signals={len(rows)} new={new_count} trade={trade_count} watch={watch_count} watchShare={watch_share:.0%}"
+            f"- 要約: シグナル={len(rows)} 新規={new_count} 有望={trade_count} 監視={watch_count} 監視比率={watch_share:.0%}"
         )
         lines.append(
-            f"- noonCoverage: {noon_snapshot_ticker_count}/{signal_ticker_count} ({noon_coverage:.0%})"
+            f"- 昼時点カバレッジ: {noon_snapshot_ticker_count}/{signal_ticker_count} ({noon_coverage:.0%})"
         )
         if gate_hold_breakdown:
             detail = ", ".join(f"{k}={v}" for k, v in sorted(gate_hold_breakdown.items()))
-            lines.append(f"- hold内訳: {detail}")
+            lines.append(f"- 保留内訳: {detail}")
         if reason_codes_sorted:
-            lines.append("- reasonCodes: " + ", ".join(format_quality_reason(code) for code in reason_codes_sorted))
+            lines.append("- 理由コード: " + ", ".join(format_quality_reason(code) for code in reason_codes_sorted))
         if args.write_files:
             out_alert = Path(args.out_alert)
             out_alert.write_text("\n".join(lines) + "\n", encoding="utf-8")
         if not args.print_json:
-            print(f"ALERT: {Path(args.out_alert)}")
+            print(f"警告: {Path(args.out_alert)}")
         write_pipeline_event(
             pipeline="investment_quality",
             slot="quality-check",
@@ -360,7 +362,7 @@ def main() -> int:
             out_alert = Path(args.out_alert)
             out_alert.write_text("", encoding="utf-8")
         if not args.print_json:
-            print("OK: signal quality")
+            print("正常: シグナル品質")
         write_pipeline_event(
             pipeline="investment_quality",
             slot="quality-check",

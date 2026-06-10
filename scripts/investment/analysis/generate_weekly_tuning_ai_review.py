@@ -18,6 +18,7 @@ from platform_core.model_router import resolve_model
 from platform_core.openai_client import call_openai_text
 
 DEFAULT_DB = resolve_investment_db()
+OUT_DIR = ROOT / "topics" / "investment-research" / "inbox"
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,9 +81,12 @@ def main() -> int:
             ("weekly_tuning_ai_review", args.date, "ai_review", json.dumps(out, ensure_ascii=False)),
         )
         conn.commit()
+        out_path = OUT_DIR / f"{args.date}-weekly-tuning-ai-review.md"
+        out_path.write_text(text.rstrip() + "\n", encoding="utf-8")
     finally:
         conn.close()
     print(f"saved: collection_artifacts weekly_tuning_ai_review {args.date}")
+    print(f"wrote {out_path.relative_to(ROOT)}")
     return 0
 
 
