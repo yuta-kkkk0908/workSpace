@@ -80,6 +80,7 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
   - open work item を claim して `doing` に進める
 - `scripts/investment/analysis/execute_improvement_work_items.py`
   - doing work item を読んで Codex CLI で修正・検証し、結果を DB に書き戻す
+  - 実行時は一時 worktree を使い、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
   - `ENABLE_IMPROVEMENT_EXECUTION=1` で scheduler からの自動実行を有効化する
 
 ### 検証（仮想トレード）

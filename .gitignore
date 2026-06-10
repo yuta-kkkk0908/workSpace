@@ -49,5 +49,6 @@ prompts/.generic-unchanged-streak.txt
 
 # Local secrets
 .env
+.env.local
 
 logs/*

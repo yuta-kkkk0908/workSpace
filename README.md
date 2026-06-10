@@ -68,7 +68,7 @@ python scripts/ops/keyword_action.py 全部
   - しきい値未達でも「Near / Keep Watch」を出し、次の監視優先候補を残す
   - `--ladder` で `early/balanced/strict` の段階候補を同時出力できる
 
-Scenario Bot を使う場合は `.env` に次を設定します。
+Scenario Bot を使う場合は `.env.local` に次を設定します。
 
 - `DISCORD_SCENARIOS_BOT_TOKEN`（互換: `DISCORD_SCENARIO_BOT_TOKEN`）
 - `DISCORD_SCENARIO_CHANNEL_ID`

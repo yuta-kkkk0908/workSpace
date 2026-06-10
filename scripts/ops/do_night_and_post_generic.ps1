@@ -14,8 +14,8 @@ if ($rc -eq 0) {
   if ($LASTEXITCODE -ne 0) { $rc = $LASTEXITCODE }
   $stepRc = Invoke-HiddenPowerShellFile -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }
-  $envFile = Join-Path $repo ".env"
-  if (Test-Path $envFile) {
+  foreach ($envFile in @((Join-Path $repo ".env.local"), (Join-Path $repo ".env"))) {
+    if (-not (Test-Path $envFile)) { continue }
     Get-Content $envFile | ForEach-Object {
       if ($_ -match "^\s*#") { return }
       if ($_ -match "^\s*$") { return }

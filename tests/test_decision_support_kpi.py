@@ -15,16 +15,34 @@ class DecisionSupportKpiTests(unittest.TestCase):
 
     def test_compute_kpi_pass_hold(self) -> None:
         rows = [
-            {"payload_json": json.dumps({"scenarioTier": "trade"}), "t5_judge": "win", "t20_judge": "lose"},
-            {"payload_json": json.dumps({"scenarioTier": "watch"}), "t5_judge": "lose", "t20_judge": "pending"},
-            {"payload_json": json.dumps({"scenarioTier": "paper_trade_only"}), "t5_judge": "pending", "t20_judge": "win"},
+            {
+                "gate_result": "accepted",
+                "payload_json": json.dumps({"scenarioTier": "trade"}),
+                "t5_judge": "win",
+                "t20_judge": "lose",
+                "reject_reasons_json": "[]",
+            },
+            {
+                "gate_result": "accepted",
+                "payload_json": json.dumps({"scenarioTier": "watch"}),
+                "t5_judge": "lose",
+                "t20_judge": "pending",
+                "reject_reasons_json": "[]",
+            },
+            {
+                "gate_result": "accepted",
+                "payload_json": json.dumps({"scenarioTier": "paper_trade_only"}),
+                "t5_judge": "pending",
+                "t20_judge": "win",
+                "reject_reasons_json": "[]",
+            },
         ]
         kpi, evaluated = _compute_kpi(rows)  # type: ignore[arg-type]
         self.assertEqual(evaluated, 3)
-        self.assertEqual(kpi["t5"]["pass"]["win"], 1)
-        self.assertEqual(kpi["t5"]["hold"]["lose"], 1)
-        self.assertEqual(kpi["t20"]["pass"]["lose"], 1)
-        self.assertEqual(kpi["t20"]["hold"]["win"], 1)
+        self.assertEqual(kpi["legacy"]["t5"]["pass"]["win"], 1)
+        self.assertEqual(kpi["legacy"]["t5"]["hold"]["lose"], 1)
+        self.assertEqual(kpi["legacy"]["t20"]["pass"]["lose"], 1)
+        self.assertEqual(kpi["legacy"]["t20"]["hold"]["win"], 1)
 
     def test_load_rows_uses_latest_outcome_per_signal_ticker(self) -> None:
         conn = sqlite3.connect(":memory:")
@@ -32,7 +50,7 @@ class DecisionSupportKpiTests(unittest.TestCase):
         conn.executescript(
             """
             CREATE TABLE scenario_gate_diagnostics(
-              scenario_date TEXT, signal_id TEXT, ticker TEXT, direction TEXT, gate_result TEXT, payload_json TEXT
+              scenario_date TEXT, signal_id TEXT, ticker TEXT, direction TEXT, gate_result TEXT, payload_json TEXT, reject_reasons_json TEXT
             );
             CREATE TABLE backtest_outcomes(
               date TEXT, source_signal_id TEXT, ticker TEXT, t5_judge TEXT, t20_judge TEXT
@@ -40,8 +58,8 @@ class DecisionSupportKpiTests(unittest.TestCase):
             """
         )
         conn.execute(
-            "INSERT INTO scenario_gate_diagnostics VALUES(?,?,?,?,?,?)",
-            ("2026-05-28", "sig-1", "1111", "long", "accepted", json.dumps({"scenarioTier": "trade"})),
+            "INSERT INTO scenario_gate_diagnostics VALUES(?,?,?,?,?,?,?)",
+            ("2026-05-28", "sig-1", "1111", "long", "accepted", json.dumps({"scenarioTier": "trade"}), "[]"),
         )
         conn.execute(
             "INSERT INTO backtest_outcomes VALUES(?,?,?,?,?)",
@@ -60,4 +78,3 @@ class DecisionSupportKpiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

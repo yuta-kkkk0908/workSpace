@@ -1,53 +1,54 @@
 Market Signals 2026-06-10
 - 種別: シグナル速報
 - 参照日: 2026-06-10
-- 件数: 12
-- 信用取引不可除外: 0件
+- 件数: 11
+- 信用取引不可除外: 1件
 
-1. 5801 古河電工 (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: 最高益見通し＋配当修正 / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260609565981.pdf
-
-2. 4996 クミアイ化 (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: upward_revision_highest_profit / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260608565647.pdf
-
-3. 3180 ビューティガレージ (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: 最高益見通し＋配当修正 / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260609566411.pdf
-
-4. 1436 Ｇ－グリーンエナジー (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: 最高益見通し＋配当修正 / ruleHits=4
+1. 1436 Ｇ－グリーンエナジー (ソフトウェア・IT) / 上昇 / L:A S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
   出典: https://www.release.tdnet.info/inbs/140120260609566097.pdf
 
+2. 3180 ビューティガレージ (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260609566411.pdf
+
+3. 4996 クミアイ化 (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
+  根拠: upward_revision_highest_profit / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260608565647.pdf
+
+4. 5801 古河電工 (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
+  根拠: 最高益見通し＋配当修正 / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260609565981.pdf
+
 5. 7777 Ｇ－３Ｄマトリックス (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: upward_revision_highest_profit / ruleHits=4
+  根拠: upward_revision_highest_profit / ruleHits=0
   出典: https://www.release.tdnet.info/inbs/140120260608565378.pdf
 
-6. 9627 アインＨＤ (ソフトウェア・IT) / 上昇 / L:A- S:該当なし
-  根拠: 最高益見通し＋配当修正 / ruleHits=4
-  出典: 一次情報URL未設定
+6. 4382 ＨＥＲＯＺ (イベント性) / 下落 / L:C S:A+
+  根拠: weak_earnings_or_guidance / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260608565515.pdf
 
-7. 7983 ミロク (不明) / 下落 / L:C S:A-
-  根拠: 下方修正（赤字転落） / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260608565009.pdf
-
-8. 2983 Ｇ－アールプランナー (不明) / 下落 / L:C S:A-
-  根拠: 下方修正（赤字転落） / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260608565097.pdf
-
-9. 2438 Ｇ－アスカネット (ネット・広告) / 下落 / L:C S:A-
-  根拠: 下方修正（赤字転落） / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260608565644.pdf
-
-10. 1433 ベステラ (不明) / 下落 / L:C S:A-
-  根拠: 下方修正（赤字転落） / ruleHits=4
+7. 1433 ベステラ (不明) / 下落 / L:C S:A
+  根拠: 下方修正（赤字転落） / ruleHits=0
   出典: https://www.release.tdnet.info/inbs/140120260609566351.pdf
 
+8. 2438 Ｇ－アスカネット (ネット・広告) / 下落 / L:C S:A
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260608565644.pdf
+
+9. 2983 Ｇ－アールプランナー (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260608565097.pdf
+
+10. 7983 ミロク (不明) / 下落 / L:C S:A-
+  根拠: 下方修正（赤字転落） / ruleHits=0
+  出典: https://www.release.tdnet.info/inbs/140120260608565009.pdf
+
 11. 8105 ＢｉｔｃｏｉｎＪＰＮ (不明) / 下落 / L:B S:A-
-  根拠: 希薄化（増資・売出） / ruleHits=4
+  根拠: 希薄化（増資・売出） / ruleHits=0
   出典: https://www.release.tdnet.info/inbs/140120260608565573.pdf
 
-12. 4382 ＨＥＲＯＺ (イベント性) / 下落 / L:C S:A
-  根拠: weak_earnings_or_guidance / ruleHits=4
-  出典: https://www.release.tdnet.info/inbs/140120260608565515.pdf
+VWAP運用（昼）:
+- ロング: 価格がVWAPを下回ったら継続見直し/撤退候補
+- ショート: 価格がVWAPを上回ったら継続見直し/撤退候補
+- VWAP逆行中の追撃・ナンピンは禁止

@@ -79,7 +79,7 @@ function Get-SafeEmbedTitle([string]$title, [string]$fallback = "Update") {
   return $t
 }
 
-Load-EnvFile (Join-Path $Repo ".env")
+Load-EnvFile (Join-Path $Repo ".env.local")
 $primaryUrl = [Environment]::GetEnvironmentVariable($PrimaryWebhookEnv, "Process")
 if (-not $primaryUrl) { throw "$PrimaryWebhookEnv is empty" }
 $fallbackUrl = $null

@@ -16,7 +16,7 @@ function Write-QualityAlertLog([string]$level, [string]$message) {
   "[$ts] [$level] $message" | Out-File -FilePath $logFile -Encoding utf8 -Append
 }
 
-Load-EnvFile (Join-Path $repo ".env")
+Load-EnvFile (Join-Path $repo ".env.local")
 
 $webhook = $env:DISCORD_ALERT_WEBHOOK_URL
 if (-not $webhook) { throw "DISCORD_ALERT_WEBHOOK_URL is empty" }

@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
 
 function Load-EnvFile([string]$envFilePath) {
+  if ($envFilePath -like "*.env" -and $envFilePath -notlike "*.env.local") {
+    $localPath = Join-Path (Split-Path $envFilePath -Parent) ".env.local"
+    if (Test-Path $localPath) {
+      Load-EnvFile $localPath
+    }
+  }
   if (-not (Test-Path $envFilePath)) { return }
   Get-Content $envFilePath -Encoding UTF8 | ForEach-Object {
     if ($_ -match "^\s*#") { return }

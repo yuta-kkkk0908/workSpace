@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.env_loader import load_env_files
 
 DATA_DIR = ROOT / "data"
 BACKUP_DIR = DATA_DIR / "backups"
@@ -24,15 +25,7 @@ MANIFEST_PATH = BACKUP_DIR / "discord-backups-manifest.json"
 
 
 def load_dotenv() -> None:
-    env_file = ROOT / ".env"
-    if not env_file.exists():
-        return
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or "=" not in s:
-            continue
-        k, v = s.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip())
+    load_env_files(ROOT / ".env.local", ROOT / ".env")
 
 
 def parse_args() -> argparse.Namespace:

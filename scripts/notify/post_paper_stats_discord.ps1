@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $repo = "E:\workSpace"
 . (Join-Path $repo "scripts\notify\discord_common.ps1")
-Load-EnvFile (Join-Path $repo ".env")
+Load-EnvFile (Join-Path $repo ".env.local")
 
 $primary = [Environment]::GetEnvironmentVariable("DISCORD_STATS_WEBHOOK_URL", "Process")
 if (-not $primary) {

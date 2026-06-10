@@ -3904,3 +3904,15 @@
 [2026-06-10 20:00:04] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
 [2026-06-10 20:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
 [2026-06-10 20:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3297
+[2026-06-10 21:00:08] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 21:00:11] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 21:00:12] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 21:00:12] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=4213
+[2026-06-10 21:20:04] [AIOS-Alert-Healthcheck] [START] begin file=E:\workSpace\scripts\ops\do_alert_and_post.ps1
+[2026-06-10 21:20:11] [AIOS-Alert-Healthcheck] [ERROR] exit_code=2
+[2026-06-10 21:20:11] [AIOS-Alert-Healthcheck] [OK] foreground restored: YourChronicle
+[2026-06-10 21:20:12] [AIOS-Alert-Healthcheck] [END] elapsed_ms=7665
+[2026-06-10 22:00:06] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-10 22:00:08] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-10 22:00:09] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-10 22:00:09] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3097

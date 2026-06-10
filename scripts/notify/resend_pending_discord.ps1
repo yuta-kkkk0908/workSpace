@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $Repo "scripts\notify\discord_common.ps1")
-Load-EnvFile (Join-Path $Repo ".env")
+Load-EnvFile (Join-Path $Repo ".env.local")
 
 $pendingDir = Join-Path $Repo "prompts\pending"
 if (-not (Test-Path $pendingDir)) {

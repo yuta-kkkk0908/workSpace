@@ -1,60 +1,95 @@
 {
-  "generatedAt": "2026-06-09T21:20:03+09:00",
+  "generatedAt": "2026-06-10T21:20:07+09:00",
   "lookbackHours": 48,
   "status": "ALERT",
   "alerts": [
     "AIOS-Inv-Morning: エラー 2件",
     "AIOS-Inv-Noon: エラー 2件",
     "AIOS-Inv-Evening: エラー 2件",
-    "AIOS-Inv-Heavy-2000: エラー 1件"
+    "AIOS-Alert-Healthcheck: エラー 1件"
   ],
   "warnings": [
-    "discord-generic.log: 更新遅延 23056分",
-    "discord-scenario.log: 更新遅延 25857分"
+    "discord-generic.log: 更新遅延 24496分",
+    "discord-scenario.log: 更新遅延 27297分"
   ],
   "tasks": {
     "AIOS-Night": {
+      "source_key": "ops.task.aios-night",
       "start_count": 1,
       "ok_count": 2,
       "error_count": 0,
-      "last_event": "[2026-06-08 19:01:16] [AIOS-Night] [OK] foreground restored: YourChronicle"
+      "last_event": "[2026-06-10 19:00:04] [AIOS-Night] [START] begin file=E:\\workSpace\\scripts\\ops\\do_night_and_post_generic.ps1"
     },
     "AIOS-Inv-Morning": {
+      "source_key": "ops.task.aios-inv-morning",
       "start_count": 2,
       "ok_count": 2,
       "error_count": 2,
-      "last_event": "[2026-06-09 07:33:49] [AIOS-Inv-Morning] [OK] foreground restored: YourChronicle"
+      "last_event": "[2026-06-10 07:33:50] [AIOS-Inv-Morning] [OK] foreground restored: YourChronicle"
     },
     "AIOS-Inv-Noon": {
+      "source_key": "ops.task.aios-inv-noon",
       "start_count": 1,
       "ok_count": 2,
       "error_count": 2,
-      "last_event": "[2026-06-09 17:38:04] [AIOS-Inv-Noon] [OK] foreground restored: YourChronicle"
+      "last_event": "[2026-06-10 12:10:31] [AIOS-Inv-Noon] [OK] foreground restored: YourChronicle"
     },
     "AIOS-Inv-Evening": {
+      "source_key": "ops.task.aios-inv-evening",
       "start_count": 1,
       "ok_count": 2,
       "error_count": 2,
-      "last_event": "[2026-06-09 18:24:07] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle"
+      "last_event": "[2026-06-10 17:52:42] [AIOS-Inv-Evening] [OK] foreground restored: YourChronicle"
     },
     "AIOS-Inv-Heavy-2000": {
+      "source_key": "ops.task.aios-inv-heavy-2000",
       "start_count": 1,
-      "ok_count": 1,
-      "error_count": 1,
-      "last_event": "[2026-06-08 20:00:55] [AIOS-Inv-Heavy-2000] [OK] foreground restored: YourChronicle"
+      "ok_count": 2,
+      "error_count": 0,
+      "last_event": "[2026-06-10 03:53:44] [AIOS-Inv-Heavy-2000] [OK] foreground restored: YourChronicle"
     },
     "AIOS-Inv-Scenario-0810": {
+      "source_key": "ops.task.aios-inv-scenario-0810",
       "start_count": 2,
       "ok_count": 4,
       "error_count": 0,
-      "last_event": "[2026-06-09 08:10:37] [AIOS-Inv-Scenario-0810] [OK] foreground restored: YourChronicle"
+      "last_event": "[2026-06-10 08:10:36] [AIOS-Inv-Scenario-0810] [OK] foreground restored: YourChronicle"
+    },
+    "AIOS-Alert-Healthcheck": {
+      "source_key": "ops.task.aios-alert-healthcheck",
+      "start_count": 1,
+      "ok_count": 2,
+      "error_count": 1,
+      "last_event": "[2026-06-09 21:20:06] [AIOS-Alert-Healthcheck] [OK] foreground restored: YourChronicle"
+    }
+  },
+  "recurringSourceKeys": {
+    "ops.task.aios-inv-morning": {
+      "task": "AIOS-Inv-Morning",
+      "error_count": 2,
+      "last_event": "[2026-06-10 07:33:49] [AIOS-Inv-Morning] [ERROR] exit_code=1"
+    },
+    "ops.task.aios-inv-noon": {
+      "task": "AIOS-Inv-Noon",
+      "error_count": 2,
+      "last_event": "[2026-06-10 12:10:30] [AIOS-Inv-Noon] [ERROR] exit_code=1"
+    },
+    "ops.task.aios-inv-evening": {
+      "task": "AIOS-Inv-Evening",
+      "error_count": 2,
+      "last_event": "[2026-06-10 17:52:41] [AIOS-Inv-Evening] [ERROR] exit_code=1"
+    },
+    "ops.task.aios-alert-healthcheck": {
+      "task": "AIOS-Alert-Healthcheck",
+      "error_count": 1,
+      "last_event": "[2026-06-09 21:20:06] [AIOS-Alert-Healthcheck] [ERROR] exit_code=2"
     }
   },
   "freshnessMinutes": {
-    "discord-signal.log": 176.03119878333334,
-    "discord-generic.log": 23056.09786545,
-    "discord-scenario.log": 25856.91464105,
-    "discord-paper-stats.log": 175.98478563333336
+    "discord-signal.log": 207.53413185,
+    "discord-generic.log": 24496.150798516665,
+    "discord-scenario.log": 27296.967574116665,
+    "discord-paper-stats.log": 207.47158223333332
   },
   "taskLog": "logs\\task-scheduler.log",
   "recommendedKeyword": "投資補完"

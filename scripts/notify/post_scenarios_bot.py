@@ -46,15 +46,15 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_dotenv() -> None:
-    env_file = ROOT / ".env"
-    if not env_file.exists():
-        return
-    for line in env_file.read_text(encoding="utf-8").splitlines():
-        s = line.strip()
-        if not s or s.startswith("#") or "=" not in s:
+    for env_file in (ROOT / ".env.local", ROOT / ".env"):
+        if not env_file.exists():
             continue
-        k, v = s.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip())
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            k, v = s.split("=", 1)
+            os.environ.setdefault(k.strip(), v.strip())
 
 
 def load_env() -> tuple[str, str]:

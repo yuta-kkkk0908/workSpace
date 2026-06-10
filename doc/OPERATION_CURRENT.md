@@ -91,12 +91,12 @@
   - `prompts/ops-kpi-summary-discord-message.txt`
     - 夜間監視用の要約として使う
     - 含むもの: `night` 実行状況 / 失敗ステージ / 収集漏れ系アラート / 収集母数トレンド
-- Webhook URLは `.env` に保存する:
+- Webhook URLは `.env.local` に保存する:
   - `DISCORD_WEBHOOK_URL=...`
   - `DISCORD_SIGNAL_WEBHOOK_URL=...`
   - `DISCORD_ALERT_WEBHOOK_URL=...`
   - `DISCORD_GENERIC_WEBHOOK_URL=...`
-- `.env` はコミットしない（`.gitignore` 対象）
+- `.env.local` はコミットしない（`.gitignore` 対象）
 
 ## 通知チャネルの整理
 

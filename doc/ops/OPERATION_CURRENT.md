@@ -177,6 +177,7 @@ proposal を元に、Codex CLI が改修・検証までを担う。
 - `scripts/investment/analysis/execute_improvement_work_items.py`
 - `doing` work item を読んで Codex CLI で改修・検証し、結果を DB に書き戻す
 - `ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ scheduler から自動実行する
+- 実行時は一時 worktree を作り、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
 - 着手の正本は `improvement_work_items`
 
 ### 制約
