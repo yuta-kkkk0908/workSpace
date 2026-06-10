@@ -28,7 +28,9 @@ DEFAULT_TASKS = [
     "AIOS-Inv-Heavy-2000",
     "AIOS-Inv-Scenario-0810",
     "AIOS-Alert-Healthcheck",
+    "AIOS-DB-Backup-2230",
 ]
+CRITICAL_TASKS = {"AIOS-DB-Backup-2230"}
 
 LINE_RE = re.compile(r"^\[(?P<ts>[^\]]+)\]\s+\[(?P<task>[^\]]+)\]\s+\[(?P<kind>[^\]]+)\]")
 
@@ -52,9 +54,9 @@ def parse_args() -> argparse.Namespace:
 
 def parse_ts(s: str) -> datetime | None:
     s = s.strip()
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S"):
         try:
-            return datetime.strptime(s, fmt).replace(tzinfo=JST)
+            return datetime.strptime(s.replace("Z", "").split("+", 1)[0], fmt).replace(tzinfo=JST)
         except ValueError:
             pass
     return None
@@ -118,11 +120,48 @@ def load_task_events_from_db(db_path: Path, cutoff: datetime) -> list[dict]:
     return out
 
 
+def load_failure_recurrence_from_db(db_path: Path, cutoff: datetime) -> dict[str, dict]:
+    if not db_path.exists():
+        return {}
+    cutoff_s = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT source_key,task_name,error_count,first_ts,last_ts,last_message
+            FROM task_failure_recurrence
+            WHERE last_ts >= ?
+            ORDER BY last_ts
+            """,
+            (cutoff_s,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    finally:
+        conn.close()
+    return {
+        str(source_key): {
+            "task": str(task_name),
+            "error_count": int(error_count),
+            "first_event": f"[{first_ts}] [{task_name}] [ERROR]",
+            "last_event": f"[{last_ts}] [{task_name}] [ERROR] {last_message or ''}".rstrip(),
+        }
+        for source_key, task_name, error_count, first_ts, last_ts, last_message in rows
+    }
+
+
 def latest_log_age_minutes(path: Path, now: datetime) -> float | None:
     if not path.exists():
         return None
     mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=JST)
     return (now - mtime).total_seconds() / 60.0
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
 
 
 def main() -> int:
@@ -154,15 +193,30 @@ def main() -> int:
             "last_event": ev[-1]["line"] if ev else "",
         }
         if not ev:
-            warns.append(f"{t}: 参照期間内イベントなし")
+            msg = f"{t}: 参照期間内イベントなし"
+            if t in CRITICAL_TASKS:
+                alerts.append(msg)
+            else:
+                warns.append(msg)
         if errs:
             alerts.append(f"{t}: エラー {len(errs)}件")
-            key = task_source_key(t)
-            recurring_source_keys[key] = {
-                "task": t,
-                "error_count": len(errs),
-                "last_event": errs[-1]["line"],
-            }
+
+    error_groups: dict[str, list[dict]] = {}
+    for ev in events:
+        if ev["kind"] != "ERROR":
+            continue
+        error_groups.setdefault(ev["source_key"], []).append(ev)
+    for key, errs in sorted(error_groups.items()):
+        recurring_source_keys[key] = {
+            "task": errs[-1]["task"],
+            "error_count": len(errs),
+            "first_event": errs[0]["line"],
+            "last_event": errs[-1]["line"],
+        }
+        if errs[-1]["task"] not in per_task:
+            alerts.append(f"{errs[-1]['task']}: エラー {len(errs)}件")
+    for key, stat in load_failure_recurrence_from_db(ops_db, cutoff).items():
+        recurring_source_keys.setdefault(key, stat)
 
     # DB integrity check for backtest_outcomes duplicate identity.
     inv_db = resolve_investment_db()
@@ -295,10 +349,10 @@ def main() -> int:
                 lines.append(f"  - 更新鮮度 {k}: なし")
             else:
                 lines.append(f"  - 更新鮮度 {k}: {age:.0f} 分")
-    lines.append(f"- metrics: {out_json.relative_to(ROOT)}")
+    lines.append(f"- metrics: {display_path(out_json)}")
     out_status.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    print(f"{status}: {out_status.relative_to(ROOT)}")
+    print(f"{status}: {display_path(out_status)}")
     return 2 if alerts else 0
 
 

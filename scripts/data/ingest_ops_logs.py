@@ -22,6 +22,18 @@ DISCORD_FILES = {
 }
 
 
+def task_source_key(task_name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", task_name.lower()).strip("-")
+    return f"ops.task.{slug or 'unknown'}"
+
+
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -51,7 +63,7 @@ def ingest_task_log(conn: sqlite3.Connection, path: Path) -> int:
                 m.group("task"),
                 m.group("level"),
                 m.group("msg"),
-                str(path.relative_to(ROOT)),
+                display_path(path),
                 raw,
                 now(),
             ),
@@ -78,13 +90,76 @@ def ingest_discord_log(conn: sqlite3.Connection, path: Path, channel: str) -> in
                 channel,
                 m.group("level"),
                 m.group("msg"),
-                str(path.relative_to(ROOT)),
+                display_path(path),
                 raw,
                 now(),
             ),
         )
         rows += 1
     return rows
+
+
+def ensure_recurrence_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS task_failure_recurrence (
+          source_key TEXT PRIMARY KEY,
+          task_name TEXT NOT NULL,
+          error_count INTEGER NOT NULL,
+          first_ts TEXT NOT NULL,
+          last_ts TEXT NOT NULL,
+          last_message TEXT,
+          updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_task_failure_recurrence_last_ts
+          ON task_failure_recurrence(last_ts)
+        """
+    )
+
+
+def refresh_failure_recurrence(conn: sqlite3.Connection) -> int:
+    rows = conn.execute(
+        """
+        SELECT task_name, COUNT(*) AS error_count, MIN(ts) AS first_ts, MAX(ts) AS last_ts
+        FROM task_log_events
+        WHERE level='ERROR'
+        GROUP BY task_name
+        """
+    ).fetchall()
+    conn.execute("DELETE FROM task_failure_recurrence")
+    for task_name, error_count, first_ts, last_ts in rows:
+        last = conn.execute(
+            """
+            SELECT message
+            FROM task_log_events
+            WHERE task_name=? AND level='ERROR' AND ts=?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (task_name, last_ts),
+        ).fetchone()
+        conn.execute(
+            """
+            INSERT INTO task_failure_recurrence(
+              source_key, task_name, error_count, first_ts, last_ts, last_message, updated_at
+            )
+            VALUES(?,?,?,?,?,?,?)
+            """,
+            (
+                task_source_key(str(task_name)),
+                task_name,
+                int(error_count),
+                first_ts,
+                last_ts,
+                last[0] if last else None,
+                now(),
+            ),
+        )
+    return len(rows)
 
 
 def main() -> int:
@@ -94,15 +169,17 @@ def main() -> int:
 
     conn = sqlite3.connect(db_path)
     try:
+        ensure_recurrence_table(conn)
         task_rows = ingest_task_log(conn, log_dir / "task-scheduler.log")
         discord_rows = 0
         for filename, channel in DISCORD_FILES.items():
             discord_rows += ingest_discord_log(conn, log_dir / filename, channel)
+        recurrence_rows = refresh_failure_recurrence(conn)
         conn.commit()
     finally:
         conn.close()
 
-    print(f"ingested task_lines={task_rows} discord_lines={discord_rows} db={db_path}")
+    print(f"ingested task_lines={task_rows} discord_lines={discord_rows} recurring_failures={recurrence_rows} db={db_path}")
     return 0
 
 
