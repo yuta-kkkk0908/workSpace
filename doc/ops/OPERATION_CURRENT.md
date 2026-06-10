@@ -133,6 +133,40 @@ workSpace を、単なる情報収集基盤ではなく、
 - Discord の `codex-log` は通知・確認の場として使う
 - `improvement_work_items` は `work_plan_json` / `target_files_json` / `validation_commands_json` を持つ
 - `improvement_work_items` は実装結果を `execution_result_json` / `validation_result_json` / `changed_files_json` / `diff_summary_json` に書き戻す
+- `improvement_work_items` は関連した監査ログIDを `audit_log_ids_json` に持つ
+- 監査ログは `improvement_audit_log` に append-only で保存する
+
+### 監査ログの保存項目
+
+`improvement_audit_log` には、work item ごとの段階別スナップショットを残す。
+
+- `work_item_id`
+- `proposal_id`
+- `candidate_date`
+- `source_key`
+- `attempt_no`
+- `stage`
+- `round_no`
+- `event_type`
+- `status`
+- `summary`
+- `blocked_reason`
+- `input_json`
+- `output_json`
+- `validation_json`
+- `review_json`
+- `branch_name`
+- `commit_sha`
+- `pr_url`
+- `created_at`
+
+保存方針:
+
+- `execution` / `validation` / `review` / `final` を stage として記録する
+- 1回の実行で複数ラウンド回した場合は round ごとに残す
+- 失敗時も final の監査行を残す
+- 途中で参照したプロンプトや検証結果は JSON で保持する
+- work item 本体は状態管理、監査ログは証跡保存に使う
 
 ### Proposal テンプレート
 

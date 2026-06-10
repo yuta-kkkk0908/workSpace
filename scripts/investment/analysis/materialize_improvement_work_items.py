@@ -119,11 +119,12 @@ def save_work_item(conn: sqlite3.Connection, proposal: dict[str, Any], work_json
             proposal_id, candidate_date, source_key, repository_full_name, work_title, work_body_json,
             work_plan_json, target_files_json, execution_commands_json, validation_commands_json,
             execution_result_json, validation_result_json, changed_files_json, diff_summary_json,
+            audit_log_ids_json,
             work_status, work_priority, review_status, claimed_by, claimed_at, started_at, completed_at,
             branch_name, commit_sha, pr_url, blocked_reason, attempt_count, last_attempt_at, error_message,
           created_at, updated_at
         )
-        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
         ON CONFLICT(proposal_id) DO UPDATE SET
           candidate_date=excluded.candidate_date,
           source_key=excluded.source_key,
@@ -138,6 +139,7 @@ def save_work_item(conn: sqlite3.Connection, proposal: dict[str, Any], work_json
           validation_result_json=excluded.validation_result_json,
           changed_files_json=excluded.changed_files_json,
           diff_summary_json=excluded.diff_summary_json,
+          audit_log_ids_json=excluded.audit_log_ids_json,
           work_priority=excluded.work_priority,
           review_status=excluded.review_status,
           blocked_reason=excluded.blocked_reason,
@@ -172,6 +174,7 @@ def save_work_item(conn: sqlite3.Connection, proposal: dict[str, Any], work_json
             json.dumps({}, ensure_ascii=False),
             json.dumps([], ensure_ascii=False),
             json.dumps({}, ensure_ascii=False),
+            json.dumps([], ensure_ascii=False),
             "open",
             int(proposal.get("priority") or 0),
             "pending",

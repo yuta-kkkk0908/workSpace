@@ -31,6 +31,31 @@ DEFAULT_OPS_DB = ROOT / "data" / "ops.db"
 DEFAULT_CONTEXT_CHARS = 12000
 WORKTREE_BASE = ROOT.parent / ".codex-worktrees"
 GITHUB_API_BASE = "https://api.github.com"
+MAX_IMPROVEMENT_ROUNDS = 2
+AUDIT_LOG_DDL = """
+CREATE TABLE IF NOT EXISTS improvement_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  work_item_id INTEGER NOT NULL,
+  proposal_id INTEGER NOT NULL,
+  candidate_date TEXT NOT NULL,
+  source_key TEXT NOT NULL,
+  attempt_no INTEGER NOT NULL DEFAULT 0,
+  stage TEXT NOT NULL,
+  round_no INTEGER NOT NULL DEFAULT 0,
+  event_type TEXT NOT NULL DEFAULT 'stage',
+  status TEXT,
+  summary TEXT,
+  blocked_reason TEXT,
+  input_json TEXT NOT NULL DEFAULT '{}',
+  output_json TEXT NOT NULL DEFAULT '{}',
+  validation_json TEXT NOT NULL DEFAULT '{}',
+  review_json TEXT NOT NULL DEFAULT '{}',
+  branch_name TEXT,
+  commit_sha TEXT,
+  pr_url TEXT,
+  created_at TEXT NOT NULL
+)
+"""
 
 
 def parse_args() -> argparse.Namespace:
@@ -378,6 +403,10 @@ def create_pull_request(
 
 
 def build_prompt(item: dict[str, Any], context: dict[str, Any]) -> str:
+    return build_prompt_with_feedback(item, context, "")
+
+
+def build_prompt_with_feedback(item: dict[str, Any], context: dict[str, Any], feedback: str) -> str:
     payload = {
         "work_item": {
             "id": item.get("id"),
@@ -394,12 +423,14 @@ def build_prompt(item: dict[str, Any], context: dict[str, Any]) -> str:
             "review_status": item.get("review_status"),
         },
         "context": context,
+        "feedback": feedback,
     }
     return (
         "あなたはこのリポジトリの実装担当です。"
         "Codex CLI として、このワークツリー上のファイルを直接改修してください。\n"
         "DBにある work item を読み、必要最小限の変更を実施してください。"
         "変更できない場合は blocked を返してください。\n"
+        "前回の検証結果や自己レビューの指摘があれば、それを優先して反映してください。\n"
         "出力は JSON だけにしてください。JSON 形式:\n"
         "{\n"
         '  "status": "done" | "blocked",\n'
@@ -435,12 +466,53 @@ def codex_output_schema() -> dict[str, Any]:
     }
 
 
+def codex_review_output_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["done", "revise", "blocked"]},
+            "summary": {"type": "string"},
+            "findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "severity": {"type": "string"},
+                        "message": {"type": "string"},
+                        "file": {"type": "string"},
+                    },
+                    "required": ["severity", "message", "file"],
+                    "additionalProperties": False,
+                },
+            },
+            "blocked_reason": {"type": "string"},
+            "notes": {"type": "string"},
+        },
+        "required": ["status", "summary", "findings", "blocked_reason", "notes"],
+        "additionalProperties": False,
+    }
+
+
 def run_codex_exec(prompt: str, model: str, worktree_root: Path) -> dict[str, Any]:
-    with tempfile.TemporaryDirectory(prefix="codex-exec-") as tmpdir:
+    return run_codex_json_stage(prompt, model, worktree_root, codex_output_schema(), "codex-exec")
+
+
+def run_codex_review(prompt: str, model: str, worktree_root: Path) -> dict[str, Any]:
+    return run_codex_json_stage(prompt, model, worktree_root, codex_review_output_schema(), "codex-review")
+
+
+def run_codex_json_stage(
+    prompt: str,
+    model: str,
+    worktree_root: Path,
+    output_schema: dict[str, Any],
+    temp_prefix: str,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix=f"{temp_prefix}-") as tmpdir:
         tmp = Path(tmpdir)
         schema_path = tmp / "output-schema.json"
         message_path = tmp / "last-message.json"
-        schema_path.write_text(json.dumps(codex_output_schema(), ensure_ascii=False, indent=2), encoding="utf-8")
+        schema_path.write_text(json.dumps(output_schema, ensure_ascii=False, indent=2), encoding="utf-8")
 
         cmd = [
             "codex",
@@ -479,6 +551,98 @@ def run_codex_exec(prompt: str, model: str, worktree_root: Path) -> dict[str, An
             "stderr": proc.stderr[-8000:],
             "final_message": final_message,
         }
+
+
+def parse_codex_json_result(raw_text: str, codex_run: dict[str, Any], *, stage: str) -> dict[str, Any]:
+    try:
+        result = json.loads(raw_text) if raw_text else {}
+    except Exception:
+        result = {}
+    if not isinstance(result, dict) or not result:
+        if stage == "review":
+            result = {
+                "status": "blocked",
+                "summary": "codex review parse failed",
+                "findings": [],
+                "blocked_reason": "codex review output could not be parsed as JSON",
+                "notes": (raw_text or codex_run.get("stderr") or codex_run.get("stdout") or "")[:4000],
+            }
+        else:
+            result = {
+                "status": "blocked",
+                "summary": "codex output parse failed",
+                "validation_commands": [],
+                "blocked_reason": "codex output could not be parsed as JSON",
+                "notes": (raw_text or codex_run.get("stderr") or codex_run.get("stdout") or "")[:4000],
+            }
+    if stage == "review" and not isinstance(result.get("findings"), list):
+        result["findings"] = []
+    if stage != "review" and not isinstance(result.get("validation_commands"), list):
+        result["validation_commands"] = []
+    if codex_run.get("returncode") != 0 and str(result.get("status") or "").strip() != "done":
+        result["status"] = "blocked"
+        if not str(result.get("blocked_reason") or "").strip():
+            result["blocked_reason"] = (
+                str(codex_run.get("stderr") or "").strip()
+                or str(codex_run.get("stdout") or "").strip()
+                or f"codex exec failed with exit code {codex_run.get('returncode')}"
+            )
+    result["codex_run"] = {
+        "command": codex_run.get("command", []),
+        "returncode": codex_run.get("returncode", 0),
+        "stdout": codex_run.get("stdout", ""),
+        "stderr": codex_run.get("stderr", ""),
+    }
+    return result
+
+
+def summarize_validation_results(validation_results: list[dict[str, Any]]) -> str:
+    if not validation_results:
+        return "validation commands: none"
+    lines: list[str] = []
+    for row in validation_results:
+        lines.append(f"`{row.get('command')}` => {int(row.get('returncode') or 0)}")
+    return "\n".join(lines)
+
+
+def build_review_prompt(
+    item: dict[str, Any],
+    context: dict[str, Any],
+    execution_result: dict[str, Any],
+    validation_result: dict[str, Any],
+) -> str:
+    payload = {
+        "work_item": {
+            "id": item.get("id"),
+            "proposal_id": item.get("proposal_id"),
+            "candidate_date": item.get("candidate_date"),
+            "source_key": item.get("source_key"),
+            "repository_full_name": item.get("repository_full_name"),
+            "work_title": item.get("work_title"),
+        },
+        "context": context,
+        "execution_result": execution_result,
+        "validation_result": validation_result,
+    }
+    return (
+        "あなたはこの変更の自己レビュー担当です。"
+        "ワークツリー上の変更と検証結果を確認し、実装と契約のずれを洗い出してください。\n"
+        "問題が残っているなら status=revise を返し、改善指示を短く具体化してください。"
+        "致命的で先に進めないなら blocked を返してください。\n"
+        "出力は JSON だけにしてください。JSON 形式:\n"
+        "{\n"
+        '  "status": "done" | "revise" | "blocked",\n'
+        '  "summary": "短い要約",\n'
+        '  "findings": [{"severity": "low|medium|high", "message": "...", "file": "..."}],\n'
+        '  "blocked_reason": "必要時のみ",\n'
+        '  "notes": "任意"\n'
+        "}\n"
+        "ルール:\n"
+        "- 提案・契約・検証結果の食い違いを優先して見る\n"
+        "- 変更が足りない場合は revise を返す\n"
+        "- 余計な説明文や markdown は返さない\n\n"
+        f"{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    )
 
 
 def run_validation_commands(base_dir: Path, commands: list[str]) -> list[dict[str, Any]]:
@@ -571,6 +735,84 @@ def update_work_item(
     conn.execute(sql, values)
 
 
+def ensure_audit_log_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(AUDIT_LOG_DDL)
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_improvement_audit_log_work_item_stage
+          ON improvement_audit_log(work_item_id, stage, round_no, id)
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_improvement_audit_log_created_at
+          ON improvement_audit_log(created_at)
+        """
+    )
+
+
+def ensure_work_item_audit_link_schema(conn: sqlite3.Connection) -> None:
+    cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(improvement_work_items)").fetchall()}
+    if "audit_log_ids_json" not in cols:
+        conn.execute(
+            "ALTER TABLE improvement_work_items ADD COLUMN audit_log_ids_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
+
+def insert_audit_log(
+    conn: sqlite3.Connection,
+    *,
+    item: dict[str, Any],
+    attempt_no: int,
+    stage: str,
+    round_no: int,
+    event_type: str,
+    status: str | None,
+    summary: str | None,
+    blocked_reason: str | None,
+    input_payload: dict[str, Any],
+    output_payload: dict[str, Any],
+    validation_payload: dict[str, Any],
+    review_payload: dict[str, Any],
+    branch_name: str = "",
+    commit_sha: str = "",
+    pr_url: str = "",
+) -> int:
+    cur = conn.execute(
+        """
+        INSERT INTO improvement_audit_log(
+            work_item_id, proposal_id, candidate_date, source_key, attempt_no,
+            stage, round_no, event_type, status, summary, blocked_reason,
+            input_json, output_json, validation_json, review_json,
+            branch_name, commit_sha, pr_url, created_at
+        )
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            int(item.get("id") or 0),
+            int(item.get("proposal_id") or 0),
+            str(item.get("candidate_date") or ""),
+            str(item.get("source_key") or ""),
+            int(attempt_no or 0),
+            str(stage or ""),
+            int(round_no or 0),
+            str(event_type or "stage"),
+            status,
+            summary,
+            blocked_reason,
+            json.dumps(input_payload, ensure_ascii=False),
+            json.dumps(output_payload, ensure_ascii=False),
+            json.dumps(validation_payload, ensure_ascii=False),
+            json.dumps(review_payload, ensure_ascii=False),
+            branch_name or None,
+            commit_sha or None,
+            pr_url or None,
+            now_iso(),
+        ),
+    )
+    return int(cur.lastrowid or 0)
+
+
 def main() -> int:
     args = parse_args()
     load_dotenv()
@@ -580,6 +822,9 @@ def main() -> int:
 
     conn = sqlite3.connect(args.db)
     try:
+        ensure_audit_log_schema(conn)
+        ensure_work_item_audit_link_schema(conn)
+        conn.commit()
         items = load_items(conn, args.date, args.limit, args.work_id)
         if not items:
             print("skip: no work items")
@@ -591,6 +836,7 @@ def main() -> int:
             branch_name = ""
             commit_sha = ""
             pr_url = ""
+            attempt_count = 0
             context: dict[str, Any] = {
                 "target_patterns": [],
                 "resolved_target_files": [],
@@ -603,6 +849,9 @@ def main() -> int:
             blocked_reason = ""
             validation_commands: list[str] = []
             validation_results: list[dict[str, Any]] = []
+            review_result: dict[str, Any] = {}
+            round_history: list[dict[str, Any]] = []
+            audit_log_ids: list[int] = []
             try:
                 if args.dry_run:
                     worktree_root = create_worktree_branch(item, WORKTREE_BASE, None)
@@ -646,39 +895,269 @@ def main() -> int:
                     conn.commit()
                     worktree_root = create_worktree_branch(item, WORKTREE_BASE, branch_name)
                     context = sync_worktree_inputs(item, worktree_root)
-                    prompt = build_prompt(item, context)
-                    codex_run = run_codex_exec(prompt, model, worktree_root)
-                    raw_text = codex_run["final_message"]
-                    try:
-                        result = json.loads(raw_text) if raw_text else {}
-                    except Exception:
-                        result = {}
-                    if not isinstance(result, dict) or not result:
-                        result = {
-                            "status": "blocked",
-                            "summary": "codex output parse failed",
-                            "validation_commands": [],
-                            "blocked_reason": "codex output could not be parsed as JSON",
-                            "notes": (raw_text or codex_run["stderr"] or codex_run["stdout"])[:4000],
-                        }
-                    if codex_run["returncode"] != 0 and str(result.get("status") or "").strip() != "done":
-                        result["status"] = "blocked"
-                        if not str(result.get("blocked_reason") or "").strip():
-                            result["blocked_reason"] = (
-                                codex_run["stderr"].strip()
-                                or codex_run["stdout"].strip()
-                                or f"codex exec failed with exit code {codex_run['returncode']}"
-                            )
-                    result["codex_run"] = {
-                        "command": codex_run["command"],
-                        "returncode": codex_run["returncode"],
-                        "stdout": codex_run["stdout"],
-                        "stderr": codex_run["stderr"],
-                    }
-                    raw_text = raw_text or ""
+                    retry_feedback = ""
+                    for round_no in range(1, MAX_IMPROVEMENT_ROUNDS + 1):
+                        prompt = build_prompt_with_feedback(item, context, retry_feedback)
+                        codex_run = run_codex_exec(prompt, model, worktree_root)
+                        raw_text = codex_run["final_message"]
+                        result = parse_codex_json_result(raw_text, codex_run, stage="exec")
+                        validation_failed = False
 
-                status = str(result.get("status") or "blocked")
-                blocked_reason = str(result.get("blocked_reason") or "").strip()
+                        validation_commands = result.get("validation_commands")
+                        if not isinstance(validation_commands, list):
+                            validation_commands = []
+                        if not validation_commands:
+                            validation_commands = parse_json(item.get("validation_commands_json"), [])
+                        if not isinstance(validation_commands, list):
+                            validation_commands = []
+
+                        validation_results = []
+                        if str(result.get("status") or "").strip() != "blocked" and validation_commands:
+                            validation_results = run_validation_commands(worktree_root or ROOT, [str(x) for x in validation_commands])
+                            failed = next((r for r in validation_results if int(r.get("returncode") or 0) != 0), None)
+                            if failed:
+                                validation_failed = True
+                                result["status"] = "blocked"
+                                blocked_reason = f"validation failed: {failed['command']}"
+                                result["blocked_reason"] = blocked_reason
+                                retry_feedback = (
+                                    "前回の検証で失敗しました。"
+                                    f"失敗コマンド: {failed['command']}. "
+                                    f"stdout: {failed.get('stdout', '')[:1000]}. "
+                                    f"stderr: {failed.get('stderr', '')[:1000]}."
+                                )
+                            else:
+                                blocked_reason = ""
+                        elif str(result.get("status") or "").strip() == "blocked":
+                            blocked_reason = str(result.get("blocked_reason") or "").strip()
+
+                        round_record: dict[str, Any] = {
+                            "round": round_no,
+                            "execution": {
+                                "status": result.get("status", "blocked"),
+                                "summary": result.get("summary", ""),
+                                "codex_run": result.get("codex_run", {}),
+                                "final_message": raw_text[:20000],
+                            },
+                            "validation": {
+                                "commands": validation_commands,
+                                "results": validation_results,
+                            },
+                        }
+
+                        audit_log_ids.append(
+                            insert_audit_log(
+                                conn,
+                                item=item,
+                                attempt_no=attempt_count,
+                                stage="execution",
+                                round_no=round_no,
+                                event_type="stage",
+                                status=str(result.get("status") or "blocked"),
+                                summary=str(result.get("summary") or ""),
+                                blocked_reason=str(result.get("blocked_reason") or "") or None,
+                                input_payload={
+                                    "prompt": prompt,
+                                    "feedback": retry_feedback,
+                                    "context": context,
+                                },
+                                output_payload={
+                                    "codex_run": result.get("codex_run", {}),
+                                    "parsed_result": {
+                                        "status": result.get("status"),
+                                        "summary": result.get("summary"),
+                                        "blocked_reason": result.get("blocked_reason"),
+                                        "notes": result.get("notes"),
+                                        "validation_commands": validation_commands,
+                                    },
+                                },
+                                validation_payload={
+                                    "commands": validation_commands,
+                                    "results": validation_results,
+                                },
+                                review_payload={},
+                                branch_name=branch_name,
+                                commit_sha=commit_sha,
+                                pr_url=pr_url,
+                            )
+                        )
+
+                        if str(result.get("status") or "").strip() == "blocked" and not blocked_reason:
+                            blocked_reason = str(result.get("blocked_reason") or "").strip()
+
+                        if validation_failed:
+                            audit_log_ids.append(
+                                insert_audit_log(
+                                    conn,
+                                    item=item,
+                                    attempt_no=attempt_count,
+                                    stage="validation",
+                                    round_no=round_no,
+                                    event_type="stage",
+                                    status="blocked",
+                                    summary=str(result.get("summary") or ""),
+                                    blocked_reason=blocked_reason or None,
+                                    input_payload={"commands": validation_commands},
+                                    output_payload={"results": validation_results},
+                                    validation_payload={
+                                        "commands": validation_commands,
+                                        "results": validation_results,
+                                    },
+                                    review_payload={},
+                                    branch_name=branch_name,
+                                    commit_sha=commit_sha,
+                                    pr_url=pr_url,
+                                )
+                            )
+                            round_history.append(round_record)
+                            if round_no >= MAX_IMPROVEMENT_ROUNDS:
+                                status = "blocked"
+                                blocked_reason = blocked_reason or "validation failed and retry budget exhausted"
+                                break
+                            blocked_reason = ""
+                            continue
+
+                        audit_log_ids.append(
+                            insert_audit_log(
+                                conn,
+                                item=item,
+                                attempt_no=attempt_count,
+                                stage="validation",
+                                round_no=round_no,
+                                event_type="stage",
+                                status=str(result.get("status") or "blocked"),
+                                summary=str(result.get("summary") or ""),
+                                blocked_reason=blocked_reason or None,
+                                input_payload={"commands": validation_commands},
+                                output_payload={"results": validation_results},
+                                validation_payload={
+                                    "commands": validation_commands,
+                                    "results": validation_results,
+                                },
+                                review_payload={},
+                                branch_name=branch_name,
+                                commit_sha=commit_sha,
+                                pr_url=pr_url,
+                            )
+                        )
+
+                        if str(result.get("status") or "").strip() != "blocked" and not blocked_reason:
+                            review_prompt = build_review_prompt(
+                                item,
+                                context,
+                                {
+                                    "status": result.get("status", "blocked"),
+                                    "summary": result.get("summary", ""),
+                                    "codex_run": result.get("codex_run", {}),
+                                    "final_message": raw_text[:20000],
+                                    "validation_commands": validation_commands,
+                                },
+                                round_record["validation"],
+                            )
+                            review_codex_run = run_codex_review(review_prompt, model, worktree_root)
+                            review_raw_text = review_codex_run["final_message"]
+                            review_result = parse_codex_json_result(review_raw_text, review_codex_run, stage="review")
+                            round_record["review"] = {
+                                "status": review_result.get("status", "blocked"),
+                                "summary": review_result.get("summary", ""),
+                                "findings": review_result.get("findings", []),
+                                "codex_run": review_result.get("codex_run", {}),
+                                "final_message": review_raw_text[:20000],
+                            }
+
+                            audit_log_ids.append(
+                                insert_audit_log(
+                                    conn,
+                                    item=item,
+                                    attempt_no=attempt_count,
+                                    stage="review",
+                                    round_no=round_no,
+                                    event_type="stage",
+                                    status=str(review_result.get("status") or "blocked"),
+                                    summary=str(review_result.get("summary") or ""),
+                                    blocked_reason=str(review_result.get("blocked_reason") or "") or None,
+                                    input_payload={
+                                        "prompt": review_prompt,
+                                        "execution_result": {
+                                            "status": result.get("status"),
+                                            "summary": result.get("summary"),
+                                        },
+                                        "validation_result": round_record["validation"],
+                                    },
+                                    output_payload={
+                                        "codex_run": review_codex_run,
+                                        "parsed_result": review_result,
+                                    },
+                                    validation_payload=round_record["validation"],
+                                    review_payload=review_result,
+                                    branch_name=branch_name,
+                                    commit_sha=commit_sha,
+                                    pr_url=pr_url,
+                                )
+                            )
+
+                            if str(review_result.get("status") or "").strip() == "done":
+                                status = "done"
+                                blocked_reason = ""
+                                round_history.append(round_record)
+                                break
+
+                            if str(review_result.get("status") or "").strip() == "revise":
+                                findings = review_result.get("findings", [])
+                                finding_lines = []
+                                if isinstance(findings, list):
+                                    for finding in findings[:6]:
+                                        if isinstance(finding, dict):
+                                            finding_lines.append(
+                                                f"[{finding.get('severity', 'medium')}] {finding.get('file', '')}: {finding.get('message', '')}"
+                                            )
+                                retry_feedback = "\n".join(
+                                    [
+                                        f"自己レビューで修正要求あり: {review_result.get('summary', '')}",
+                                        *finding_lines,
+                                        str(review_result.get("notes") or "").strip(),
+                                    ]
+                                ).strip()
+                                blocked_reason = ""
+                                round_history.append(round_record)
+                                if round_no >= MAX_IMPROVEMENT_ROUNDS:
+                                    status = "blocked"
+                                    blocked_reason = "self review requested revision but retry budget exhausted"
+                                    break
+                                continue
+
+                            status = "blocked"
+                            blocked_reason = str(review_result.get("blocked_reason") or "").strip() or "self review blocked"
+                            round_history.append(round_record)
+                            break
+
+                        if str(result.get("status") or "").strip() == "blocked":
+                            status = "blocked"
+                            round_history.append(round_record)
+                            break
+
+                        round_history.append(round_record)
+                        status = "done"
+                        blocked_reason = ""
+                        break
+
+                    if round_history:
+                        latest_round = round_history[-1]
+                        latest_execution = latest_round.get("execution", {})
+                        result = {
+                            "status": status,
+                            "summary": latest_execution.get("summary", ""),
+                            "validation_commands": latest_round.get("validation", {}).get("commands", []),
+                            "blocked_reason": blocked_reason,
+                            "notes": str((latest_round.get("review") or {}).get("notes") or ""),
+                            "codex_run": latest_execution.get("codex_run", {}),
+                            "final_message": latest_execution.get("final_message", ""),
+                        }
+                        if latest_round.get("review"):
+                            result["self_review"] = latest_round["review"]
+
+                status = str(status or result.get("status") or "blocked")
+                blocked_reason = str(blocked_reason or result.get("blocked_reason") or "").strip()
 
                 validation_commands = result.get("validation_commands")
                 if not isinstance(validation_commands, list):
@@ -688,7 +1167,7 @@ def main() -> int:
                 if not isinstance(validation_commands, list):
                     validation_commands = []
 
-                if status != "blocked" and validation_commands:
+                if not validation_results and status != "blocked" and validation_commands:
                     validation_results = run_validation_commands(worktree_root or ROOT, [str(x) for x in validation_commands])
                     failed = next((r for r in validation_results if int(r.get("returncode") or 0) != 0), None)
                     if failed:
@@ -766,12 +1245,45 @@ def main() -> int:
                     if not blocked_reason:
                         blocked_reason = "pull request creation failed"
 
+                audit_log_ids.append(
+                    insert_audit_log(
+                        conn,
+                        item=item,
+                        attempt_no=attempt_count,
+                        stage="final",
+                        round_no=len(round_history),
+                        event_type="final",
+                        status=final_status,
+                        summary=str(result.get("summary") or ""),
+                        blocked_reason=blocked_reason or None,
+                        input_payload={
+                            "rounds": round_history,
+                            "validation_commands": validation_commands,
+                        },
+                        output_payload={
+                            "final_status": final_status,
+                            "branch_name": branch_name,
+                            "commit_sha": commit_sha,
+                            "pr_url": pr_url,
+                        },
+                        validation_payload={
+                            "commands": validation_commands,
+                            "results": validation_results,
+                        },
+                        review_payload=result.get("self_review", review_result) or {},
+                        branch_name=branch_name,
+                        commit_sha=commit_sha,
+                        pr_url=pr_url,
+                    )
+                )
+
                 execution_result = {
                     "tool": "codex exec",
                     "model": model,
                     "model_route": args.model_route,
-                    "status": result.get("status", status),
+                    "status": status,
                     "summary": result.get("summary", ""),
+                    "rounds": round_history,
                     "context": {
                         "target_patterns": context["target_patterns"],
                         "resolved_target_files": context["resolved_target_files"],
@@ -784,10 +1296,19 @@ def main() -> int:
                     "branch_name": branch_name,
                     "commit_sha": commit_sha,
                     "pr_url": pr_url,
+                    "self_review": result.get("self_review", review_result),
                 }
                 validation_result = {
                     "commands": validation_commands,
                     "results": validation_results,
+                    "rounds": [
+                        {
+                            "round": round_item.get("round"),
+                            "validation": round_item.get("validation", {}),
+                            "review": round_item.get("review"),
+                        }
+                        for round_item in round_history
+                    ],
                 }
 
                 update_fields: dict[str, Any] = {
@@ -800,6 +1321,7 @@ def main() -> int:
                     "validation_result_json": json.dumps(validation_result, ensure_ascii=False),
                     "changed_files_json": json.dumps(changed_files, ensure_ascii=False),
                     "diff_summary_json": json.dumps(diff_summary, ensure_ascii=False),
+                    "audit_log_ids_json": json.dumps(audit_log_ids, ensure_ascii=False),
                     "work_status": final_status,
                     "review_status": "ready" if final_status == "done" else "pending",
                     "blocked_reason": blocked_reason or None,
@@ -828,6 +1350,7 @@ def main() -> int:
                         "branch_name": branch_name or None,
                         "commit_sha": commit_sha or None,
                         "pr_url": pr_url or None,
+                        "audit_log_ids_json": json.dumps(audit_log_ids, ensure_ascii=False),
                         "execution_commands_json": json.dumps(
                             [" ".join(result.get("codex_run", {}).get("command", ["codex", "exec"]))] if result.get("codex_run") else [],
                             ensure_ascii=False,
@@ -858,6 +1381,42 @@ def main() -> int:
                         "diff_summary_json": json.dumps(diff_summary, ensure_ascii=False),
                     }
                     update_work_item(conn, work_id=int(item["id"]), fields=update_fields)
+                    audit_log_ids.append(
+                        insert_audit_log(
+                            conn,
+                            item=item,
+                            attempt_no=attempt_count,
+                            stage="final",
+                            round_no=len(round_history),
+                            event_type="error",
+                            status="blocked",
+                            summary=str(result.get("summary") or ""),
+                            blocked_reason=blocked_reason,
+                            input_payload={
+                                "rounds": round_history,
+                                "validation_commands": validation_commands,
+                            },
+                            output_payload={
+                                "error": blocked_reason,
+                                "branch_name": branch_name,
+                                "commit_sha": commit_sha,
+                                "pr_url": pr_url,
+                            },
+                            validation_payload={
+                                "commands": validation_commands,
+                                "results": validation_results,
+                            },
+                            review_payload=result.get("self_review", review_result) or {},
+                            branch_name=branch_name,
+                            commit_sha=commit_sha,
+                            pr_url=pr_url,
+                        )
+                    )
+                    update_work_item(
+                        conn,
+                        work_id=int(item["id"]),
+                        fields={"audit_log_ids_json": json.dumps(audit_log_ids, ensure_ascii=False)},
+                    )
                     conn.commit()
                 processed += 1
             finally:

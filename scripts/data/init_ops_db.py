@@ -111,6 +111,38 @@ SCHEMA = [
       ON improvement_candidate(category, candidate_date)
     """,
     """
+    CREATE TABLE IF NOT EXISTS improvement_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      work_item_id INTEGER NOT NULL,
+      proposal_id INTEGER NOT NULL,
+      candidate_date TEXT NOT NULL,
+      source_key TEXT NOT NULL,
+      attempt_no INTEGER NOT NULL DEFAULT 0,
+      stage TEXT NOT NULL,
+      round_no INTEGER NOT NULL DEFAULT 0,
+      event_type TEXT NOT NULL DEFAULT 'stage',
+      status TEXT,
+      summary TEXT,
+      blocked_reason TEXT,
+      input_json TEXT NOT NULL DEFAULT '{}',
+      output_json TEXT NOT NULL DEFAULT '{}',
+      validation_json TEXT NOT NULL DEFAULT '{}',
+      review_json TEXT NOT NULL DEFAULT '{}',
+      branch_name TEXT,
+      commit_sha TEXT,
+      pr_url TEXT,
+      created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_audit_log_work_item_stage
+      ON improvement_audit_log(work_item_id, stage, round_no, id)
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_improvement_audit_log_created_at
+      ON improvement_audit_log(created_at)
+    """,
+    """
     CREATE TABLE IF NOT EXISTS improvement_audit_runs (
       audit_date TEXT PRIMARY KEY,
       window_days INTEGER NOT NULL,
@@ -161,6 +193,7 @@ SCHEMA = [
       validation_result_json TEXT NOT NULL DEFAULT '{}',
       changed_files_json TEXT NOT NULL DEFAULT '[]',
       diff_summary_json TEXT NOT NULL DEFAULT '{}',
+      audit_log_ids_json TEXT NOT NULL DEFAULT '[]',
       work_status TEXT NOT NULL DEFAULT 'open',
       work_priority INTEGER NOT NULL DEFAULT 0,
       review_status TEXT NOT NULL DEFAULT 'pending',
