@@ -15,11 +15,7 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: python -m pip install jsonschema
-      - name: Initialize DBs
-        run: |
-          python scripts/data/init_topics_db.py
-          python scripts/data/init_needs_db.py
-          python scripts/data/init_investment_db.py
-          python scripts/data/init_ops_db.py
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py"
       - name: Validate topics
-        run: python scripts/validate_topics.py --check-db-first
+        run: python scripts/validate_topics.py

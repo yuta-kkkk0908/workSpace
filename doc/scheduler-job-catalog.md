@@ -58,11 +58,21 @@
       - 180日: 毎月1日
   - 週次AIレビュー（月曜のみ）
     - `scripts/investment/analysis/generate_weekly_tuning_ai_review.py --date YYYY-MM-DD`
-    - `scripts/investment/analysis/generate_improvement_audit.py --date YYYY-MM-DD`（改善候補を `ops.db` に蓄積）
-    - `scripts/investment/analysis/generate_improvement_proposals.py --date YYYY-MM-DD`（改善候補を proposal 化して `codex-log` に投稿）
-    - `scripts/investment/analysis/materialize_improvement_work_items.py --date YYYY-MM-DD`（proposal を work item 化して着手対象にする）
-    - `scripts/investment/analysis/claim_improvement_work_items.py --date YYYY-MM-DD`（open work item を doing に引き上げる）
-    - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成する。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
+
+## Job: AIOS-Improvement-0600
+
+- status: active
+- schedule: 毎日 06:00
+- entrypoint: `scripts/ops/run_improvement_0600.ps1`
+- 目的:
+  - 改善候補の proposal 化と work item 化を日次で回す
+  - 実装可能なものは朝のうちに claim まで進める
+- 処理内容:
+  - `scripts/investment/analysis/generate_improvement_audit.py --date YYYY-MM-DD`（改善候補を `ops.db` に蓄積）
+  - `scripts/investment/analysis/generate_improvement_proposals.py --date YYYY-MM-DD`（改善候補を proposal 化して `codex-log` に投稿）
+  - `scripts/investment/analysis/materialize_improvement_work_items.py --date YYYY-MM-DD`（proposal を work item 化して着手対象にする）
+  - `scripts/investment/analysis/claim_improvement_work_items.py --date YYYY-MM-DD`（open work item を doing に引き上げる）
+  - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成する。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
 
 ---
 

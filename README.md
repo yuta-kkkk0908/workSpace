@@ -565,12 +565,17 @@ python3 scripts/validate_topics.py
 - `sources.json` の重複 `id` と重複 `path`
 - `sources.json` から参照するファイルパスの実在
 
-CI でも同じ検証を回せるようにしています。
+GitHub Actions の `validate` は、DB の実データには依存せず、次の 2 つだけを回します。
+
+- `python -m unittest discover -s tests -p "test_*.py"`
+- `python scripts/validate_topics.py`
+
+つまり CI は「静的契約の破壊」と「ユニットテストの失敗」を拾う役割に寄せています。DB 中身を使う整合性確認は、ローカル実行や運用側の別ジョブで扱います。
 
 - `.github/workflows/validate.yml`
 - `.pre-commit-config.yaml`
 
-DB-first 検証を含める場合:
+DB-first 検証をローカルで含める場合:
 
 ```bash
 python scripts/data/init_topics_db.py
@@ -629,7 +634,7 @@ python scripts/check_scheduler_health.py --hours 24
 | `python scripts/run_ops_scheduler.py --slot night ...` | `data/ops.db`, `data/topics.db`, `data/needs.db`, `data/investment.db` | `topics/*/inbox/*`, `prompts/*`, `logs/*` | 全体夜間オーケストレーション |
 | `python scripts/run_ops_scheduler.py --slot inv-scenario ...` | `data/investment.db` (`opening_scenarios`, `execution_plan`, `scenario_gate_diagnostics` ほか) | `topics/investment-research/inbox/*` | 寄り付きシナリオ生成 |
 | `python scripts/validate_topics.py` | なし | なし | 構造/JSON検証 |
-| `python scripts/validate_topics.py --check-db-first --db-date ...` | なし（DB参照） | なし | DB存在/主要テーブル/manifest kind整合性検証 |
+| `python scripts/validate_topics.py --check-db-first --db-date ...` | なし（DB参照） | なし | DB存在/主要テーブル/manifest kind整合性検証（ローカル/運用向け） |
 
 補足:
 - 正式な参照先は DB（`data/*.db`）。`topics/*/inbox/*` は監査・再現用の補助ログです。

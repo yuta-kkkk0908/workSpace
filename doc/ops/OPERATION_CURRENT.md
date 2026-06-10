@@ -94,7 +94,7 @@ workSpace を、単なる情報収集基盤ではなく、
 ### 実行
 
 - `scripts/investment/analysis/generate_improvement_audit.py`
-- `AIOS-Night` の月曜実行に差し込む
+- 毎日 06:00 の改善ジョブで実行する
 
 ### 入力
 
@@ -185,7 +185,7 @@ workSpace を、単なる情報収集基盤ではなく、
 ### 実行
 
 - `scripts/investment/analysis/generate_improvement_proposals.py`
-- 月曜の `AIOS-Night` で改善監査の直後に実行する
+- 毎日 06:00 の改善ジョブで改善監査の直後に実行する
 - `DISCORD_CODEX_LOGER_CHANNEL_HOOK` がある環境では `codex-log` に投稿し、ない場合も DB に proposal を積む
 - その後、proposal を `improvement_work_items` に materialize して着手対象にする
 - `improvement_work_items` は `open -> doing -> done` で進める
@@ -205,9 +205,9 @@ proposal を元に、Codex CLI が改修・検証までを担う。
 ### 着手
 
 - `scripts/investment/analysis/materialize_improvement_work_items.py`
-- `AIOS-Night` の月曜実行で proposal を work item に昇格する
+- 毎日 06:00 の改善ジョブで proposal を work item に昇格する
 - `scripts/investment/analysis/claim_improvement_work_items.py`
-- `AIOS-Night` の月曜実行で open work item を claim する
+- 毎日 06:00 の改善ジョブで open work item を claim する
 - `scripts/investment/analysis/execute_improvement_work_items.py`
 - `doing` work item を読んで Codex CLI で改修・検証し、結果を DB に書き戻す
 - `ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ scheduler から自動実行する

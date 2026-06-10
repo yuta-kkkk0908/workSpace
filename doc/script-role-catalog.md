@@ -83,6 +83,7 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
   - 実行・検証・自己レビュー・最終判定は `improvement_audit_log` に段階別で保存する
   - 実行時は一時 worktree を使い、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
   - `ENABLE_IMPROVEMENT_EXECUTION=1` で scheduler からの自動実行を有効化する
+  - 日次 06:00 の改善ジョブで proposal から work item までを進める
 
 ### 検証（仮想トレード）
 - `scripts/investment/backtest/register_paper_trades.py`

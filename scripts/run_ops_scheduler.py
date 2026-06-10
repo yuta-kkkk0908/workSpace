@@ -261,7 +261,7 @@ def slot_lock(slot: str):
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description='Scheduler orchestration for AIOS ops')
-    p.add_argument('--slot', required=True, choices=['night', 'inv-morning', 'inv-noon', 'inv-evening', 'inv-heavy', 'inv-scenario'])
+    p.add_argument('--slot', required=True, choices=['night', 'improvement', 'inv-morning', 'inv-noon', 'inv-evening', 'inv-heavy', 'inv-scenario'])
     p.add_argument('--date', default=date.today().isoformat())
     p.add_argument('--python', default=sys.executable)
     p.add_argument('--backtest', action='store_true', help='disable non-backtest side effects and today-dependent checks')
@@ -444,6 +444,18 @@ def run_decision_support_threshold_recommendation_weekly(py: str, d: str) -> int
         ],
         allow_fail=True,
     )
+
+
+def run_improvement_cycle(py: str, d: str, *, allow_execution: bool = False) -> int:
+    """Daily improvement loop: audit -> proposal -> materialize -> claim -> optional execute."""
+    rc = 0
+    rc |= run([py, 'scripts/investment/analysis/generate_improvement_audit.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/generate_improvement_proposals.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/materialize_improvement_work_items.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/investment/analysis/claim_improvement_work_items.py', '--date', d, '--limit', '3'], allow_fail=True)
+    if allow_execution:
+        rc |= run([py, 'scripts/investment/analysis/execute_improvement_work_items.py', '--date', d, '--limit', '1'], allow_fail=True)
+    return rc
 
 
 def run_investment_cycle_morning(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
@@ -643,14 +655,12 @@ def main() -> int:
                 rc |= run([py, 'scripts/investment/analysis/report_weekly_tuning_review.py', '--date', d, '--window-days', '7'], allow_fail=True)
                 if datetime.strptime(d, "%Y-%m-%d").weekday() == 0:
                     rc |= run([py, 'scripts/investment/analysis/generate_weekly_tuning_ai_review.py', '--date', d], allow_fail=True)
-                    rc |= run([py, 'scripts/investment/analysis/generate_improvement_audit.py', '--date', d], allow_fail=True)
-                    rc |= run([py, 'scripts/investment/analysis/generate_improvement_proposals.py', '--date', d], allow_fail=True)
-                    rc |= run([py, 'scripts/investment/analysis/materialize_improvement_work_items.py', '--date', d], allow_fail=True)
-                    rc |= run([py, 'scripts/investment/analysis/claim_improvement_work_items.py', '--date', d, '--limit', '3'], allow_fail=True)
-                    if os.getenv("ENABLE_IMPROVEMENT_EXECUTION", "").strip().lower() in {"1", "true", "yes"}:
-                        rc |= run([py, 'scripts/investment/analysis/execute_improvement_work_items.py', '--date', d, '--limit', '1'], allow_fail=True)
                 rc |= run([py, 'scripts/investment/analysis/decide_collection_intensity.py', '--date', d, '--window-days', '3'], allow_fail=True)
                 print("[skip] investment pipeline detached from night slot; use inv-morning/inv-noon/inv-evening/inv-scenario.")
+
+            if args.slot == 'improvement':
+                allow_execution = os.getenv("ENABLE_IMPROVEMENT_EXECUTION", "").strip().lower() in {"1", "true", "yes"}
+                rc |= run_improvement_cycle(py, d, allow_execution=allow_execution)
 
             if args.slot == 'inv-morning':
                 rc |= run_investment_cycle_morning(

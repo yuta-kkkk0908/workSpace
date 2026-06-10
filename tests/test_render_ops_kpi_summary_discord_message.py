@@ -234,12 +234,12 @@ class RenderOpsKpiSummaryDiscordMessageTests(unittest.TestCase):
                 rc = mod.main()
             self.assertEqual(rc, 0)
             text = out_path.read_text(encoding="utf-8")
-            self.assertIn("OPS Night Watch (2026-05-30)", text)
-            self.assertIn("Runtime: done_with_error / 5m / commands=2 error=1", text)
-            self.assertIn("Trend: signals +5 / become +2", text)
-            self.assertIn("alerts=price miss", text)
-            self.assertIn("Sample: 20.0%->40.0% (+20.0pt) @2026-05-29", text)
-            self.assertIn("Failures: ingest_topics_db.py(rc=2, db_error)", text)
+            self.assertIn("運用夜間監視 (2026-05-30)", text)
+            self.assertIn("実行状況: done_with_error / 5m / 実行数=2 エラー数=1", text)
+            self.assertIn("推移: シグナル +5 / 昇格 +2", text)
+            self.assertIn("警告=価格欠損", text)
+            self.assertIn("サンプル推移: 20.0%->40.0% (+20.0pt) @2026-05-29", text)
+            self.assertIn("失敗: ingest_topics_db.py(rc=2, db_error)", text)
 
 
 if __name__ == "__main__":

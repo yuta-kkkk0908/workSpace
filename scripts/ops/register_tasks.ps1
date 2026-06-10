@@ -20,6 +20,7 @@ function New-AiosTask {
 }
 
 New-AiosTask -Name "AIOS-Night" -TimeHHmm "19:00" -ScriptPath "$RepoPath\scripts\ops\run_night_and_post_generic.ps1"
+New-AiosTask -Name "AIOS-Improvement-0600" -TimeHHmm "06:00" -ScriptPath "$RepoPath\scripts\ops\run_improvement_0600.ps1"
 New-AiosTask -Name "AIOS-Inv-Morning" -TimeHHmm "07:30" -ScriptPath "$RepoPath\scripts\ops\run_inv_morning_and_post.ps1" -Days @("Monday","Tuesday","Wednesday","Thursday","Friday")
 New-AiosTask -Name "AIOS-Inv-Noon" -TimeHHmm "12:10" -ScriptPath "$RepoPath\scripts\ops\run_inv_noon_and_post.ps1" -Days @("Monday","Tuesday","Wednesday","Thursday","Friday")
 New-AiosTask -Name "AIOS-Inv-Evening" -TimeHHmm "17:00" -ScriptPath "$RepoPath\scripts\ops\run_inv_evening_and_post.ps1" -Days @("Monday","Tuesday","Wednesday","Thursday","Friday")
@@ -45,5 +46,5 @@ Write-Host "registered: AIOS-Scenario-Replies-Sync-Noon (12:30-13:30 / every 5m)
 schtasks /Create /TN "AIOS-Scenario-Replies-Sync-Manual" /SC ONCE /ST 00:00 /SD 2099/01/01 /TR $syncCmd /F | Out-Null
 Write-Host "registered: AIOS-Scenario-Replies-Sync-Manual (on-demand)"
 
-Get-ScheduledTask -TaskName "AIOS-Night","AIOS-Inv-Morning","AIOS-Inv-Noon","AIOS-Inv-Evening","AIOS-Inv-AI-2100","AIOS-Inv-Heavy-2000","AIOS-Inv-Scenario-0810","AIOS-Alert-Healthcheck","AIOS-Backtest-Weekly","AIOS-Data-Harvest","AIOS-DB-Backup-2230","AIOS-Scenario-Replies-Sync-Morning","AIOS-Scenario-Replies-Sync-Noon","AIOS-Scenario-Replies-Sync-Manual" -ErrorAction SilentlyContinue |
+Get-ScheduledTask -TaskName "AIOS-Night","AIOS-Improvement-0600","AIOS-Inv-Morning","AIOS-Inv-Noon","AIOS-Inv-Evening","AIOS-Inv-AI-2100","AIOS-Inv-Heavy-2000","AIOS-Inv-Scenario-0810","AIOS-Alert-Healthcheck","AIOS-Backtest-Weekly","AIOS-Data-Harvest","AIOS-DB-Backup-2230","AIOS-Scenario-Replies-Sync-Morning","AIOS-Scenario-Replies-Sync-Noon","AIOS-Scenario-Replies-Sync-Manual" -ErrorAction SilentlyContinue |
   Select-Object TaskName,State

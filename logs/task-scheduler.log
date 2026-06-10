@@ -3921,3 +3921,7 @@
 [2026-06-10 23:00:05] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
 [2026-06-10 23:00:05] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=1572
 [2026-06-10 23:40:02] [AIOS-Data-Harvest] [START] begin cmd=Set-Location E:\workSpace; $d=(Get-Date -Format yyyy-MM-dd); py scripts/investment/collect/run_harvest_backfill.py --end-date $d --days 21 --discover-latest 120 --max-pages 120 --tdnet-max-items 800 --seed-list rough_backtest_full --max-signals 12 --max-long 6 --max-short 6; $LASTEXITCODE
+[2026-06-11 00:00:06] [AIOS-Tasks-Channel-Sync] [START] begin file=E:\workSpace\scripts\ops\do_sync_tasks_channel.ps1
+[2026-06-11 00:00:08] [AIOS-Tasks-Channel-Sync] [OK] exit_code=0
+[2026-06-11 00:00:09] [AIOS-Tasks-Channel-Sync] [OK] foreground restored: YourChronicle
+[2026-06-11 00:00:09] [AIOS-Tasks-Channel-Sync] [END] elapsed_ms=3158

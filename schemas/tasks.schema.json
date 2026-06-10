@@ -16,7 +16,7 @@
       },
       "status": {
         "type": "string",
-        "enum": ["todo", "doing", "done", "blocked"]
+        "enum": ["todo", "doing", "in_progress", "done", "blocked"]
       },
       "priority": {
         "type": "string",
