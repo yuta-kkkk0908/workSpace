@@ -612,6 +612,7 @@ def main() -> int:
         # Investment pipeline is intentionally detached from night slot.
                 rc |= run([py, 'scripts/data/init_ops_db.py'])
                 rc |= run([py, 'scripts/data/ingest_ops_logs.py'], allow_fail=True)
+                rc |= run([py, 'scripts/check_scheduler_health.py', '--mode', 'daily', '--hours', '48'], allow_fail=True)
                 if not args.backtest:
                     rc |= run([py, 'scripts/check_daily_missing.py', '--date', 'today', '--days', '7'], allow_fail=True)
                     rc |= run([py, 'scripts/investment/collect/collect_generic_daily_topics.py', '--date', d, '--overwrite'], allow_fail=True)

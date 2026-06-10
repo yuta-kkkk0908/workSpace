@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out-json", default=str((PROMPTS_DIR / "scheduler-health.json").relative_to(ROOT)))
     p.add_argument("--out-status", default=str((PROMPTS_DIR / "scheduler-health.status.txt").relative_to(ROOT)))
     p.add_argument("--ops-db", default=str(DEFAULT_OPS_DB.relative_to(ROOT)))
+    p.add_argument("--recurrence-threshold", type=int, default=2, help="error count needed to mark a source_key as recurring")
     return p.parse_args()
 
 
@@ -118,6 +119,39 @@ def load_task_events_from_db(db_path: Path, cutoff: datetime) -> list[dict]:
     return out
 
 
+def load_task_error_recurrence(db_path: Path, cutoff: datetime) -> dict[str, dict]:
+    if not db_path.exists():
+        return {}
+    cutoff_s = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute(
+            """
+            SELECT source_key, task_name, last_level, error_count, first_ts, last_ts, last_message
+            FROM task_error_recurrence
+            WHERE last_ts >= ?
+            ORDER BY error_count DESC, last_ts DESC
+            """,
+            (cutoff_s,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    finally:
+        conn.close()
+    return {
+        str(r["source_key"]): {
+            "task": str(r["task_name"]),
+            "last_level": str(r["last_level"]),
+            "error_count": int(r["error_count"] or 0),
+            "first_ts": str(r["first_ts"]),
+            "last_ts": str(r["last_ts"]),
+            "last_message": str(r["last_message"] or ""),
+        }
+        for r in rows
+    }
+
+
 def latest_log_age_minutes(path: Path, now: datetime) -> float | None:
     if not path.exists():
         return None
@@ -134,20 +168,24 @@ def main() -> int:
     events = load_task_events_from_db(ops_db, cutoff)
     if not events:
         events = load_task_events(task_log, cutoff)
+    recurrence_stats = load_task_error_recurrence(ops_db, cutoff)
 
     per_task: dict[str, dict] = {}
     alerts: list[str] = []
     warns: list[str] = []
     db_alerts: list[str] = []
+    detected_source_keys: dict[str, dict] = {}
     recurring_source_keys: dict[str, dict] = {}
 
-    for t in args.tasks:
+    all_tasks = list(dict.fromkeys([*args.tasks, *(str(x["task"]) for x in events)]))
+    for t in all_tasks:
         ev = [x for x in events if x["task"] == t]
         starts = [x for x in ev if x["kind"] == "START"]
         oks = [x for x in ev if x["kind"] == "OK"]
         errs = [x for x in ev if x["kind"] == "ERROR"]
+        source_key = task_source_key(t)
         per_task[t] = {
-            "source_key": task_source_key(t),
+            "source_key": source_key,
             "start_count": len(starts),
             "ok_count": len(oks),
             "error_count": len(errs),
@@ -157,12 +195,17 @@ def main() -> int:
             warns.append(f"{t}: 参照期間内イベントなし")
         if errs:
             alerts.append(f"{t}: エラー {len(errs)}件")
-            key = task_source_key(t)
-            recurring_source_keys[key] = {
+            detected_source_keys[source_key] = {
                 "task": t,
                 "error_count": len(errs),
                 "last_event": errs[-1]["line"],
             }
+            if len(errs) >= max(1, args.recurrence_threshold):
+                recurring_source_keys[source_key] = dict(detected_source_keys[source_key])
+
+    for key, stat in recurrence_stats.items():
+        if int(stat["error_count"]) >= max(1, args.recurrence_threshold):
+            recurring_source_keys.setdefault(key, stat)
 
     # DB integrity check for backtest_outcomes duplicate identity.
     inv_db = resolve_investment_db()
@@ -253,9 +296,11 @@ def main() -> int:
         "alerts": alerts,
         "warnings": warns,
         "tasks": per_task,
+        "detectedSourceKeys": detected_source_keys,
         "recurringSourceKeys": recurring_source_keys,
         "freshnessMinutes": freshness,
         "taskLog": str(task_log.relative_to(ROOT)),
+        "recurrenceThreshold": int(args.recurrence_threshold),
         "recommendedKeyword": recommended_action,
     }
 
@@ -272,6 +317,10 @@ def main() -> int:
         lines.append("- 警告のみ")
     for w in warns[:8]:
         lines.append(f"- {w}")
+    if detected_source_keys:
+        lines.append("- 検知 source_key:")
+        for key, stat in sorted(detected_source_keys.items()):
+            lines.append(f"  - {key}: error={stat['error_count']} task={stat['task']}")
     if recurring_source_keys:
         lines.append("- 再発 source_key:")
         for key, stat in sorted(recurring_source_keys.items()):
