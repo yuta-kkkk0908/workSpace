@@ -46,9 +46,18 @@ prompts/*-state.json
 prompts/.signal-unchanged-streak.txt
 prompts/.paper-stats-unchanged-streak.txt
 prompts/.generic-unchanged-streak.txt
+prompts/.last-*.sha256.txt
+prompts/ai-investment-digest.*
+prompts/needs-ai-queue.*
+prompts/scheduler-health*.json
+prompts/signal-quality-*.json
+prompts/signal-quality-alert.txt
+prompts/pending/
 
 # Local secrets
 .env
 .env.local
+configs/note.local.json
+configs/note.storage_state.json
 
 logs/*
