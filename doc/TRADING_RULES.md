@@ -59,6 +59,20 @@
   - `low_liquidity_avoid`: 買い回避/見送り
 - `N/C` は「未確認」ではなく「確認済み変化なし」
 
+## aggressiveness の扱い
+
+- `scenarioTier` は運用ティア。`trade / paper_trade_only / watch` のどれで投稿・実行するかを決める。
+- `aggressiveness` は信号の攻め度合い。`signal_type` 単位の過去成績から、サイズ・TP/SL幅・保有日数の強弱を決める。
+- 目安
+  - `aggressive`: `sample>=20` かつ `T+5 winRate>=58%` かつ `T+5 dir avg return>=0.60%` かつ `T+20 dir avg return>=0.30%`
+  - `balanced`: `sample>=10` かつ `T+5 winRate>=54%` かつ `T+5 dir avg return>=0.25%`
+  - `conservative`: `sample>=5` かつ `T+5 winRate>=50%` かつ `T+5 dir avg return>=0.00%`
+  - `avoid`: `sample<5` または `T+5 winRate<47%` または `T+5 dir avg return<-0.25%`
+- 使い分け
+  - `scenarioTier` は「出すかどうか」
+  - `aggressiveness` は「出すならどれだけ攻めるか」
+  - したがって `watch` でも `balanced` 以上の研究対象はありうるし、`trade` でも `conservative` で始めることはある
+
 ## ルール改定ループ
 
 1. 日次でシグナル収集（朝/昼/夕）

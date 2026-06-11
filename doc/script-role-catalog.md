@@ -82,7 +82,7 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
   - doing work item を読んで Codex CLI で修正・検証し、結果を DB に書き戻す
   - 実行・検証・自己レビュー・最終判定は `improvement_audit_log` に段階別で保存する
   - 実行時は一時 worktree を使い、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
-  - `ENABLE_IMPROVEMENT_EXECUTION=1` で scheduler からの自動実行を有効化する
+  - 06:00 の改善ジョブが `ENABLE_IMPROVEMENT_EXECUTION=1` を既定で有効化して scheduler から自動実行する
   - 日次 06:00 の改善ジョブで proposal から work item までを進める
 - `scripts/investment/analysis/run_morning_disclosure_digest.py`
   - TDnet 開示の朝用ダイジェストを DB から作り、`topics/investment-research/inbox/*` に md を出力する

@@ -28,5 +28,6 @@ Run-Step -Name "analyze_watch_promotion" -Action { py scripts/investment/backtes
 Run-Step -Name "generate_trade_watch_weekly_review" -Action { py scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date $d }
 Run-Step -Name "fill_market_outcomes_full_weekly" -Action { py scripts/investment/backtest/fill_market_outcomes.py --date $d --seed-list rough_backtest_full }
 Run-Step -Name "report_signal_type_coverage" -Action { py scripts/investment/analysis/report_signal_type_coverage.py --date $d --window-days 60 --min-material-count 8 --shortage-ratio 0.95 }
+Run-Step -Name "materialize_signal_type_aggressiveness" -Action { py scripts/investment/analysis/materialize_signal_type_aggressiveness.py --date $d --window-days 365 }
 
 exit 0

@@ -12,6 +12,7 @@ class DecisionSupportKpiTests(unittest.TestCase):
         self.assertEqual(_reason_code("score<70"), "SCORE_LT")
         self.assertEqual(_reason_code("sampleCount<=2 -> paper_trade_only"), "SAMPLE_LOW_PAPER_ONLY")
         self.assertEqual(_reason_code("credit_unknown:base=unknown"), "CREDIT_UNKNOWN")
+        self.assertEqual(_reason_code("AGGR_BALANCED"), "AGGRESSIVENESS")
 
     def test_compute_kpi_pass_hold(self) -> None:
         rows = [

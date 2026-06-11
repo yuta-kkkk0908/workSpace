@@ -112,7 +112,7 @@ def main() -> int:
 
     trade_rows = [r for r in rows if r["mode"] == "live"]
     watch_rows = [r for r in rows if r["mode"] == "watch"]
-    all_rows = [r for r in rows if r["mode"] in ("live", "watch", "backtest")]
+    all_rows = [r for r in rows if r["mode"] in ("live", "watch", "paper_history")]
 
     trade = summarize(trade_rows)
     watch = summarize(watch_rows)

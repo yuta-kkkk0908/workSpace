@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.paper_trade_mode import normalize_paper_trade_mode
 
 DEFAULT_DB = resolve_investment_db()
 OUT = ROOT / "topics" / "investment-research" / "inbox"
@@ -19,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Build paper-trade status report")
     p.add_argument("--date", required=True, help="YYYY-MM-DD entry date")
     p.add_argument("--db", default=str(DEFAULT_DB))
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "all"])
+    p.add_argument("--mode", default="paper_history", choices=["paper_history", "live", "all"])
     return p.parse_args()
 
 
@@ -28,6 +29,8 @@ def main() -> int:
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
     try:
+        mode = normalize_paper_trade_mode(args.mode)
+        rows_mode = "all" if args.mode == "all" else mode
         if args.mode == "all":
             rows = conn.execute(
                 """
@@ -48,7 +51,7 @@ def main() -> int:
                 where entry_date=? and mode=?
                 order by ticker,side
                 """,
-                (args.date, args.mode),
+                (args.date, mode),
             ).fetchall()
     finally:
         conn.close()
@@ -58,7 +61,7 @@ def main() -> int:
         f"# {args.date} Paper Trade Report",
         "",
         "- caution: 仮想エントリーの検証記録。売買助言ではない。",
-        f"- mode: {args.mode}",
+        f"- mode: {rows_mode}",
         f"- trades: {len(rows)}",
         "",
         "## Positions",

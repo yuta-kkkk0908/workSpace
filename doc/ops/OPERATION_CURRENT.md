@@ -210,7 +210,7 @@ proposal を元に、Codex CLI が改修・検証までを担う。
 - 毎日 06:00 の改善ジョブで open work item を claim する
 - `scripts/investment/analysis/execute_improvement_work_items.py`
 - `doing` work item を読んで Codex CLI で改修・検証し、結果を DB に書き戻す
-- `ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ scheduler から自動実行する
+- 06:00 の改善ジョブは `ENABLE_IMPROVEMENT_EXECUTION=1` を既定で有効化して scheduler から自動実行する
 - `GITHUB_TOKEN` があれば push と draft PR 作成まで進め、なくてもローカル commit までは進める
 - 実行時は一時 worktree を作り、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
 - 着手の正本は `improvement_work_items`

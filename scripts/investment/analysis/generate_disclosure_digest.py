@@ -153,7 +153,7 @@ def fetch_artifact_context(conn: sqlite3.Connection, target_date: str) -> dict[s
     if not table_exists(conn, "collection_artifacts"):
         return {}
     out: dict[str, Any] = {}
-    for key in ("signal_pipeline_kpi", "scenario_promotion_ai_review"):
+    for key in ("signal_pipeline_kpi", "scenario_promotion_ai_review", "us_market_overview"):
         row = conn.execute(
             """
             SELECT payload_json
@@ -169,6 +169,19 @@ def fetch_artifact_context(conn: sqlite3.Connection, target_date: str) -> dict[s
         except json.JSONDecodeError:
             out[key] = {"raw": str(row[0])}
     return out
+
+
+def format_us_market_overview_lines(overview: dict[str, Any]) -> list[str]:
+    if not overview:
+        return []
+    summary = str(overview.get("summary") or "").strip()
+    sector = str(overview.get("sectorImpact") or "").strip()
+    lines: list[str] = []
+    if summary:
+        lines.append(f"- 米市場概況: {summary}")
+    if sector:
+        lines.append(f"- 日本セクター影響: {sector}")
+    return lines
 
 
 def category_label(category: str) -> str:
@@ -336,6 +349,7 @@ def fetch_past_price_reaction(
         """,
         (ticker, start, target_date, *categories),
     ).fetchall()
+    recent_events: list[dict[str, Any]] = []
     t1_values: list[float] = []
     t5_values: list[float] = []
     for row in rows:
@@ -355,6 +369,14 @@ def fetch_past_price_reaction(
             t1_values.append(t1_return)
         if t5_return is not None:
             t5_values.append(t5_return)
+        if len(recent_events) < 3:
+            recent_events.append(
+                {
+                    "date": event_date,
+                    "t1_pct": t1_return,
+                    "t5_pct": t5_return,
+                }
+            )
     sample_count = max(len(t1_values), len(t5_values))
     if sample_count == 0:
         return {}
@@ -362,6 +384,7 @@ def fetch_past_price_reaction(
         "sample_count": sample_count,
         "avg_t1_pct": sum(t1_values) / len(t1_values) if t1_values else None,
         "avg_t5_pct": sum(t5_values) / len(t5_values) if t5_values else None,
+        "recent_events": recent_events,
     }
 
 
@@ -408,7 +431,35 @@ def build_price_note(
         if t5:
             reaction_text += f" / 5営業日平均 {t5}"
         bits.append(reaction_text)
+        recent_events = past_reaction.get("recent_events") or []
+        recent_bits = []
+        for ev in recent_events[:2]:
+            date_s = str(ev.get("date") or "")
+            t1_s = format_pct(ev.get("t1_pct")) or "n/a"
+            t5_s = format_pct(ev.get("t5_pct")) or "n/a"
+            if date_s:
+                recent_bits.append(f"{date_s} T+1 {t1_s} / T+5 {t5_s}")
+        if recent_bits:
+            bits.append("直近事例: " + " ; ".join(recent_bits))
     return " / ".join(bits)
+
+
+def build_signal_note(signals: list[dict[str, Any]], candidates: list[dict[str, Any]]) -> str:
+    if not signals and not candidates:
+        return "シグナル参照なし"
+    pass_count = sum(1 for s in signals if str(s.get("gate_status") or "").lower() == "pass")
+    candidate_pass_count = sum(1 for c in candidates if str(c.get("gate_status") or "").lower() == "pass")
+    parts: list[str] = []
+    if signals:
+        parts.append(f"signals {len(signals)}件")
+    if candidates:
+        parts.append(f"candidates {len(candidates)}件")
+    total_pass = pass_count + candidate_pass_count
+    if total_pass:
+        parts.append(f"pass {total_pass}件")
+    if not parts:
+        return "シグナル参照あり"
+    return " / ".join(parts)
 
 
 def build_summary(disclosures: list[dict[str, Any]], disclosure_type_label: str) -> str:
@@ -463,6 +514,7 @@ def build_item(conn: sqlite3.Connection, target_date: str, lookback_days: int, g
         "published_at": max((str(d.get("published_at") or "") for d in disclosures), default=""),
         "summary": build_summary(disclosures, disclosure_type_label),
         "price_note": build_price_note(latest_price, past_reaction, target_date),
+        "signal_note": build_signal_note(signals, candidates),
         "signal_bias": signal_bias(categories, signals, candidates),
         "signals": signals,
         "entry_candidates": candidates,
@@ -536,17 +588,18 @@ def render_markdown(payload: dict[str, Any]) -> str:
     items = payload.get("items") or []
     if not items:
         parts.extend(["- 対象開示が見つかりませんでした。", ""])
-    for item in items:
-        parts.extend(
-            [
-                f"### {item['company']} ({item['code']}) | {item['disclosure_type_label']}",
-                f"- 要約: {item['summary']}",
-                f"- 価格反応: {item['price_note']}",
-                f"- シグナル: {item['signal_bias']}",
-                "- 開示一覧:",
-                *render_disclosure_lines(item),
-                "",
-            ]
+        for item in items:
+            parts.extend(
+                [
+                    f"### {item['company']} ({item['code']}) | {item['disclosure_type_label']}",
+                    f"- 要約: {item['summary']}",
+                    f"- 価格反応: {item['price_note']}",
+                    f"- シグナル接続: {item['signal_note']}",
+                    f"- シグナル: {item['signal_bias']}",
+                    "- 開示一覧:",
+                    *render_disclosure_lines(item),
+                    "",
+                ]
         )
     parts.extend(["## 全体メモ", ""])
     for line in overview_lines(payload):
@@ -557,9 +610,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 def render_note_markdown(payload: dict[str, Any]) -> str:
     title = f"適時開示ダイジェスト {payload['date']}"
-    signal_bias_counts = payload.get("signal_bias_counts") or {}
-    signal_items = payload.get("signal_items") or []
-    aligned_items = payload.get("aligned_items") or []
+    overview = (((payload.get("artifacts") or {}).get("us_market_overview")) or {})
     parts = [
         title,
         "",
@@ -567,21 +618,14 @@ def render_note_markdown(payload: dict[str, Any]) -> str:
         "",
         "前営業日の引け後から当日朝までの適時開示を、銘柄ごとにまとめて整理しました。",
         "",
-        "## 朝のシグナル",
-        "",
     ]
-    if signal_bias_counts:
-        for label, count in signal_bias_counts.items():
-            parts.append(f"- {label}: {count}銘柄")
-    else:
-        parts.append("- シグナル付き材料はまだありません。")
-    if aligned_items:
-        parts.append("- 開示とシグナルが噛み合っている銘柄を先に確認。")
-    elif signal_items:
-        parts.append("- シグナルはあるが、開示との直接対応はまだ薄い状態。")
-    else:
-        parts.append("- シグナル参照はまだありません。")
-    parts.extend(["", "## 今日の主要開示", ""])
+    us_lines = format_us_market_overview_lines(overview if isinstance(overview, dict) else {})
+    if us_lines:
+        parts.extend(["## 朝の地合い", "", *us_lines, ""])
+    parts.extend([
+        "## 今日の主要開示",
+        "",
+    ])
     items = payload.get("items") or []
     if not items:
         parts.extend(["- 対象開示が見つかりませんでした。", ""])
@@ -591,7 +635,6 @@ def render_note_markdown(payload: dict[str, Any]) -> str:
                 f"### {item['company']} ({item['code']}) | {item['disclosure_type_label']}",
                 f"- 要約: {item['summary']}",
                 f"- 価格反応: {item['price_note']}",
-                f"- シグナル: {item['signal_bias']}",
                 "- 開示一覧:",
                 *render_disclosure_lines(item),
                 "",

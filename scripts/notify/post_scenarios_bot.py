@@ -163,21 +163,27 @@ def load_ai_analyst_summary(db_path: Path, date_str: str, max_lines: int = 4) ->
 
 
 def to_message(date_str: str, idx: int, row: dict, ai_summary: str = "") -> str:
-    hold_code = str(row.get("suggestedHorizon", "") or "")
+    hold_code = str(row.get("aggressivenessHoldHorizon") or row.get("suggestedHorizon", "") or "")
     tier = str(row.get("scenarioTier", "trade"))
     tier_label = "TRADE" if tier == "trade" else ("PAPER" if tier == "paper_trade_only" else "WATCH")
     entry = row.get("entryLimitRule", "") or "条件未設定（watch観測用）"
     take = row.get("takeProfitRule", "") or "条件未設定（watch観測用）"
     stop = row.get("stopLossRule", "") or "条件未設定（watch観測用）"
+    aggr_level = str(row.get("aggressivenessLevel", "") or "unknown")
+    aggr_score = row.get("aggressivenessScore", 0)
+    aggr_reason = str(row.get("aggressivenessReason", "") or "")
     company = clean_company_name(row.get("company", ""))
     lines = [
         f"【{date_str} シナリオ #{idx} / {tier_label}】{row.get('ticker','')} {company}",
         f"方向: {direction_ja(row.get('direction',''))}",
         "運用注記: 本投稿は売買判断の提案/観測であり、自動発注は行いません。",
         f"品質: score={row.get('scenarioScore',0)} / ruleHits={row.get('ruleHitCount',0)} / {row.get('estimatedWinRate','')}",
+        f"攻め度: {aggr_level} / score={aggr_score} / hold={hold_code or 'N/A'}",
         f"根拠: {rationale(row)}",
         f"補足: ruleHits={row.get('ruleHitCount',0)} / source={row.get('candidateSource','primary')}",
     ]
+    if aggr_reason:
+        lines.append(f"判定理由: {aggr_reason}")
     if tier != "watch":
         lines.extend(
             [

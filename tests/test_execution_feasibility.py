@@ -70,7 +70,53 @@ class ExecutionFeasibilityTests(unittest.TestCase):
         self.assertIn("executionFeasibilityBreakdown", out)
         self.assertEqual(out["executionFeasibilityScore"], "unknown")
 
+    def test_scenario_for_row_includes_aggressiveness_keys(self) -> None:
+        row = {
+            "signalId": "sig-2",
+            "ticker": "2222",
+            "company": "Test2",
+            "expectedDirection": "up",
+            "longSignalRank": "B",
+            "shortSignalRank": "",
+            "url": "https://example.com",
+            "candidateSource": "primary",
+            "sector": "x",
+            "borrowStatus": "marginable",
+        }
+        signal_meta = {
+            "signalType": "buyback",
+            "source": "x",
+            "session": "night",
+            "gateStatus": "pass",
+            "materialSignalChecked": "yes",
+            "externalContextChecked": "yes",
+            "technicalSignalChecked": "yes",
+        }
+        rule_ctx = {"summary": "ok", "status": "active_rule", "appearances": 12, "t5": "wr=55.0%"}
+        aggr_ctx = {
+            "sample_count": 12,
+            "t5_win_rate_pct": 55.0,
+            "t20_win_rate_pct": 52.0,
+            "aggressiveness_level": "balanced",
+            "aggressiveness_score": 2,
+            "decision_reason": "sample>=10,t5_wr>=54.0,t5_avg>=0.25,t20_avg>=0.00",
+        }
+        out = scenario_for_row(
+            row=row,
+            side="long",
+            risk_jpy=10000,
+            rule_ctx=rule_ctx,
+            signal_meta=signal_meta,
+            aggressiveness_ctx=aggr_ctx,
+            board=None,
+            market_snap=None,
+            sample_hints=None,
+        )
+        self.assertEqual(out["aggressivenessLevel"], "balanced")
+        self.assertEqual(out["aggressivenessHoldHorizon"], "T+5")
+        self.assertEqual(out["aggressivenessScore"], 2)
+        self.assertIn("AGGR_BALANCED", out["why_pass_codes"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -40,7 +40,7 @@
 - これにより「朝タスク成功なのに候補0件（入力欠損）」を減らす
 - `inv-evening` では追加で次を日次更新する
   - `paper-exit-timing`（保有期間別傾向）
-  - `paper-stats`（`backtest/watch/live` のモード比較）
+  - `paper-stats`（`paper_history/watch/live` のモード比較）
   - `watch-promotion`（watch→become昇格候補）
     - `Ladder` 運用: `strict > balanced > early > none` で WATCH 優先度を扱う
   - `trade-watch-review`（trade/watch 差分レビュー）
@@ -59,6 +59,67 @@
 - `live`: 実エントリー中の記録。集計上は `trade実績` として `trade` に含める。
 - `trade`: 実エントリー全体の総称。`live` を含む。
 - `watch`: 監視継続。`trade` へ昇格する前段の候補。
+
+## scenarioTier と aggressiveness
+
+- `scenarioTier` は運用上の出し分け。`trade / paper_trade_only / watch` のどれで投稿・自動登録するかを表す。
+- `aggressiveness` は研究上の強さ。`signal_type` 単位で、TP/SL 幅・保有日数・サイズ感をどれだけ攻めるかの目安にする。
+- `opening_scenarios` には `aggressiveness_level` / `aggressiveness_reason` / `aggressiveness_hold_horizon` を保存し、Discord 投稿にも表示する。
+- 役割分担
+  - `scenarioTier`: 出す/出さない、紙トレに留めるかを決める
+  - `aggressiveness`: 出すならどこまで攻めるかを決める
+  - したがって、`watch` でも `balanced` 以上のシグナルはありうるし、`trade` でも `conservative` で始めることがある
+
+## backtest 補完口
+
+- `backtest_outcomes` は、ルール評価の正本であり、日次・週次・手動の3口で補完する
+- 補完の目的は「成績を増やす」ではなく、「未判定の母集団を減らして昇格/降格判断を安定させる」こと
+
+### 日次補完
+
+- 対象: 直近 30 日の未補完分
+- 実行: `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 30 --db-lookback-days 30 --seed-list rough_backtest_light`
+- 役割:
+  - 直近の `backtest_outcomes` を切らさない
+  - `analyze_market_outcomes` や `report_decision_support_kpi` の入力を安定させる
+
+### 週次補完
+
+- 対象: 深掘り母集団
+- 実行: `scripts/investment/backtest/run_backtest_suite.py --mode deep --date YYYY-MM-DD`
+- 実行結果の後段:
+  - `scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full`
+  - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
+  - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
+- 役割:
+  - `backtest` の母数を増やす
+  - `watch -> trade` 昇格の根拠を厚くする
+
+### 未判定補完
+
+- 対象: `backtest_outcomes` で `t1/t5/t20_judge` が pending の行
+- 実行: `scripts/investment/backtest/backfill_pending_outcomes.py --as-of YYYY-MM-DD --window-days 90 --max-dates 8`
+- 役割:
+  - すでに入っている母集団の判定漏れを埋める
+  - `paper_trade_only` や昇格レビューの判定遅延を減らす
+
+### 手動補完
+
+- 対象: ある日付・ある seed list だけ狙って埋めたいとき
+- 実行例:
+  - `scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full --include-db-signals`
+  - `scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_light --cache-only`
+- 役割:
+  - 欠損原因の切り分け
+  - 失敗銘柄の再試行
+  - seed list ごとの差分確認
+
+### 補完の見方
+
+- `fill_market_outcomes.py` は Markdown 出力と cache 更新を担当し、DB 反映は `scripts/data/ingest_investment_db.py` で行う
+- `backfill_recent_outcomes_window.py` は直近ウィンドウの定期補完用
+- `backfill_pending_outcomes.py` は判定待ちの追加入力用
+- `run_ops_scheduler.py` の夜間/週次フローは、この3口を組み合わせて `backtest_outcomes` を育てる
 
 ## 役割分担
 
@@ -116,6 +177,7 @@
     - `trade` シナリオは投稿時に `paper_trades.mode='paper'` へ自動登録して事後成績を追跡する
     - 手動 `entry paper` / `entry 机上` は補助用途（watchや個別観測用）
     - 返信同期は `scripts/notify/sync_scenario_replies_bot.py` が active threads を読んで DB 反映する
+    - 日曜は `entry` が残っていないシナリオのスレッドとアンカー投稿を delete して整理する
 - Alert通知:
   - 元データ: `prompts/pending-daily/latest.status.txt`
   - 追加データ: `prompts/scheduler-health.status.txt`

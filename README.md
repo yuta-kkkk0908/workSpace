@@ -61,7 +61,7 @@ python scripts/ops/keyword_action.py 全部
 - `scenario-bot-post`: 寄り付きシナリオを 1銘柄1投稿で Discord に投稿
 - `scenario-bot-sync`: 投稿への返信（entry/exit/cancel）を `paper_trades` へ反映
 - `paper-exit-timing`: 収集済み取引データから保有期間（T+1/T+5/T+20）の傾向を集計
-- `paper-stats`: `live/watch/backtest` の勝率・平均リターンをモード比較で集計
+- `paper-stats`: `live/watch/paper_history` の勝率・平均リターンをモード比較で集計
 - `inv-paper-stats-message`: `paper-stats` を Discord 向け短文に整形
 - `trade-watch-review`: trade/watch の勝率差とサンプル警告を1枚に集約
 - `watch-promotion`: watch検証データから trade 昇格候補を抽出

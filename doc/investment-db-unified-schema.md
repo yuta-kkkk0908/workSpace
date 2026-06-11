@@ -12,6 +12,7 @@
   - `signals`
   - `entry_candidates`
   - `backtest_outcomes`
+  - `signal_type_aggressiveness_rows`
   - `opening_scenarios`
   - `execution_plan`
 - `dimensions`: 銘柄や補助コンテキスト
@@ -45,3 +46,4 @@
 ## Promotion Rule
 - 新規項目は原則 `payload_json` に入れる
 - 参照頻度・集計頻度が高い項目のみ固定カラムに昇格
+- `backtest_outcomes` は個別事実の保存先、`signal_type_aggressiveness_rows` は `signal_type` 単位の集計結果の保存先

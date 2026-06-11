@@ -10,7 +10,13 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pdfplumber
+try:
+    import pdfplumber
+except ModuleNotFoundError as exc:
+    raise RuntimeError(
+        "pdfplumber is required for collect_jpx_daily_pdf_prices.py. "
+        "Install it in the Python 3.12 runtime used by harvest jobs."
+    ) from exc
 
 ROOT = Path(__file__).resolve().parents[3]
 JST = timezone(timedelta(hours=9))
@@ -169,6 +175,8 @@ def parse_pdf_rows(pdf_path: Path, max_pages: int = 0) -> list[dict]:
             continue
         seen.add(t)
         out.append(r)
+    if not out:
+        raise RuntimeError(f"no rows parsed from JPX PDF: {pdf_path}")
     return out
 
 

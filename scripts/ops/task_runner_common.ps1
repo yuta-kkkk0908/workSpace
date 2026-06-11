@@ -5,13 +5,19 @@ function Get-AiosPythonPath {
     [string]$Repo = "E:\workSpace"
   )
 
-  $python = "C:\msys64\usr\bin\python.exe"
-  if (Test-Path $python) {
-    return $python
+  $python312 = "C:\Users\yuta_\AppData\Local\Programs\Python\Python312\python.exe"
+  if (Test-Path $python312) {
+    return $python312
   }
+
   $venvPython = Join-Path $Repo ".venv\Scripts\python.exe"
   if (Test-Path $venvPython) {
     return $venvPython
+  }
+
+  $python = "C:\msys64\usr\bin\python.exe"
+  if (Test-Path $python) {
+    return $python
   }
   throw "python runtime not found"
 }

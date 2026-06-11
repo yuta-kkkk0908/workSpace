@@ -12,13 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.paper_trade_mode import normalize_paper_trade_mode
 from utils.terminology import glossary_line
 
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
 DEFAULT_DB = resolve_investment_db()
 
-SECTION_RE = re.compile(r"^###\s+(backtest|watch|live|paper|all)\s*$")
+SECTION_RE = re.compile(r"^###\s+(paper_history|watch|live|paper|all)\s*$")
 SAMPLE_RE = re.compile(r"^- sampleTrades:\s*(\d+)\s*$")
 T5_RE = re.compile(r"^- T\+5:\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
 SIDE_RE = re.compile(r"^- (long|short):\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
@@ -125,7 +126,9 @@ def load_stats_from_db(db_path: Path, date_str: str) -> dict[str, dict[str, str]
     conn = sqlite3.connect(db_path)
     try:
         out: dict[str, dict[str, str]] = {}
-        for mode in ("backtest", "watch", "live", "paper"):
+        for mode in ("paper_history", "watch", "live", "paper"):
+            mode_sql = "mode=?"
+            mode_params = (mode,)
             row = conn.execute(
                 """
                 SELECT
@@ -134,9 +137,9 @@ def load_stats_from_db(db_path: Path, date_str: str) -> dict[str, dict[str, str]
                   AVG(t5_return_pct) AS t5_avg,
                   AVG(CASE WHEN t5_return_pct > 0 THEN 1.0 ELSE 0.0 END) AS t5_wr
                 FROM paper_trades
-                WHERE mode=? AND entry_date<=?
-                """,
-                (mode, date_str),
+                WHERE {mode_sql} AND entry_date<=?
+                """.format(mode_sql=mode_sql),
+                (*mode_params, date_str),
             ).fetchone()
             if not row:
                 continue
@@ -227,7 +230,7 @@ def to_line(mode: str, row: dict[str, str]) -> str:
         "live": "trade実績(live)",
         "watch": "watch",
         "paper": "paper",
-        "backtest": "backtest",
+        "paper_history": "paper_history",
     }.get(mode, mode)
     return f"- {display_mode}: サンプル={sample} / T+5 n={t5n} 勝率={t5wr}% 平均={t5ret}%"
 
@@ -271,7 +274,7 @@ def build_message(
     if source_date != target_date:
         lines.insert(2, f"- 注意: 当日未生成のため {source_date} を参照")
     lines.append("【モード比較（T+5中心）】")
-    for mode in ("backtest", "watch", "live", "paper"):
+    for mode in ("paper_history", "watch", "live", "paper"):
         lines.append(to_line(mode, rows.get(mode, {})))
     lines.append("")
     lines.append("【補足】")

@@ -13,6 +13,10 @@ class PostScenariosMessageFormatTests(unittest.TestCase):
             "ruleHitCount": 5,
             "estimatedWinRate": "T+5想定勝率=55.0%（50%超）",
             "candidateSource": "primary",
+            "aggressivenessLevel": "balanced",
+            "aggressivenessScore": 2,
+            "aggressivenessReason": "sample>=10,t5_wr>=54.0,t5_avg>=0.25,t20_avg>=0.00",
+            "aggressivenessHoldHorizon": "T+5",
             "entryLimitRule": "1000円",
             "takeProfitRule": "1020円",
             "stopLossRule": "990円",
@@ -27,6 +31,7 @@ class PostScenariosMessageFormatTests(unittest.TestCase):
         self.assertIn("提案/観測", msg)
         self.assertIn("自動発注は行いません", msg)
         self.assertIn("TRADE枠は執行候補の提案", msg)
+        self.assertIn("攻め度: balanced", msg)
         self.assertLessEqual(len(msg), 1900)
 
     def test_watch_message_has_ladder_reason_and_watch_notice(self) -> None:
@@ -50,4 +55,3 @@ class PostScenariosMessageFormatTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

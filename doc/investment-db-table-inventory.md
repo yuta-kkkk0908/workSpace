@@ -35,6 +35,7 @@
 | short_readiness_rows | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_readiness_rows_1(date,ticker,signal_date,signal_type) |
 | short_rebound_reviews | table | ops | date,ticker,signal_date,signal_type | sqlite_autoindex_short_rebound_reviews_1(date,ticker,signal_date,signal_type) |
 | signal_type_coverage_rows | table | ops | date,window_days,signal_type | sqlite_autoindex_signal_type_coverage_rows_1(date,window_days,signal_type) |
+| signal_type_aggressiveness_rows | table | facts | date,window_days,signal_type,expected_direction | sqlite_autoindex_signal_type_aggressiveness_rows_1(date,window_days,signal_type,expected_direction) |
 | signals | table | facts | signal_id,date | sqlite_autoindex_signals_1(signal_id,date) |
 | tdnet_disclosures | table | ops | date,ticker,title,tdnet_url | sqlite_autoindex_tdnet_disclosures_1(date,ticker,title,tdnet_url) |
 | technical_context_rows | table | dimensions | date,ticker,signal_date | sqlite_autoindex_technical_context_rows_1(date,ticker,signal_date) |

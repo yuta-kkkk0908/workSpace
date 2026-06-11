@@ -141,6 +141,12 @@ def main() -> int:
     db_alerts: list[str] = []
     recurring_source_keys: dict[str, dict] = {}
 
+    def recurring_error_count(stat: dict) -> int:
+        try:
+            return int(stat.get("error_count", stat.get("current_error_count", 0)) or 0)
+        except Exception:
+            return 0
+
     for t in args.tasks:
         ev = [x for x in events if x["task"] == t]
         starts = [x for x in ev if x["kind"] == "START"]
@@ -275,7 +281,7 @@ def main() -> int:
     if recurring_source_keys:
         lines.append("- 再発 source_key:")
         for key, stat in sorted(recurring_source_keys.items()):
-            lines.append(f"  - {key}: error={stat['error_count']} task={stat['task']}")
+            lines.append(f"  - {key}: error={recurring_error_count(stat)} task={stat['task']}")
     lines.append(f"- 推奨キーワード: {recommended_action}")
     lines.append("- 実行: python scripts/ops/keyword_action.py <推奨キーワード>")
     if args.mode == "weekly":

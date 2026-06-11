@@ -47,6 +47,19 @@ make investment-backtest-expand DATE=YYYY-MM-DD SEED_LIST=rough_backtest_light C
 - ロング/ショート再分類
 - rule dashboard / rule history / tag-index 更新
 
+### backtest 補完 lane
+`backtest_outcomes` の未判定を日次・週次・手動で埋める。
+
+```bash
+python scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 30 --db-lookback-days 30 --seed-list rough_backtest_light
+python scripts/investment/backtest/backfill_pending_outcomes.py --as-of YYYY-MM-DD --window-days 90 --max-dates 8
+```
+
+内容:
+- 日次で直近30日を warm する
+- pending の `t1/t5/t20` 判定を追加入力する
+- 週次の deep backtest とは別に、判定遅延を減らす
+
 ### rough backtest を継続拡張する運用手順
 `ticker + signalDate + signalType` の新規組を増やし続けるときの、実運用向けの最短手順。
 

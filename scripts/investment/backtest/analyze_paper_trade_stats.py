@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.paper_trade_mode import normalize_paper_trade_mode
 
 DEFAULT_DB = resolve_investment_db()
 OUT = ROOT / "topics" / "investment-research" / "inbox"
@@ -18,7 +19,7 @@ OUT = ROOT / "topics" / "investment-research" / "inbox"
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Analyze paper trade stats by rank/side/horizon")
     p.add_argument("--db", default=str(DEFAULT_DB))
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch", "paper", "all"])
+    p.add_argument("--mode", default="paper_history", choices=["paper_history", "live", "watch", "paper", "all"])
     p.add_argument("--start-date")
     p.add_argument("--end-date")
     p.add_argument("--out-date", required=True, help="label date for output file")
@@ -33,8 +34,9 @@ def main() -> int:
         where = ["1=1"]
         params: list[object] = []
         if args.mode != "all":
+            mode = normalize_paper_trade_mode(args.mode)
             where.append("p.mode=?")
-            params.append(args.mode)
+            params.append(mode)
         if args.start_date:
             where.append("p.entry_date>=?")
             params.append(args.start_date)
@@ -144,8 +146,8 @@ def main() -> int:
     if args.mode == "all":
         lines.append("## Mode Comparison")
         lines.append("")
-        for mode in ("backtest", "watch", "live", "paper"):
-            subset = [r for r in rows if r["mode"] == mode]
+        for mode in ("paper_history", "watch", "live", "paper"):
+            subset = [r for r in rows if normalize_paper_trade_mode(r["mode"]) == mode]
             add_metric_lines(lines, subset, mode)
         lines.append("## Combined")
         lines.append("")

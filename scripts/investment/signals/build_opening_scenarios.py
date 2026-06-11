@@ -301,6 +301,8 @@ def _reason_code(reason: str) -> str:
         return "SAMPLE_ZERO_WATCH"
     if s.startswith("manualCreditOverride"):
         return "MANUAL_CREDIT_OVERRIDE"
+    if s.startswith("AGGR_"):
+        return "AGGRESSIVENESS"
     return "OTHER"
 
 
@@ -693,6 +695,65 @@ def horizon_from_rank(rank: str) -> str:
     return "T+1中心（短期限定）"
 
 
+def aggressiveness_profile(level: str) -> tuple[float, float, str]:
+    lvl = (level or "").strip().lower()
+    if lvl == "aggressive":
+        return 1.25, 1.10, "T+5"
+    if lvl == "balanced":
+        return 1.00, 1.00, "T+5"
+    if lvl == "conservative":
+        return 0.85, 0.90, "T+1"
+    if lvl == "avoid":
+        return 0.75, 0.80, "T+1"
+    return 1.00, 1.00, "T+5"
+
+
+def load_signal_type_aggressiveness_from_db(db_path: Path, date_str: str, fallback_days: int) -> tuple[dict[tuple[str, str], dict[str, object]], str | None]:
+    if not db_path.exists():
+        return {}, None
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        d0 = datetime.strptime(date_str, "%Y-%m-%d").date()
+        for i in range(0, max(0, fallback_days) + 1):
+            d = (d0 - timedelta(days=i)).isoformat()
+            rows = conn.execute(
+                """
+                SELECT signal_type,expected_direction,sample_count,t1_win_rate_pct,t5_win_rate_pct,t20_win_rate_pct,
+                       t1_dir_avg_return_pct,t5_dir_avg_return_pct,t20_dir_avg_return_pct,
+                       aggressiveness_level,aggressiveness_score,decision_reason
+                FROM signal_type_aggressiveness_rows
+                WHERE date=? AND window_days=365
+                """,
+                (d,),
+            ).fetchall()
+            if not rows:
+                continue
+            out: dict[tuple[str, str], dict[str, object]] = {}
+            for r in rows:
+                signal_type = str(r["signal_type"] or "").strip()
+                expected_direction = str(r["expected_direction"] or "").strip().lower()
+                if not signal_type or expected_direction not in {"up", "down"}:
+                    continue
+                out[(signal_type, expected_direction)] = {
+                    "sample_count": int(r["sample_count"] or 0),
+                    "t1_win_rate_pct": float(r["t1_win_rate_pct"]) if r["t1_win_rate_pct"] is not None else None,
+                    "t5_win_rate_pct": float(r["t5_win_rate_pct"]) if r["t5_win_rate_pct"] is not None else None,
+                    "t20_win_rate_pct": float(r["t20_win_rate_pct"]) if r["t20_win_rate_pct"] is not None else None,
+                    "t1_dir_avg_return_pct": float(r["t1_dir_avg_return_pct"]) if r["t1_dir_avg_return_pct"] is not None else None,
+                    "t5_dir_avg_return_pct": float(r["t5_dir_avg_return_pct"]) if r["t5_dir_avg_return_pct"] is not None else None,
+                    "t20_dir_avg_return_pct": float(r["t20_dir_avg_return_pct"]) if r["t20_dir_avg_return_pct"] is not None else None,
+                    "aggressiveness_level": str(r["aggressiveness_level"] or "").strip() or "unknown",
+                    "aggressiveness_score": int(r["aggressiveness_score"] or 0),
+                    "decision_reason": str(r["decision_reason"] or "").strip(),
+                    "source_date": d,
+                }
+            return out, d
+    finally:
+        conn.close()
+    return {}, None
+
+
 def invalidation_text(direction: str) -> str:
     if direction == "long":
         return "寄り後に下方向へ急変し、想定支持を割る場合は見送り/撤退"
@@ -1031,6 +1092,7 @@ def scenario_for_row(
     risk_jpy: int,
     rule_ctx: dict,
     signal_meta: dict[str, str],
+    aggressiveness_ctx: dict[str, object] | None = None,
     board: dict | None = None,
     market_snap: dict | None = None,
     sample_hints: dict[tuple[str, str], int] | None = None,
@@ -1039,6 +1101,25 @@ def scenario_for_row(
     company = row.get("company", "")
     rank = row.get("longSignalRank" if side == "long" else "shortSignalRank", row.get("rank", "C"))
     direction = "long" if side == "long" else "short"
+    signal_type = str(signal_meta.get("signalType", "") or "").strip()
+    expected_direction = "up" if direction == "long" else "down"
+
+    aggr_level = "unknown"
+    aggr_score: int | None = None
+    aggr_reason = ""
+    aggr_sample_count: int | None = None
+    aggr_t5_wr: float | None = None
+    aggr_t20_wr: float | None = None
+    aggr_hold = "T+5"
+    tp_mult, sl_mult, aggr_hold = aggressiveness_profile("balanced")
+    if aggressiveness_ctx:
+        aggr_level = str(aggressiveness_ctx.get("aggressiveness_level") or "unknown")
+        aggr_score = int(aggressiveness_ctx.get("aggressiveness_score") or 0)
+        aggr_reason = str(aggressiveness_ctx.get("decision_reason") or "")
+        aggr_sample_count = int(aggressiveness_ctx.get("sample_count") or 0)
+        aggr_t5_wr = float(aggressiveness_ctx.get("t5_win_rate_pct")) if aggressiveness_ctx.get("t5_win_rate_pct") is not None else None
+        aggr_t20_wr = float(aggressiveness_ctx.get("t20_win_rate_pct")) if aggressiveness_ctx.get("t20_win_rate_pct") is not None else None
+        tp_mult, sl_mult, aggr_hold = aggressiveness_profile(aggr_level)
 
     entry_price = None
     take_price = None
@@ -1048,14 +1129,14 @@ def scenario_for_row(
         base = board.get("bestAsk") or board.get("indicativeOpen") or board.get("bestBid")
         if isinstance(base, (int, float)) and base > 0:
             entry_price = float(base)
-            take_price = entry_price * 1.012
-            stop_price = entry_price * 0.994
+            take_price = entry_price * (1.012 * tp_mult)
+            stop_price = entry_price * (1.0 - (0.006 * sl_mult))
     if board and direction == "short":
         base = board.get("bestBid") or board.get("indicativeOpen") or board.get("bestAsk")
         if isinstance(base, (int, float)) and base > 0:
             entry_price = float(base)
-            take_price = entry_price * 0.988
-            stop_price = entry_price * 1.006
+            take_price = entry_price * (1.0 - (0.012 * tp_mult))
+            stop_price = entry_price * (1.0 + (0.006 * sl_mult))
 
     if entry_price and take_price and stop_price:
         entry_rule = f"{fmt_price(entry_price)}（板気配ベース）"
@@ -1114,6 +1195,15 @@ def scenario_for_row(
         "sectorMarketContext": row.get("sectorMarketContext", ""),
         "relativeToTopixPct": row.get("relativeToTopixPct", ""),
         "direction": direction,
+        "signalType": signal_type,
+        "aggressivenessLevel": aggr_level,
+        "aggressivenessScore": aggr_score if aggr_score is not None else 0,
+        "aggressivenessReason": aggr_reason,
+        "aggressivenessSampleCount": aggr_sample_count if aggr_sample_count is not None else 0,
+        "aggressivenessT5WinRate": aggr_t5_wr,
+        "aggressivenessT20WinRate": aggr_t20_wr,
+        "aggressivenessHoldHorizon": aggr_hold,
+        "aggressivenessPriceMultiplier": round(tp_mult, 3),
         "entryLimitRule": entry_rule,
         "takeProfitRule": take_rule,
         "stopLossRule": stop_rule,
@@ -1139,7 +1229,7 @@ def scenario_for_row(
         "why_pass": why_pass,
         "why_hold": [],
         "why_reject": [],
-        "why_pass_codes": [_reason_code(x) for x in why_pass],
+        "why_pass_codes": [_reason_code(x) for x in why_pass] + ([f"AGGR_{aggr_level.upper()}"] if aggr_level and aggr_level != "unknown" else []),
         "why_hold_codes": [],
         "why_reject_codes": [],
         "executionFeasibilityScore": exec_score if exec_score is not None else "unknown",
@@ -1163,11 +1253,14 @@ def main() -> int:
     paper_stats = load_paper_trade_stats_by_ticker(args.db, args.date, args.paper_promote_lookback_days)
     rule_rows, rule_date = load_rule_rows_from_db(args.db, args.date, args.fallback_days)
     sample_hints, sample_hint_date = load_sample_hints_from_outcomes(args.db, args.date, args.fallback_days)
+    aggressiveness_map, aggressiveness_date = load_signal_type_aggressiveness_from_db(args.db, args.date, 365)
     signal_map, signal_date = load_signal_map_from_db(args.db, args.date, args.fallback_days)
     if not signal_map:
         raise SystemExit(f"signals not found in DB for {args.date} (fallback_days={args.fallback_days})")
     if not rule_rows:
         print(f"[warn] rule_dashboard_rows not found in DB for {args.date} (fallback_days={args.fallback_days}); continue with unknown rule context")
+    if not aggressiveness_map:
+        print(f"[warn] signal_type_aggressiveness_rows not found in DB for {args.date} (window_days=365); continue with neutral aggressiveness")
     signal_source_path = "db:signals"
     rule_source_path = "db:rule_dashboard_rows"
     ticker_ctx = load_ticker_context_from_db(args.db, args.date, args.fallback_days)
@@ -1243,6 +1336,12 @@ def main() -> int:
         r["topixPct"] = ctx.get("topix_pct", "")
         r["sectorMarketContext"] = ctx.get("sector_market_context", "")
         r["relativeToTopixPct"] = ctx.get("relative_to_topix_pct", "")
+        aggr_ctx = aggressiveness_map.get(
+            (
+                str(signal_meta_row.get("signalType", "") or "").strip(),
+                "up" if str(r.get("expectedDirection", "") or "").startswith("up") else "down",
+            )
+        )
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -1250,7 +1349,8 @@ def main() -> int:
                 args.risk_per_trade_jpy,
                 long_rule_ctx,
                 signal_meta_row,
-                board_map.get(str(r.get("ticker", "")).strip()),
+                aggressiveness_ctx=aggr_ctx,
+                board=board_map.get(str(r.get("ticker", "")).strip()),
                 market_snap=market_snap_map.get(str(r.get("ticker", "")).strip()),
                 sample_hints=sample_hints,
             )
@@ -1274,6 +1374,12 @@ def main() -> int:
         r["topixPct"] = ctx.get("topix_pct", "")
         r["sectorMarketContext"] = ctx.get("sector_market_context", "")
         r["relativeToTopixPct"] = ctx.get("relative_to_topix_pct", "")
+        aggr_ctx = aggressiveness_map.get(
+            (
+                str(signal_meta_row.get("signalType", "") or "").strip(),
+                "up" if str(r.get("expectedDirection", "") or "").startswith("up") else "down",
+            )
+        )
         raw_scenarios.append(
             scenario_for_row(
                 r,
@@ -1281,7 +1387,8 @@ def main() -> int:
                 args.risk_per_trade_jpy,
                 short_rule_ctx,
                 signal_meta_row,
-                board_map.get(str(r.get("ticker", "")).strip()),
+                aggressiveness_ctx=aggr_ctx,
+                board=board_map.get(str(r.get("ticker", "")).strip()),
                 market_snap=market_snap_map.get(str(r.get("ticker", "")).strip()),
                 sample_hints=sample_hints,
             )
@@ -1722,6 +1829,7 @@ def main() -> int:
                 [
                     f"### {i}. {s['ticker']} {s['company']}",
                     f"- direction: {s['direction']}",
+                    f"- aggressiveness: {s.get('aggressivenessLevel','unknown')} / score={s.get('aggressivenessScore',0)} / hold={s.get('aggressivenessHoldHorizon','')}",
                     f"- scenarioScore: {s.get('scenarioScore',0)}",
                     f"- entryLimit: {s['entryLimitRule']}",
                     f"- takeProfit: {s['takeProfitRule']}",
@@ -1811,8 +1919,10 @@ def main() -> int:
                 INSERT INTO opening_scenarios(
                   scenario_date, scenario_index, signal_id, ticker, company, direction, scenario_tier,
                   scenario_score, rule_hit_count, estimated_winrate_text, estimated_winrate_value,
+                  aggressiveness_level, aggressiveness_score, aggressiveness_reason, aggressiveness_sample_count,
+                  aggressiveness_t5_winrate, aggressiveness_t20_winrate, aggressiveness_hold_horizon,
                   entry_price, take_profit_price, stop_loss_price, source_url, source_kind, source_path, updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     args.date,
@@ -1826,6 +1936,13 @@ def main() -> int:
                     int(s.get("ruleHitCount") or 0),
                     s.get("estimatedWinRate", ""),
                     s.get("estimatedWinRateValue"),
+                    s.get("aggressivenessLevel", ""),
+                    int(s.get("aggressivenessScore") or 0),
+                    s.get("aggressivenessReason", ""),
+                    int(s.get("aggressivenessSampleCount") or 0),
+                    s.get("aggressivenessT5WinRate"),
+                    s.get("aggressivenessT20WinRate"),
+                    s.get("aggressivenessHoldHorizon", ""),
                     s.get("entryPrice"),
                     s.get("takeProfitPrice"),
                     s.get("stopLossPrice"),
@@ -1850,8 +1967,10 @@ def main() -> int:
                 INSERT INTO opening_scenarios(
                   scenario_date, scenario_index, signal_id, ticker, company, direction, scenario_tier,
                   scenario_score, rule_hit_count, estimated_winrate_text, estimated_winrate_value,
+                  aggressiveness_level, aggressiveness_score, aggressiveness_reason, aggressiveness_sample_count,
+                  aggressiveness_t5_winrate, aggressiveness_t20_winrate, aggressiveness_hold_horizon,
                   entry_price, take_profit_price, stop_loss_price, source_url, source_kind, source_path, updated_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     args.date,
@@ -1868,6 +1987,13 @@ def main() -> int:
                     None,
                     None,
                     None,
+                    "",
+                    0,
+                    "",
+                    0,
+                    None,
+                    None,
+                    "",
                     "",
                     "rejected",
                     "db:entry_candidates",

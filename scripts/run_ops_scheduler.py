@@ -304,9 +304,8 @@ def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/investment/signals/generate_entry_candidates.py', '--date', d], allow_fail=True)
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run([py, 'scripts/investment/analysis/materialize_signal_type_aggressiveness.py', '--date', d, '--window-days', '365'], allow_fail=True)
     rc |= run([py, 'scripts/data/build_today_brief_from_db.py', '--date', d])
-    if not backtest:
-        rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     return rc
 
 
@@ -583,6 +582,14 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_c
     return rc
 
 
+def run_morning_market_signals_report(py: str, d: str) -> int:
+    """Morning Discord signal report with overnight US market overview."""
+    rc = 0
+    rc |= run([py, 'scripts/investment/collect/collect_us_market_overview.py', '--date', d], allow_fail=True)
+    rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d, '--slot', 'inv-morning'], allow_fail=True)
+    return rc
+
+
 def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
     """Evening: include technical context after close and final re-evaluation."""
     rc = 0
@@ -612,6 +619,8 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weeken
     rc |= run([py, 'scripts/investment/analysis/report_signal_pipeline_kpi.py', '--date', d], allow_fail=True)
     # Strengthen next scenario quality by refreshing rule reproducibility artifacts nightly/evening.
     rc |= run_rule_repro_refresh(py, d)
+    # Keep backtest outcomes warm so promotion and aggressiveness analysis have fresh judges.
+    rc |= run_recent_outcome_backfill(py, d)
     # Daily operational hint: refresh exit timing analysis from accumulated trades.
     rc |= run([py, 'scripts/investment/backtest/analyze_exit_timing.py', '--out-date', d, '--mode', 'all'], allow_fail=True)
     # Daily mode comparison: backtest/watch/live performance snapshot.
@@ -744,6 +753,7 @@ def main() -> int:
                     weekend_collect_only=is_jp_market_weekend(d),
                 )
                 if not args.backtest and not is_jp_market_weekend(d):
+                    rc |= run_morning_market_signals_report(py, d)
                     rc |= run_morning_disclosure_digest_and_note(py, d)
 
             if args.slot == 'inv-noon':

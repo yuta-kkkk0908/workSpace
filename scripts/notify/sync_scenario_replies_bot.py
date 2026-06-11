@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import sqlite3
@@ -513,6 +514,113 @@ def apply_cancel(conn: sqlite3.Connection, sc: sqlite3.Row, payload: dict | None
     return trade_id
 
 
+def trade_direction(sc: sqlite3.Row) -> str:
+    return "short" if str(sc["direction"] or "").strip().lower() == "short" else "long"
+
+
+def trade_direction_label(sc: sqlite3.Row) -> str:
+    return "ショート（売り）" if trade_direction(sc) == "short" else "ロング（買い）"
+
+
+def _price_band_adjustment(entry_price: float) -> tuple[float, float]:
+    """
+    Return (take_profit_pct, stop_loss_pct) as decimal ratios.
+
+    Higher-priced issues tend to need slightly tighter percentages so the
+    guidance stays realistic. The ratios are intentionally conservative.
+    """
+    if entry_price < 1000:
+        return 0.035, 0.018
+    if entry_price < 3000:
+        return 0.028, 0.015
+    if entry_price < 10000:
+        return 0.020, 0.010
+    return 0.015, 0.008
+
+
+def _round_price(value: float, *, mode: str) -> int:
+    if mode == "up":
+        return int(math.ceil(value))
+    if mode == "down":
+        return int(math.floor(value))
+    return int(round(value))
+
+
+def trade_plan_from_entry(entry_price: float, direction: str) -> dict[str, float | int]:
+    tp_pct, sl_pct = _price_band_adjustment(entry_price)
+    if direction == "short":
+        tp_price = _round_price(entry_price * (1.0 - tp_pct), mode="down")
+        sl_price = _round_price(entry_price * (1.0 + sl_pct), mode="up")
+    else:
+        tp_price = _round_price(entry_price * (1.0 + tp_pct), mode="up")
+        sl_price = _round_price(entry_price * (1.0 - sl_pct), mode="down")
+    return {
+        "tp_pct": tp_pct,
+        "sl_pct": sl_pct,
+        "tp_price": tp_price,
+        "sl_price": sl_price,
+    }
+
+
+def exit_condition_lines(sc: sqlite3.Row, payload: dict) -> list[str]:
+    direction = trade_direction(sc)
+    entry_price = payload.get("price")
+    lines: list[str] = []
+    if entry_price is not None:
+        try:
+            plan = trade_plan_from_entry(float(entry_price), direction)
+            if direction == "short":
+                lines.append(
+                    f"TP目安: {int(plan['tp_price'])}円（約-{plan['tp_pct'] * 100:.1f}%） / SL目安: {int(plan['sl_price'])}円（約+{plan['sl_pct'] * 100:.1f}%）"
+                )
+            else:
+                lines.append(
+                    f"TP目安: {int(plan['tp_price'])}円（約+{plan['tp_pct'] * 100:.1f}%） / SL目安: {int(plan['sl_price'])}円（約-{plan['sl_pct'] * 100:.1f}%）"
+                )
+        except Exception:
+            lines.append("TP/SL目安: 価格からの算出に失敗しました")
+    else:
+        lines.append("TP/SL目安: entry価格が未指定のため数値は省略")
+
+    if direction == "short":
+        lines.extend(
+            [
+                "利確条件: 目安到達、または安値更新が続く間は分割利確を優先",
+                "損切条件: SL到達、5MA/VWAP上抜け、踏み上げの初動を確認したら撤退",
+                "撤退条件: 逆行2本、地合い悪化、シナリオ無効化条件の発生",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "利確条件: 目安到達、または高値更新が続く間は分割利確を優先",
+                "損切条件: SL到達、5MA/VWAP割れ、反対足が続いたら撤退",
+                "撤退条件: 逆行2本、地合い悪化、シナリオ無効化条件の発生",
+            ]
+        )
+    return lines
+
+
+def hold_window_from_entry(entry_price: float | None, direction: str) -> str:
+    if entry_price is None:
+        return "1〜5営業日程度"
+    if direction == "short":
+        if entry_price < 1000:
+            return "1〜2営業日程度"
+        if entry_price < 3000:
+            return "1〜3営業日程度"
+        if entry_price < 10000:
+            return "2〜4営業日程度"
+        return "1〜3営業日程度"
+    if entry_price < 1000:
+        return "1〜3営業日程度"
+    if entry_price < 3000:
+        return "2〜5営業日程度"
+    if entry_price < 10000:
+        return "3〜7営業日程度"
+    return "1〜4営業日程度"
+
+
 def ack_text(cmd: str, sc: sqlite3.Row, payload: dict, trade_id: str | None, status_label: str = "反映") -> str:
     head = f"ACK: {cmd.upper()} {status_label}"
     mode_override = str(payload.get("mode_override") or "").strip().lower()
@@ -521,11 +629,22 @@ def ack_text(cmd: str, sc: sqlite3.Row, payload: dict, trade_id: str | None, sta
     else:
         mode = "watch" if str(sc["scenario_tier"] or "trade") == "watch" else "live"
     base = f"{sc['ticker']} {sc['company']} / trade_id={trade_id or 'N/A'} / mode={mode}"
+    direction = trade_direction_label(sc)
+    lines = [head, base, f"方向={direction}"]
     if cmd == "entry":
         lots = payload.get("lots", 1)
         price = payload.get("price")
         px = f"{price}" if price is not None else "auto"
-        return f"{head}\n{base}\nlots={lots} price={px} status=open_pending_outcome"
+        hold_window = hold_window_from_entry(float(price) if price is not None else None, trade_direction(sc))
+        lines.extend(
+            [
+                f"lots={lots} price={px} status=open_pending_outcome",
+                f"保有目安: {hold_window}",
+                *exit_condition_lines(sc, payload),
+                "exitコマンド: exit tp <price> / exit sl <price> / exit reason=time / exit reason=thesis_break note=...",
+            ]
+        )
+        return "\n".join(lines)
     if cmd == "exit":
         price = payload.get("price")
         reason = payload.get("reason", "manual")
@@ -589,17 +708,6 @@ def ack_error_text(sc: sqlite3.Row, raw: str, err: str) -> str:
         "- cancel paper\n"
         "- credit ng|ok|unknown\n"
         f"received: {raw[:120]}"
-    )
-
-
-def exit_guide_text() -> str:
-    return (
-        "エグジット入力ガイド\n"
-        "- 利確: exit tp 4070 reason=tp\n"
-        "- 損切り: exit sl 3980 reason=sl\n"
-        "- 現在値クローズ: exit reason=time\n"
-        "- 前提崩れ: exit reason=thesis_break note=理由\n"
-        "- 取消: cancel"
     )
 
 
@@ -817,13 +925,6 @@ def main() -> int:
                         mid,
                         ack_text(cmd, sc, payload, trade_id, "反映"),
                     )
-                    if cmd == "entry":
-                        api_post_ack(
-                            token,
-                            message_channel_id or channel_id,
-                            mid,
-                            exit_guide_text(),
-                        )
                 except Exception:
                     # ACK failure should not block DB reflection.
                     pass

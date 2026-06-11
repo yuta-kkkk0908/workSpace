@@ -78,7 +78,7 @@ class GenerateDisclosureDigestTests(unittest.TestCase):
             self.assertIn("適時開示ダイジェスト 2026-06-11", note_path.read_text(encoding="utf-8"))
             self.assertIn("適時開示ダイジェスト 2026-06-11", article["summary"])
             self.assertIn("対象開示が見つかりませんでした", article["summary"])
-            self.assertIn("朝のシグナル", note["summary"])
+            self.assertNotIn("朝のシグナル", note["summary"])
             payload = json.loads(artifact["payload_json"])
             self.assertEqual(payload["payload"]["date"], "2026-06-11")
             self.assertEqual(payload["payload"]["items"], [])
@@ -349,6 +349,300 @@ class GenerateDisclosureDigestTests(unittest.TestCase):
             self.assertEqual([r["slot"] for r in rows], ["inv-evening-preclose", "inv-evening-preclose"])
             self.assertEqual([r["price"] for r in rows], [105.0, 204.0])
             self.assertTrue(all(str(r["source_ref"]).startswith("facts_price_daily:2026-06-10") for r in rows))
+
+    def test_note_includes_signal_connection_and_recent_past_reaction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            db_path = tmp / "digest.db"
+            output_dir = tmp / "inbox"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    "create table daily_digest(topic text not null, date text not null, path text not null, summary text, updated_at text not null, primary key(topic, date))"
+                )
+                conn.execute(
+                    "create table collection_artifacts(artifact_key text not null, artifact_date text not null, artifact_type text not null, payload_json text not null, updated_at text not null, primary key(artifact_key, artifact_date))"
+                )
+                conn.execute(
+                    "create table tdnet_disclosures(date text not null, disclosed_at text, ticker text not null, company text, title text, category text, tdnet_url text, source_kind text, source_path text not null)"
+                )
+                conn.execute(
+                    "create table facts_price_daily(date text not null, ticker text not null, open real, high real, low real, close real, volume integer, source_kind text not null, source_url text, fetched_at text not null, updated_at text not null, primary key(date, ticker))"
+                )
+                conn.execute(
+                    "create table market_signal_snapshots(date text not null, ticker text not null, slot text not null, snapshot_time text not null, price real, vwap real, vwap_gap_pct real, return_pct real, volume integer, volume_ratio real, source_kind text, source_ref text, payload_json text, updated_at text not null, primary key(date, ticker, slot, snapshot_time))"
+                )
+                conn.execute(
+                    "create table signals(date text not null, signal_id text not null, ticker text, company text, signal_type text, signal_type_label_ja text, expected_direction text, expected_direction_label_ja text, long_rank text, short_rank text, long_rank_label_ja text, short_rank_label_ja text, t1 text, t5 text, t20 text, gate_status text, gate_status_label_ja text, url text, source text, session text, material_signal_checked text, external_context_checked text, technical_signal_checked text, credit_status text, credit_buy_status text, credit_sell_status text, credit_source_kind text, credit_source_date text, credit_freshness_hours integer, payload_json text, source_path text, updated_at text, primary key(signal_id, date))"
+                )
+                conn.execute(
+                    "create table entry_candidates(date text not null, side text not null, candidate_type text not null, signal_id text not null, ticker text, company text, rank text, long_rank text, short_rank text, expected_direction text, trade_use text, gate_status text, score real, url text, source_path text not null, updated_at text not null)"
+                )
+                conn.executemany(
+                    "insert into tdnet_disclosures(date,disclosed_at,ticker,company,title,category,tdnet_url,source_kind,source_path) values(?,?,?,?,?,?,?,?,?)",
+                    [
+                        (
+                            "2026-06-11",
+                            "2026-06-11T08:00:00+09:00",
+                            "4321",
+                            "テスト社",
+                            "決算短信",
+                            "upward_revision",
+                            "https://example.com/current",
+                            "tdnet_web",
+                            "db:tdnet:current",
+                        ),
+                        (
+                            "2026-06-08",
+                            "2026-06-08T08:00:00+09:00",
+                            "4321",
+                            "テスト社",
+                            "前回の上方修正",
+                            "upward_revision",
+                            "https://example.com/past1",
+                            "tdnet_web",
+                            "db:tdnet:past1",
+                        ),
+                        (
+                            "2026-06-05",
+                            "2026-06-05T08:00:00+09:00",
+                            "4321",
+                            "テスト社",
+                            "さらに前の上方修正",
+                            "upward_revision",
+                            "https://example.com/past2",
+                            "tdnet_web",
+                            "db:tdnet:past2",
+                        ),
+                    ],
+                )
+                conn.executemany(
+                    "insert into facts_price_daily(date,ticker,open,high,low,close,volume,source_kind,source_url,fetched_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        ("2026-06-05", "4321", 100, 101, 99, 100, 1000, "test", "", "now", "now"),
+                        ("2026-06-06", "4321", 101, 104, 100, 103, 1000, "test", "", "now", "now"),
+                        ("2026-06-07", "4321", 103, 105, 102, 104, 1000, "test", "", "now", "now"),
+                        ("2026-06-08", "4321", 104, 111, 103, 110, 1000, "test", "", "now", "now"),
+                        ("2026-06-09", "4321", 111, 113, 110, 112, 1000, "test", "", "now", "now"),
+                        ("2026-06-10", "4321", 112, 117, 111, 113, 1000, "test", "", "now", "now"),
+                        ("2026-06-11", "4321", 113, 118, 112, 114, 1000, "test", "", "now", "now"),
+                        ("2026-06-12", "4321", 114, 119, 113, 115, 1000, "test", "", "now", "now"),
+                        ("2026-06-13", "4321", 115, 121, 114, 118, 1000, "test", "", "now", "now"),
+                    ],
+                )
+                conn.executemany(
+                    "insert into signals(date,signal_id,ticker,company,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,t1,t5,t20,gate_status,gate_status_label_ja,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,credit_status,credit_buy_status,credit_sell_status,credit_source_kind,credit_source_date,credit_freshness_hours,payload_json,source_path,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        (
+                            "2026-06-11",
+                            "sig-1",
+                            "4321",
+                            "テスト社",
+                            "upward_revision",
+                            "上方修正",
+                            "up",
+                            "上昇",
+                            "A",
+                            "",
+                            "A",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "pass",
+                            "pass",
+                            "https://example.com/s1",
+                            "test",
+                            "morning",
+                            "yes",
+                            "yes",
+                            "yes",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            None,
+                            "{}",
+                            "db:signals",
+                            "now",
+                        ),
+                        (
+                            "2026-06-11",
+                            "sig-2",
+                            "4321",
+                            "テスト社",
+                            "upward_revision",
+                            "上方修正",
+                            "up",
+                            "上昇",
+                            "B",
+                            "",
+                            "B",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "pass",
+                            "pass",
+                            "https://example.com/s2",
+                            "test",
+                            "morning",
+                            "yes",
+                            "yes",
+                            "yes",
+                            "",
+                            "",
+                            "",
+                            "",
+                            "",
+                            None,
+                            "{}",
+                            "db:signals",
+                            "now",
+                        ),
+                    ],
+                )
+                conn.executemany(
+                    "insert into entry_candidates(date,side,candidate_type,signal_id,ticker,company,rank,long_rank,short_rank,expected_direction,trade_use,gate_status,score,url,source_path,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        (
+                            "2026-06-11",
+                            "long",
+                            "primary",
+                            "sig-1",
+                            "4321",
+                            "テスト社",
+                            "1",
+                            "A",
+                            "",
+                            "up",
+                            "trade",
+                            "pass",
+                            88.0,
+                            "https://example.com/e1",
+                            "db:entry_candidates",
+                            "now",
+                        ),
+                    ],
+                )
+                conn.execute(
+                    "insert into market_signal_snapshots(date,ticker,slot,snapshot_time,price,vwap,vwap_gap_pct,return_pct,volume,volume_ratio,source_kind,source_ref,payload_json,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        "2026-06-11",
+                        "4321",
+                        "inv-evening-preclose",
+                        "2026-06-11 06:00:00",
+                        116,
+                        116,
+                        0.0,
+                        5.5,
+                        1000,
+                        None,
+                        "facts_price_daily_latest_close",
+                        "facts_price_daily:2026-06-10",
+                        json.dumps(
+                            {
+                                "source_date": "2026-06-10",
+                                "prev_close_date": "2026-06-09",
+                                "snapshot_kind": "signal_close",
+                            },
+                            ensure_ascii=False,
+                        ),
+                        "now",
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/investment/analysis/generate_disclosure_digest.py"),
+                    "--date",
+                    "2026-06-11",
+                    "--db",
+                    str(db_path),
+                    "--output-dir",
+                    str(output_dir),
+                    "--lookback-days",
+                    "30",
+                    "--limit",
+                    "20",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            note_text = (output_dir / "2026-06-11-note-ready.md").read_text(encoding="utf-8")
+            self.assertNotIn("シグナル接続:", note_text)
+            self.assertIn("直近事例:", note_text)
+            self.assertIn("2026-06-08 T+1 +1.8% / T+5 +7.3%", note_text)
+            self.assertIn("2026-06-05 T+1 +3.0% / T+5 +13.0%", note_text)
+            self.assertIn("価格反応: 前営業日終値 2026-06-10 116.00", note_text)
+
+    def test_note_includes_us_market_overview_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            db_path = tmp / "digest.db"
+            output_dir = tmp / "inbox"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    "create table daily_digest(topic text not null, date text not null, path text not null, summary text, updated_at text not null, primary key(topic, date))"
+                )
+                conn.execute(
+                    "create table collection_artifacts(artifact_key text not null, artifact_date text not null, artifact_type text not null, payload_json text not null, updated_at text not null, primary key(artifact_key, artifact_date))"
+                )
+                conn.execute(
+                    "create table tdnet_disclosures(date text not null, disclosed_at text, ticker text not null, company text, title text, category text, tdnet_url text, source_kind text, source_path text not null)"
+                )
+                conn.execute(
+                    "insert into collection_artifacts(artifact_key,artifact_date,artifact_type,payload_json,updated_at) values(?,?,?,?,datetime('now'))",
+                    (
+                        "us_market_overview",
+                        "2026-06-11",
+                        "market_overview",
+                        json.dumps(
+                            {
+                                "date": "2026-06-11",
+                                "summary": "S&P500 -0.3% / Nasdaq -1.0% / Dow +0.2% / VIX +3.6% / USDJPY 160.54 (+0.10%)",
+                                "sectorImpact": "半導体・グロースは注意 / 高PER・リスク資産は注意",
+                            },
+                            ensure_ascii=False,
+                        ),
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/investment/analysis/generate_disclosure_digest.py"),
+                    "--date",
+                    "2026-06-11",
+                    "--db",
+                    str(db_path),
+                    "--output-dir",
+                    str(output_dir),
+                    "--lookback-days",
+                    "30",
+                    "--limit",
+                    "20",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            note_text = (output_dir / "2026-06-11-note-ready.md").read_text(encoding="utf-8")
+            self.assertIn("## 朝の地合い", note_text)
+            self.assertIn("米市場概況: S&P500 -0.3%", note_text)
+            self.assertIn("日本セクター影響: 半導体・グロースは注意", note_text)
 
 
 if __name__ == "__main__":

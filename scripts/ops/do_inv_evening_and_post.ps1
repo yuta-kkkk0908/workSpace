@@ -26,6 +26,10 @@ function Invoke-AiosPostStep {
 
 & $python "scripts/run_ops_scheduler.py" --slot inv-evening --date $eventDate
 $rc = $LASTEXITCODE
+if ($rc -eq 0 -and (Get-Date).DayOfWeek -eq "Sunday") {
+  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\close_idle_scenario_threads_bot.py" -Stage "close_idle_scenario_threads_bot.py" -Arguments @("--date", $eventDate)
+  if ($stepRc -ne 0) { $rc = $stepRc }
+}
 if ($rc -eq 0 -and -not $isWeekend) {
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Stage "resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }

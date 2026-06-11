@@ -27,7 +27,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lots", type=int, default=1)
     p.add_argument("--entry-style", default="close_market", choices=["close_market"])
     p.add_argument("--max-trades", type=int, default=3)
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch"])
+    p.add_argument("--mode", default="paper_history", choices=["paper_history", "live", "watch"])
     p.add_argument("--tier", default="all", choices=["all", "trade", "watch", "paper_trade_only"])
     p.add_argument("--rejected-policy", default="all", choices=["all", "weak_only", "data_quality_only", "other_only"])
     p.add_argument("--fallback-days", type=int, default=0)
@@ -78,6 +78,7 @@ def main() -> int:
     db = Path(args.db)
     if not db.exists():
         raise SystemExit(f"db not found: {db}")
+    mode = "paper_history" if args.mode == "paper_history" else args.mode
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     try:
@@ -149,7 +150,8 @@ def main() -> int:
                     continue
                 if args.rejected_policy == "other_only" and weak_reject:
                     continue
-            trade_id = f"paper_{args.mode}_{target_date.replace('-','')}_{ticker}_{side}_{tier}_{i:02d}"
+            trade_prefix = "paper_history" if mode == "paper_history" else f"paper_{mode}"
+            trade_id = f"{trade_prefix}_{target_date.replace('-','')}_{ticker}_{side}_{tier}_{i:02d}"
             signal_id = str(r["signal_id"] or "")
             planned = r["entry_price"]
             if planned is None:
@@ -181,11 +183,11 @@ def main() -> int:
                   planned_entry_price=excluded.planned_entry_price,status=excluded.status,
                   signal_id=excluded.signal_id,source_path=excluded.source_path,updated_at=excluded.updated_at
                 """,
-                (
-                    trade_id,
-                    args.mode,
-                    target_date,
-                    ticker,
+                    (
+                        trade_id,
+                        mode,
+                        target_date,
+                        ticker,
                     company,
                     side,
                     args.lots,
@@ -201,7 +203,7 @@ def main() -> int:
         conn.commit()
     finally:
         conn.close()
-    print(f"registered paper trades: {inserted} from db:opening_scenarios mode={args.mode} tier={args.tier} sourceDate={target_date}")
+    print(f"registered paper trades: {inserted} from db:opening_scenarios mode={mode} tier={args.tier} sourceDate={target_date}")
     return 0
 
 

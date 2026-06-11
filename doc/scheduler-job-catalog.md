@@ -72,7 +72,7 @@
   - `scripts/investment/analysis/generate_improvement_proposals.py --date YYYY-MM-DD`（改善候補を proposal 化して `codex-log` に投稿）
   - `scripts/investment/analysis/materialize_improvement_work_items.py --date YYYY-MM-DD`（proposal を work item 化して着手対象にする）
   - `scripts/investment/analysis/claim_improvement_work_items.py --date YYYY-MM-DD`（open work item を doing に引き上げる）
-  - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成し、なくてもローカル commit までは進める。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
+  - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（06:00 の改善ジョブは `ENABLE_IMPROVEMENT_EXECUTION=1` を既定で有効化して、Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成し、なくてもローカル commit までは進める。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
 
 ## Job: AIOS-Inv-Morning
 
@@ -125,6 +125,12 @@
 - 処理内容:
   - 投資サイクル実行（引け後の再評価）
   - `scripts/investment/backtest/fill_market_outcomes.py --date YYYY-MM-DD --seed-list rough_backtest_full --include-db-signals`
+  - `scripts/investment/analysis/materialize_signal_type_aggressiveness.py --date YYYY-MM-DD --window-days 365`
+  - backtest補完:
+    - `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 30 --db-lookback-days 30 --seed-list rough_backtest_light`
+    - `scripts/investment/backtest/backfill_pending_outcomes.py --as-of YYYY-MM-DD --window-days 90 --max-dates 8`
+    - 月曜夜: `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 90 --db-lookback-days 90 --seed-list rough_backtest_light`
+    - 月初夜: `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 180 --db-lookback-days 180 --seed-list rough_backtest_light`
   - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
   - `scripts/notify/render_paper_stats_discord_message.py --date YYYY-MM-DD --fallback-days 3`
@@ -221,6 +227,20 @@
 
 ---
 
+## Job: AIOS-Scenario-Thread-Cleanup
+
+- status: active
+- schedule: 日曜の `inv-evening` 実行後
+- entrypoint: `scripts/ops/do_inv_evening_and_post.ps1`
+- 目的:
+  - `entry` が入っていない、または未決済建玉がないシナリオのスレッドとアンカー投稿を delete して整理する
+- 処理内容:
+  - `paper_trades` を参照し、`open_pending_outcome` / `open_partial` が残るスレッドは維持
+  - それ以外の `scenario_messages.thread_id` と `anchor_message_id` を delete する
+  - 実行結果を `scenario_reply_events` に記録する
+
+---
+
 ## Job: AIOS-Alert-Healthcheck
 
 - status: active
@@ -292,12 +312,11 @@
   - `scripts/investment/backtest/run_backtest_suite.py --mode deep --date YYYY-MM-DD`
   - `scripts/data/init_investment_db.py`
   - `scripts/data/ingest_investment_db.py --date YYYY-MM-DD`
+  - `scripts/investment/analysis/materialize_signal_type_aggressiveness.py --date YYYY-MM-DD --window-days 365`
   - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
   - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
   - `scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date YYYY-MM-DD`
-
----
 
 ## Job: AIOS-Data-Harvest
 

@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
+from utils.paper_trade_mode import normalize_paper_trade_mode
 
 DEFAULT_DB = resolve_investment_db()
 CACHE = ROOT / ".cache/market-outcomes/yahoo-chart-cache.json"
@@ -114,7 +115,7 @@ def judge(ret: float | None, threshold: float) -> str | None:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Fill T+1/T+5/T+20 outcomes for paper_trades")
     p.add_argument("--date", help="entry date YYYY-MM-DD (optional)")
-    p.add_argument("--mode", default="backtest", choices=["backtest", "live", "watch", "paper", "all"])
+    p.add_argument("--mode", default="paper_history", choices=["paper_history", "live", "watch", "paper", "all"])
     p.add_argument("--db", default=str(DEFAULT_DB))
     p.add_argument("--as-of", default=date.today().isoformat(), help="only use prices up to this date")
     p.add_argument("--shares-per-lot", type=int, default=100)
@@ -137,8 +138,9 @@ def main() -> int:
             where.append("entry_date=?")
             params.append(args.date)
         if args.mode != "all":
+            mode = normalize_paper_trade_mode(args.mode)
             where.append("mode=?")
-            params.append(args.mode)
+            params.append(mode)
         sql = (
             "select trade_id,entry_date,ticker,side,lots,planned_entry_price,mode "
             "from paper_trades where " + " and ".join(where) + " order by entry_date,ticker"

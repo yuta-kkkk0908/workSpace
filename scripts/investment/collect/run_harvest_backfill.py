@@ -156,14 +156,14 @@ def main() -> int:
     end = datetime.strptime(args.end_date, "%Y-%m-%d").date()
     start = end - timedelta(days=max(0, args.days - 1))
     py = args.python
+    db_path = Path(args.db)
 
     # Ensure schema includes latest tables before harvesting.
-    run([py, "scripts/data/init_investment_db.py", "--db", "data/investment.db"])
+    run([py, "scripts/data/init_investment_db.py", "--db", str(db_path)])
 
     total_days = 0
     failed_days = 0
     low_rate_streak = 0
-    db_path = Path(args.db)
     d = start
     while d <= end:
         ds = d.strftime("%Y-%m-%d")

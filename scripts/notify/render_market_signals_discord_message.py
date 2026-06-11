@@ -330,12 +330,46 @@ def parse_noon_reeval(payload_json: str) -> dict:
     return nr if isinstance(nr, dict) else {}
 
 
+def load_us_market_overview_from_db(db_path: Path, date_str: str) -> dict:
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        row = conn.execute(
+            """
+            SELECT payload_json
+            FROM collection_artifacts
+            WHERE artifact_key='us_market_overview' AND artifact_date=?
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (date_str,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row or not row[0]:
+        return {}
+    try:
+        payload = json.loads(str(row[0]))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def format_us_market_overview_lines(payload: dict) -> list[str]:
+    if not payload:
+        return ["- 米市場概況: 未取得", "- 日本セクター影響: 未取得"]
+    summary = str(payload.get("summary") or "").strip() or "未取得"
+    sector = str(payload.get("sectorImpact") or "").strip() or "未取得"
+    return [f"- 米市場概況: {summary}", f"- 日本セクター影響: {sector}"]
+
+
 def build_message(
     date_str: str,
     rows: list[dict[str, str]],
     slot: str = "",
     fallback_rows: list[dict[str, str]] | None = None,
     open_positions: list[dict[str, str]] | None = None,
+    morning_overview: dict | None = None,
 ) -> str:
     excluded_non_margin = 0
     excluded_rows: list[dict[str, str]] = []
@@ -354,8 +388,10 @@ def build_message(
         f"- 参照日: {date_str}",
         f"- 件数: {len(rows)}",
         f"- 信用取引不可除外: {excluded_non_margin}件",
-        "",
     ]
+    if (slot or "").strip() == "inv-morning":
+        lines.extend(format_us_market_overview_lines(morning_overview or {}))
+    lines.append("")
     if not rows:
         lines.append("- 変化なし（N/C）")
         if fallback_rows:
@@ -491,9 +527,19 @@ def main() -> int:
     rows = load_signals_from_db(args.db, args.date)
     fallback_rows: list[dict[str, str]] = load_entry_candidates_from_db(args.db, args.date, limit=3)
     open_positions: list[dict[str, str]] = []
+    morning_overview: dict = {}
+    if (args.slot or "").strip() == "inv-morning":
+        morning_overview = load_us_market_overview_from_db(args.db, args.date)
     if (args.slot or "").strip() == "inv-evening":
         open_positions = load_open_positions_from_db(args.db, args.date, limit=8)
-    msg = build_message(args.date, rows, args.slot, fallback_rows=fallback_rows, open_positions=open_positions)
+    msg = build_message(
+        args.date,
+        rows,
+        args.slot,
+        fallback_rows=fallback_rows,
+        open_positions=open_positions,
+        morning_overview=morning_overview,
+    )
 
     out_txt = OUT_DIR / "market-signals-discord-message.txt"
     out_md = OUT_DIR / "market-signals-discord-message.md"
