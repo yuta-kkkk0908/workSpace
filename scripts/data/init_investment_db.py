@@ -169,6 +169,30 @@ SCHEMA = [
     )
     """,
     """
+    CREATE TABLE IF NOT EXISTS note_draft_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      target_date TEXT,
+      digest_topic TEXT,
+      title TEXT,
+      markdown_source TEXT NOT NULL,
+      markdown_source_kind TEXT NOT NULL,
+      note_config_path TEXT NOT NULL,
+      mode TEXT,
+      status TEXT NOT NULL,
+      error TEXT,
+      screenshot_path TEXT,
+      payload_json TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      saved_at TEXT,
+      finished_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_note_draft_posts_date_status
+      ON note_draft_posts(target_date, status, created_at)
+    """,
+    """
     CREATE TABLE IF NOT EXISTS signals (
       signal_id TEXT NOT NULL,
       date TEXT NOT NULL,

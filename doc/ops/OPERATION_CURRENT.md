@@ -211,8 +211,21 @@ proposal を元に、Codex CLI が改修・検証までを担う。
 - `scripts/investment/analysis/execute_improvement_work_items.py`
 - `doing` work item を読んで Codex CLI で改修・検証し、結果を DB に書き戻す
 - `ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ scheduler から自動実行する
+- `GITHUB_TOKEN` があれば push と draft PR 作成まで進め、なくてもローカル commit までは進める
 - 実行時は一時 worktree を作り、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
 - 着手の正本は `improvement_work_items`
+
+### 朝の disclosure / note
+
+- `scripts/run_ops_scheduler.py --slot inv-morning --date YYYY-MM-DD`
+  - `AIOS-Inv-Morning` の slot 内で TDnet 適時開示の朝用ダイジェストを生成する
+  - `scripts/investment/analysis/run_morning_disclosure_digest.py` で `topics/investment-research/inbox/*` に md を出力し、DB にも保存する
+  - `configs/note.local.json` があれば `scripts/notify/post_note_draft.py` で `note-ready.md` を読んで下書き保存まで morning に合わせて行う
+- `scripts/ops/do_morning_disclosure_and_note.ps1`
+  - 単体実行用の後段フロー。scheduler からの主経路は `run_ops_scheduler.py --slot inv-morning`
+- 正本は `data/investment.db` と `collection_artifacts` / `daily_digest`
+- 生成 md は `topics/investment-research/inbox/*` に置き、Git 管理からは外す
+- note の保存はローカル認証情報を使うため、自動公開とは分けて運用する
 
 ### 制約
 

@@ -232,8 +232,6 @@ def main() -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
-        conn.execute("DROP TABLE IF EXISTS improvement_work_items")
-        conn.execute("DROP TABLE IF EXISTS improvement_proposals")
         for ddl in SCHEMA:
             conn.execute(ddl)
         conn.commit()

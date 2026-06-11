@@ -48,6 +48,14 @@ def has_work_item(conn: sqlite3.Connection, proposal_id: int) -> bool:
     return bool(row)
 
 
+def ensure_work_item_audit_link_schema(conn: sqlite3.Connection) -> None:
+    cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(improvement_work_items)").fetchall()}
+    if "audit_log_ids_json" not in cols:
+        conn.execute(
+            "ALTER TABLE improvement_work_items ADD COLUMN audit_log_ids_json TEXT NOT NULL DEFAULT '[]'"
+        )
+
+
 def build_work_json(proposal: dict[str, Any]) -> dict[str, Any]:
     proposal_body_json: dict[str, Any] = {}
     try:
@@ -197,6 +205,7 @@ def main() -> int:
     args = parse_args()
     conn = sqlite3.connect(args.db)
     try:
+        ensure_work_item_audit_link_schema(conn)
         proposals = load_proposals(conn, args.date, args.limit)
         if not proposals:
             print("skip: no proposals to materialize")

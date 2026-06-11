@@ -84,6 +84,15 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
   - 実行時は一時 worktree を使い、通常は自動削除する。保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`
   - `ENABLE_IMPROVEMENT_EXECUTION=1` で scheduler からの自動実行を有効化する
   - 日次 06:00 の改善ジョブで proposal から work item までを進める
+- `scripts/investment/analysis/run_morning_disclosure_digest.py`
+  - TDnet 開示の朝用ダイジェストを DB から作り、`topics/investment-research/inbox/*` に md を出力する
+  - `collection_artifacts` と `daily_digest` に保存する
+- `scripts/notify/post_note_draft.py`
+  - `markdown-path` から note 本文を読み、Playwright で下書き保存を実行する
+  - `configs/note.local.json` を読む
+- `scripts/ops/do_morning_disclosure_and_note.ps1`
+  - 単体実行用の後段フロー
+  - `AIOS-Inv-Morning` の主経路は `scripts/run_ops_scheduler.py --slot inv-morning`
 
 ### 検証（仮想トレード）
 - `scripts/investment/backtest/register_paper_trades.py`

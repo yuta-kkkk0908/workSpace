@@ -609,7 +609,8 @@ python scripts/check_scheduler_health.py --hours 24
 - 連続エラー、重複実行、想定外停止
 
 失敗時の復旧手順（最小）:
-1. `python scripts/data/init_ops_db.py` を実行して `ops.db` スキーマを再適用
+1. `python scripts/data/init_ops_db.py` を実行して `ops.db` スキーマを再適用する
+   - 改善候補 / proposal / work item は保持される
 2. `python scripts/data/ingest_ops_logs.py` でログ再取り込み
 3. 該当スロットを `python scripts/run_ops_scheduler.py --slot <slot> --date YYYY-MM-DD` で再実行
 4. 再度 `check_daily_missing.py` / `check_scheduler_health.py` を実行して解消確認
@@ -630,6 +631,8 @@ python scripts/check_scheduler_health.py --hours 24
 | `make topic-db-ingest DATE=...` | `data/topics.db`, `data/needs.db` | なし（読み取りのみ） | 共通 ingestion runner |
 | `make inv-daily DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 軽量投資パイプライン |
 | `make inv-deep DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 深掘り投資パイプライン |
+| `python scripts/investment/analysis/run_morning_disclosure_digest.py --date YYYY-MM-DD` | `data/investment.db` (`tdnet_disclosures`, `signals`, `entry_candidates`, `collection_artifacts`, `daily_digest`) | `topics/investment-research/inbox/*` | TDnet 開示の朝用ダイジェストを DB に保存しつつ md を出力 |
+| `python scripts/notify/post_note_draft.py --markdown-path ... --db data/investment.db --note-config configs/note.local.json` | `data/investment.db`（md fallback / 投稿監査） | `configs/note.storage_state.json`, 任意のスクリーンショット/ログ | note の下書き保存（Playwright, md 読み込み, `note_draft_posts` 監査） |
 | `make daily-missing ...` | なし（DB参照） | `logs/*`（必要時） | 日次漏れの検査 |
 | `python scripts/run_ops_scheduler.py --slot night ...` | `data/ops.db`, `data/topics.db`, `data/needs.db`, `data/investment.db` | `topics/*/inbox/*`, `prompts/*`, `logs/*` | 全体夜間オーケストレーション |
 | `python scripts/run_ops_scheduler.py --slot inv-scenario ...` | `data/investment.db` (`opening_scenarios`, `execution_plan`, `scenario_gate_diagnostics` ほか) | `topics/investment-research/inbox/*` | 寄り付きシナリオ生成 |

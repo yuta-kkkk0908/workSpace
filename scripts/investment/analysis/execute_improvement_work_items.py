@@ -831,6 +831,7 @@ def main() -> int:
             return 0
 
         processed = 0
+        can_publish = bool(github_token)
         for item in items:
             worktree_root: Path | None = None
             branch_name = ""
@@ -866,20 +867,6 @@ def main() -> int:
                     }
                     raw_text = json.dumps(result, ensure_ascii=False)
                 else:
-                    if not github_token:
-                        update_work_item(
-                            conn,
-                            work_id=int(item["id"]),
-                            fields={
-                                "work_status": "blocked",
-                                "review_status": "pending",
-                                "blocked_reason": "GITHUB_TOKEN is empty",
-                                "error_message": "GITHUB_TOKEN is empty",
-                            },
-                        )
-                        conn.commit()
-                        processed += 1
-                        continue
                     now_s = now_iso()
                     attempt_count = int(item.get("attempt_count") or 0) + 1
                     branch_name = make_branch_name(item)
@@ -1189,58 +1176,61 @@ def main() -> int:
                         },
                     )
                     conn.commit()
-                    push_branch(worktree_root or ROOT, branch_name, str(item.get("repository_full_name") or ""), github_token)
-                    base_branch = get_default_branch(str(item.get("repository_full_name") or ""), github_token)
-                    pr_body_lines = [
-                        f"## Work Item",
-                        f"- id: {item.get('id')}",
-                        f"- source_key: {item.get('source_key')}",
-                        f"- candidate_date: {item.get('candidate_date')}",
-                        "",
-                        "## Summary",
-                        str(result.get("summary") or "").strip(),
-                        "",
-                        "## Validation",
-                    ]
-                    if validation_results:
-                        for r in validation_results:
-                            pr_body_lines.append(
-                                f"- `{r.get('command')}` => {int(r.get('returncode') or 0)}"
-                            )
-                    else:
-                        pr_body_lines.append("- validation commands: none")
-                    pr_body_lines.extend(
-                        [
+                    if can_publish:
+                        push_branch(worktree_root or ROOT, branch_name, str(item.get("repository_full_name") or ""), github_token)
+                        base_branch = get_default_branch(str(item.get("repository_full_name") or ""), github_token)
+                        pr_body_lines = [
+                            f"## Work Item",
+                            f"- id: {item.get('id')}",
+                            f"- source_key: {item.get('source_key')}",
+                            f"- candidate_date: {item.get('candidate_date')}",
                             "",
-                            "## Codex",
-                            f"- model: {model}",
-                            f"- route: {args.model_route}",
-                            f"- commit: `{commit_sha}`",
+                            "## Summary",
+                            str(result.get("summary") or "").strip(),
+                            "",
+                            "## Validation",
                         ]
-                    )
-                    pr = create_pull_request(
-                        str(item.get("repository_full_name") or ""),
-                        github_token,
-                        branch_name=branch_name,
-                        base_branch=base_branch,
-                        title=title,
-                        body="\n".join(pr_body_lines).strip() + "\n",
-                    )
-                    pr_url = str(pr.get("html_url") or "").strip()
-                    if pr_url:
-                        update_work_item(
-                            conn,
-                            work_id=int(item["id"]),
-                            fields={
-                                "pr_url": pr_url,
-                            },
+                        if validation_results:
+                            for r in validation_results:
+                                pr_body_lines.append(
+                                    f"- `{r.get('command')}` => {int(r.get('returncode') or 0)}"
+                                )
+                        else:
+                            pr_body_lines.append("- validation commands: none")
+                        pr_body_lines.extend(
+                            [
+                                "",
+                                "## Codex",
+                                f"- model: {model}",
+                                f"- route: {args.model_route}",
+                                f"- commit: `{commit_sha}`",
+                            ]
                         )
-                        conn.commit()
+                        pr = create_pull_request(
+                            str(item.get("repository_full_name") or ""),
+                            github_token,
+                            branch_name=branch_name,
+                            base_branch=base_branch,
+                            title=title,
+                            body="\n".join(pr_body_lines).strip() + "\n",
+                        )
+                        pr_url = str(pr.get("html_url") or "").strip()
+                        if pr_url:
+                            update_work_item(
+                                conn,
+                                work_id=int(item["id"]),
+                                fields={
+                                    "pr_url": pr_url,
+                                },
+                            )
+                            conn.commit()
+                    else:
+                        pr_url = ""
 
                 changed_files = commit_changed_files(worktree_root or ROOT, commit_sha) if commit_sha else []
                 diff_summary = commit_diff_summary(worktree_root or ROOT, commit_sha) if commit_sha else {}
-                final_status = "done" if status == "done" and (args.dry_run or pr_url or commit_sha) else "blocked"
-                if status == "done" and not args.dry_run and not pr_url:
+                final_status = "done" if status == "done" and (args.dry_run or commit_sha) else "blocked"
+                if status == "done" and not args.dry_run and can_publish and not pr_url:
                     final_status = "blocked"
                     if not blocked_reason:
                         blocked_reason = "pull request creation failed"
@@ -1296,6 +1286,10 @@ def main() -> int:
                     "branch_name": branch_name,
                     "commit_sha": commit_sha,
                     "pr_url": pr_url,
+                    "publication": {
+                        "enabled": can_publish,
+                        "published": bool(pr_url),
+                    },
                     "self_review": result.get("self_review", review_result),
                 }
                 validation_result = {
@@ -1367,12 +1361,16 @@ def main() -> int:
                                 "codex_run": result.get("codex_run", {}),
                                 "final_message": raw_text[:20000],
                                 "worktree_root": str(worktree_root) if worktree_root else "",
-                                "branch_name": branch_name,
-                                "commit_sha": commit_sha,
-                                "pr_url": pr_url,
-                            },
-                            ensure_ascii=False,
-                        ),
+                        "branch_name": branch_name,
+                        "commit_sha": commit_sha,
+                        "pr_url": pr_url,
+                        "publication": {
+                            "enabled": can_publish,
+                            "published": bool(pr_url),
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
                         "validation_result_json": json.dumps(
                             {"commands": validation_commands, "results": validation_results},
                             ensure_ascii=False,

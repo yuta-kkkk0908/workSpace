@@ -1,0 +1,26 @@
+{
+  "login_url": "https://note.com/login",
+  "editor_url": "https://note.com/new",
+  "headless": false,
+  "browser_channel": "chrome",
+  "chrome_user_data_dir": "/mnt/c/Users/yuta_/AppData/Local/Google/Chrome/NoteAutomation",
+  "chrome_profile_directory": "Default",
+  "body_only_mode": false,
+  "title_selector_pick": "first",
+  "body_selector_pick": "last",
+  "storage_state_path": "configs/note.storage_state.json",
+  "title_selectors": [
+    "textarea",
+    "[contenteditable='true']"
+  ],
+  "body_selectors": [
+    "[contenteditable='true']",
+    ".ProseMirror"
+  ],
+  "save_selectors": [
+    "button:has-text('下書き保存')",
+    "button:has-text('保存')",
+    "[data-testid='save-button']"
+  ],
+  "post_save_wait_ms": 3000
+}

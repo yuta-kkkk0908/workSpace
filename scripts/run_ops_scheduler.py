@@ -275,6 +275,16 @@ def is_jp_market_weekend(d: str) -> bool:
         return False
 
 
+def next_jp_market_day(d: str) -> str:
+    try:
+        next_day = datetime.strptime(d, "%Y-%m-%d").date() + timedelta(days=1)
+    except Exception:
+        return d
+    while next_day.weekday() >= 5:
+        next_day += timedelta(days=1)
+    return next_day.isoformat()
+
+
 def run_investment_cycle(py: str, d: str, backtest: bool = False) -> int:
     rc = 0
     discover_latest, max_pages = kabutan_collection_profile("night")
@@ -485,6 +495,57 @@ def run_investment_cycle_morning(py: str, d: str, backtest: bool = False, weeken
     return rc
 
 
+def run_morning_disclosure_digest_and_note(py: str, d: str) -> int:
+    """Build the morning disclosure digest and, when configured, save a note draft."""
+    rc = 0
+    disclosure_out_dir = ROOT / "topics" / "investment-research" / "inbox"
+    note_config = ROOT / "configs" / "note.local.json"
+    note_markdown = disclosure_out_dir / f"{d}-note-ready.md"
+    note_log = ROOT / "logs" / f"disclosure-note-post-{d}.json"
+    note_shot = ROOT / "logs" / f"disclosure-note-post-{d}.png"
+
+    rc |= run(
+        [
+            py,
+            "scripts/investment/analysis/run_morning_disclosure_digest.py",
+            "--date",
+            d,
+            "--db",
+            str(INVESTMENT_DB),
+            "--output-dir",
+            str(disclosure_out_dir),
+            "--limit",
+            "20",
+            "--lookback-days",
+            "90",
+            "--max-items",
+            "120",
+        ],
+        allow_fail=True,
+    )
+    if rc == 0 and note_config.exists():
+        rc |= run(
+            [
+                py,
+                "scripts/notify/post_note_draft.py",
+                "--markdown-path",
+                str(note_markdown),
+                "--db",
+                str(INVESTMENT_DB),
+                "--note-config",
+                str(note_config),
+                "--log-path",
+                str(note_log),
+                "--screenshot-path",
+                str(note_shot),
+            ],
+            allow_fail=True,
+        )
+    elif rc == 0:
+        print("[skip] note draft post: config not found")
+    return rc
+
+
 def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_collect_only: bool = False) -> int:
     """Noon: avoid heavy recollection; focus on re-ranking/re-candidates from intraday state."""
     rc = 0
@@ -496,6 +557,19 @@ def run_investment_cycle_noon(py: str, d: str, backtest: bool = False, weekend_c
     rc |= run([py, 'scripts/investment/signals/reevaluate_market_signals_noon.py', '--date', d, '--slot', 'inv-noon'], allow_fail=True)
     rc |= run([py, 'scripts/data/init_investment_db.py'])
     rc |= run([py, 'scripts/data/ingest_investment_db.py', '--date', d])
+    rc |= run(
+        [
+            py,
+            'scripts/investment/collect/snapshot_signal_prices.py',
+            '--date',
+            d,
+            '--snapshot-date',
+            next_jp_market_day(d),
+            '--db',
+            str(INVESTMENT_DB),
+        ],
+        allow_fail=True,
+    )
     rc |= run([py, 'scripts/investment/collect/backfill_instrument_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
     rc |= run([py, 'scripts/investment/analysis/backfill_signal_company_names.py', '--date', d], allow_fail=True, retries=2, retry_wait_sec=5.0)
     rc |= run([py, 'scripts/investment/signals/generate_technical_signals.py', '--date', d], allow_fail=True)
@@ -669,6 +743,8 @@ def main() -> int:
                     backtest=args.backtest,
                     weekend_collect_only=is_jp_market_weekend(d),
                 )
+                if not args.backtest and not is_jp_market_weekend(d):
+                    rc |= run_morning_disclosure_digest_and_note(py, d)
 
             if args.slot == 'inv-noon':
                 rc |= run_investment_cycle_noon(

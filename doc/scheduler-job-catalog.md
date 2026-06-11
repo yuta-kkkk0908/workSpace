@@ -72,9 +72,7 @@
   - `scripts/investment/analysis/generate_improvement_proposals.py --date YYYY-MM-DD`（改善候補を proposal 化して `codex-log` に投稿）
   - `scripts/investment/analysis/materialize_improvement_work_items.py --date YYYY-MM-DD`（proposal を work item 化して着手対象にする）
   - `scripts/investment/analysis/claim_improvement_work_items.py --date YYYY-MM-DD`（open work item を doing に引き上げる）
-  - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成する。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
-
----
+  - `scripts/investment/analysis/execute_improvement_work_items.py --date YYYY-MM-DD`（`ENABLE_IMPROVEMENT_EXECUTION=1` のときのみ Codex CLI で doing work item を改修・検証する。`GITHUB_TOKEN` があれば commit/push して draft PR まで自動作成し、なくてもローカル commit までは進める。通常は一時 worktree を自動削除し、保持したい場合は `KEEP_IMPROVEMENT_WORKTREE=1`）
 
 ## Job: AIOS-Inv-Morning
 
@@ -83,6 +81,7 @@
 - entrypoint: `scripts/run_ops_scheduler.py --slot inv-morning --date YYYY-MM-DD`
 - 目的:
   - 朝の投資監視データを更新する
+  - TDnet 適時開示の朝用ダイジェストと note 下書き保存も含めて完了させる
 - 処理内容:
   - 投資サイクル実行
     - `scripts/investment/signals/prepare_morning_market_signals.py --date YYYY-MM-DD --fallback-days 3`
@@ -93,6 +92,9 @@
     - `scripts/data/build_today_brief_from_db.py --date YYYY-MM-DD`
     - `scripts/investment/analysis/analyze_signal_quality_alert_ai.py --date YYYY-MM-DD`（ALERT時のみ）
     - `scripts/notify/render_market_signals_discord_message.py --date YYYY-MM-DD --fallback-days 3`
+  - 後段ポスト
+    - `scripts/ops/do_inv_morning_and_post.ps1`
+    - `scripts/run_ops_scheduler.py --slot inv-morning --date YYYY-MM-DD` の内部で TDnet 朝ダイジェスト生成と note 下書き保存を実行する
 
 ---
 
