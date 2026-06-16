@@ -26,6 +26,18 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def task_source_key(task_name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", task_name.lower()).strip("-")
+    return f"ops.task.{slug or 'unknown'}"
+
+
+def safe_relative_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Ingest scheduler/discord log files into ops.db")
     p.add_argument("--db", default=str(DEFAULT_DB))
@@ -43,21 +55,47 @@ def ingest_task_log(conn: sqlite3.Connection, path: Path) -> int:
             continue
         conn.execute(
             """
-            INSERT OR IGNORE INTO task_log_events(ts, task_name, level, message, source_file, raw_line, ingested_at)
-            VALUES(?,?,?,?,?,?,?)
+            INSERT OR IGNORE INTO task_log_events(
+              ts, task_name, source_key, level, message, source_file, raw_line, ingested_at
+            )
+            VALUES(?,?,?,?,?,?,?,?)
             """,
             (
                 m.group("ts"),
                 m.group("task"),
+                task_source_key(m.group("task")),
                 m.group("level"),
                 m.group("msg"),
-                str(path.relative_to(ROOT)),
+                safe_relative_path(path),
                 raw,
                 now(),
             ),
         )
-        rows += 1
+    rows += 1
     return rows
+
+
+def ensure_task_source_key_schema(conn: sqlite3.Connection) -> None:
+    columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(task_log_events)").fetchall()}
+    if "source_key" not in columns:
+        conn.execute("ALTER TABLE task_log_events ADD COLUMN source_key TEXT")
+    rows = conn.execute(
+        """
+        SELECT id, task_name
+        FROM task_log_events
+        WHERE source_key IS NULL OR source_key=''
+        """
+    ).fetchall()
+    conn.executemany(
+        "UPDATE task_log_events SET source_key=? WHERE id=?",
+        [(task_source_key(str(task_name)), row_id) for row_id, task_name in rows],
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_task_log_events_source_key_ts
+        ON task_log_events(source_key, ts)
+        """
+    )
 
 
 def ingest_discord_log(conn: sqlite3.Connection, path: Path, channel: str) -> int:
@@ -78,7 +116,7 @@ def ingest_discord_log(conn: sqlite3.Connection, path: Path, channel: str) -> in
                 channel,
                 m.group("level"),
                 m.group("msg"),
-                str(path.relative_to(ROOT)),
+                safe_relative_path(path),
                 raw,
                 now(),
             ),
@@ -94,6 +132,7 @@ def main() -> int:
 
     conn = sqlite3.connect(db_path)
     try:
+        ensure_task_source_key_schema(conn)
         task_rows = ingest_task_log(conn, log_dir / "task-scheduler.log")
         discord_rows = 0
         for filename, channel in DISCORD_FILES.items():

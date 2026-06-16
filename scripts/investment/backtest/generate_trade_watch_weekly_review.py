@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
-
+from investment.analysis.exit_horizon_utils import avg, collect_price_path_returns, win_rate
 DEFAULT_DB = resolve_investment_db()
 OUT = ROOT / "topics" / "investment-research" / "inbox"
 
@@ -36,16 +36,24 @@ def avg(vals: list[float]) -> float:
 
 def summarize(rows: list[sqlite3.Row]) -> dict:
     t1 = [float(r["t1_return_pct"]) for r in rows if r["t1_return_pct"] is not None]
+    t3 = collect_price_path_returns(rows, offset=3)
     t5 = [float(r["t5_return_pct"]) for r in rows if r["t5_return_pct"] is not None]
+    t10 = collect_price_path_returns(rows, offset=10)
     t20 = [float(r["t20_return_pct"]) for r in rows if r["t20_return_pct"] is not None]
     return {
         "samples": len(rows),
         "t1_n": len(t1),
         "t1_wr": wr(t1),
         "t1_avg": avg(t1),
+        "t3_n": len(t3),
+        "t3_wr": wr(t3),
+        "t3_avg": avg(t3),
         "t5_n": len(t5),
         "t5_wr": wr(t5),
         "t5_avg": avg(t5),
+        "t10_n": len(t10),
+        "t10_wr": wr(t10),
+        "t10_avg": avg(t10),
         "t20_n": len(t20),
         "t20_wr": wr(t20),
         "t20_avg": avg(t20),
@@ -67,7 +75,7 @@ def main() -> int:
             params.append(args.end_date)
         rows = conn.execute(
             """
-            select mode,entry_date,ticker,company,side,t1_return_pct,t5_return_pct,t20_return_pct
+            select mode,entry_date,ticker,company,side,t1_return_pct,t5_return_pct,t20_return_pct,price_path_json
             from paper_trades
             where """
             + " and ".join(where)
@@ -217,12 +225,16 @@ def main() -> int:
         next_actions.append("watch候補は現行しきい値で継続。週次でbecome候補を再判定する。")
 
     # 3) horizon/exit側の改善方針
-    if trade["t1_n"] > 0 and trade["t5_n"] > 0 and trade["t1_wr"] >= trade["t5_wr"] + 8.0:
+    if trade["t3_n"] > 0 and trade["t3_wr"] >= trade["t5_wr"] + 8.0:
+        next_actions.append("T+3優位。早めの利確（部分利確）を増やし、T+5持ち越しを抑制する。")
+    elif watch["t3_n"] > 0 and watch["t3_wr"] >= watch["t5_wr"] + 8.0:
+        next_actions.append("watchはT+3優位。昇格候補は短めの保有前提で評価する。")
+    elif trade["t1_n"] > 0 and trade["t5_n"] > 0 and trade["t1_wr"] >= trade["t5_wr"] + 8.0:
         next_actions.append("T+1優位。利確の前倒し（部分利確）を増やし、T+5持ち越しを抑制する。")
     elif trade["t20_n"] > 0 and trade["t20_wr"] >= trade["t5_wr"] + 8.0:
         next_actions.append("T+20優位。強い材料のみホールド延長する条件を試験導入する。")
     else:
-        next_actions.append("exit設計は現行維持。T+1/T+5/T+20の差分が明確化するまでデータ蓄積を継続する。")
+        next_actions.append("exit設計は現行維持。T+1/T+3/T+5/T+20の差分が明確化するまでデータ蓄積を継続する。")
 
     out = OUT / f"{args.out_date}-weekly-trade-watch-review.md"
     lines = [
@@ -246,12 +258,14 @@ def main() -> int:
         "## Mode Summary (T+5中心)",
         f"- trade(live): samples={trade['samples']} / T+5 n={trade['t5_n']} wr={trade['t5_wr']:.1f}% avgRet={trade['t5_avg']:.2f}%",
         f"- watch: samples={watch['samples']} / T+5 n={watch['t5_n']} wr={watch['t5_wr']:.1f}% avgRet={watch['t5_avg']:.2f}%",
+        f"- trade T+3(ref): n={trade['t3_n']} wr={trade['t3_wr']:.1f}% avgRet={trade['t3_avg']:.2f}%",
+        f"- watch T+3(ref): n={watch['t3_n']} wr={watch['t3_wr']:.1f}% avgRet={watch['t3_avg']:.2f}%",
         f"- gap(trade-watch): wr={t5_wr_gap:+.1f}pt / avgRet={t5_avg_gap:+.2f}%",
         f"- verdict: {verdict}",
         "",
         "## Horizons",
-        f"- trade T+1/T+5/T+20: {trade['t1_wr']:.1f}% / {trade['t5_wr']:.1f}% / {trade['t20_wr']:.1f}%",
-        f"- watch T+1/T+5/T+20: {watch['t1_wr']:.1f}% / {watch['t5_wr']:.1f}% / {watch['t20_wr']:.1f}%",
+        f"- trade T+1/T+3/T+5/T+20: {trade['t1_wr']:.1f}% / {trade['t3_wr']:.1f}% / {trade['t5_wr']:.1f}% / {trade['t20_wr']:.1f}%",
+        f"- watch T+1/T+3/T+5/T+20: {watch['t1_wr']:.1f}% / {watch['t3_wr']:.1f}% / {watch['t5_wr']:.1f}% / {watch['t20_wr']:.1f}%",
         f"- all samples: {total['samples']}",
         "",
         "## Uncertainty / Notes",
@@ -271,6 +285,7 @@ def main() -> int:
             "",
             "## Operation Notes",
             "- trade側: T+5勝率が50%未満ならサイズ縮小 or 見送りを優先",
+            "- 参考: T+3は短期の前倒し判断を見る補助窓として扱う",
             "- watch側: 閾値未達でも一定サンプルまでは継続観測",
             "- 週次で昇格候補を再判定し、翌週のシナリオ閾値に反映",
             "",

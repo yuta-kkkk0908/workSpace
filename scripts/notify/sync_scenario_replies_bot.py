@@ -24,6 +24,7 @@ ENTRY_RE = re.compile(r"^entry(?:\s+(?P<lots>\d+))?(?:\s+(?P<price>\d+(?:\.\d+)?
 EXIT_RE = re.compile(r"^exit(?:\s+(?P<price>\d+(?:\.\d+)?))?$", re.I)
 CANCEL_RE = re.compile(r"^cancel$", re.I)
 CREDIT_RE = re.compile(r"^credit\s+(?P<status>ok|ng|unknown)$", re.I)
+SKIP_RE = re.compile(r"^(?:見送り|skip|pass)(?:\s+(?P<reason>.*))?$", re.I)
 TICKER_PREFIX_RE = re.compile(r"^\s*(?P<ticker>\d{4,5})\s*[／/]\s*")
 
 
@@ -235,6 +236,11 @@ def parse_command(content: str) -> tuple[str, dict] | tuple[None, dict]:
     if CANCEL_RE.match(text_core):
         mode_override = extract_entry_mode(text)
         return "cancel", {"mode_override": mode_override}
+    m = SKIP_RE.match(text_core)
+    if m:
+        mode_override = extract_entry_mode(text)
+        reason = str(m.group("reason") or "").strip()
+        return "skip", {"reason": reason, "mode_override": mode_override}
     m = CREDIT_RE.match(text)
     if m:
         s = m.group("status").lower()
@@ -562,6 +568,30 @@ def trade_plan_from_entry(entry_price: float, direction: str) -> dict[str, float
     }
 
 
+def skip_reason_candidates(sc: sqlite3.Row, payload: dict) -> list[str]:
+    direction = trade_direction(sc)
+    manual_reason = str(payload.get("reason") or "").strip()
+    if direction == "short":
+        reasons = [
+            "材料が古い",
+            "下げ止まりが強い",
+            "売り材料が弱い",
+            "踏み上げ警戒",
+            "地合い・値動きが弱い",
+        ]
+    else:
+        reasons = [
+            "材料が古い",
+            "利益確定売りが強い",
+            "上値が重い",
+            "押し目が浅い",
+            "地合い・値動きが弱い",
+        ]
+    if manual_reason:
+        reasons.insert(0, f"メモ: {manual_reason}")
+    return reasons
+
+
 def exit_condition_lines(sc: sqlite3.Row, payload: dict) -> list[str]:
     direction = trade_direction(sc)
     entry_price = payload.get("price")
@@ -652,6 +682,12 @@ def ack_text(cmd: str, sc: sqlite3.Row, payload: dict, trade_id: str | None, sta
         return f"{head}\n{base}\nexit_price={px} reason={reason} status=closed_manual"
     if cmd == "cancel":
         return f"{head}\n{base}\nstatus=cancelled"
+    if cmd == "skip":
+        lines = [head, base, "見送り候補: " + " / ".join(skip_reason_candidates(sc, payload)), "DB記録済み"]
+        return "\n".join(lines)
+    if cmd == "skip_update":
+        lines = [head, base, "見送り更新: " + " / ".join(skip_reason_candidates(sc, payload)), "DB更新済み"]
+        return "\n".join(lines)
     if cmd == "credit":
         cs = str(payload.get("credit_status") or "")
         return f"{head}\n{sc['ticker']} {sc['company']}\ncredit_status={cs}"
@@ -706,6 +742,7 @@ def ack_error_text(sc: sqlite3.Row, raw: str, err: str) -> str:
         "- exit reason=tp price=4070\n"
         "- cancel\n"
         "- cancel paper\n"
+        "- 見送り / 見送り 材料が古い\n"
         "- credit ng|ok|unknown\n"
         f"received: {raw[:120]}"
     )
@@ -727,6 +764,94 @@ def log_reply(conn: sqlite3.Connection, *, reply_message_id: str, channel_id: st
             raw_content,
             json.dumps(parsed, ensure_ascii=False),
             now_iso(),
+        ),
+    )
+
+
+def latest_skip_reply(
+    conn: sqlite3.Connection,
+    *,
+    parent_message_id: str,
+    author_id: str,
+) -> sqlite3.Row | None:
+    conn.row_factory = sqlite3.Row
+    return conn.execute(
+        """
+        SELECT reply_message_id, parsed_json, raw_content, processed_at
+        FROM scenario_reply_events
+        WHERE parent_message_id=?
+          AND author_id=?
+          AND command='skip'
+        ORDER BY processed_at DESC
+        LIMIT 1
+        """,
+        (parent_message_id, author_id),
+    ).fetchone()
+
+
+def update_skip_reply(
+    conn: sqlite3.Connection,
+    *,
+    target_reply_message_id: str,
+    reply_message_id: str,
+    channel_id: str,
+    parent_message_id: str,
+    author_id: str,
+    sc: sqlite3.Row,
+    new_reason: str,
+    raw_content: str,
+) -> None:
+    now = now_iso()
+    prev_row = conn.execute(
+        "SELECT parsed_json FROM scenario_reply_events WHERE reply_message_id=?",
+        (target_reply_message_id,),
+    ).fetchone()
+    prev_parsed: dict = {}
+    if prev_row and prev_row[0]:
+        try:
+            prev_parsed = json.loads(str(prev_row[0]))
+        except Exception:
+            prev_parsed = {}
+    updated_parsed = dict(prev_parsed)
+    updated_parsed["reason"] = new_reason
+    updated_parsed["skip_reason_candidates"] = skip_reason_candidates(sc, updated_parsed)
+    updated_parsed["updated_from_reply_message_id"] = reply_message_id
+    updated_parsed["updated_from_raw_content"] = raw_content
+    conn.execute(
+        """
+        UPDATE scenario_reply_events
+        SET raw_content=?, parsed_json=?, processed_at=?
+        WHERE reply_message_id=?
+        """,
+        (
+            raw_content,
+            json.dumps(updated_parsed, ensure_ascii=False),
+            now,
+            target_reply_message_id,
+        ),
+    )
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO scenario_reply_events(
+          reply_message_id, channel_id, parent_message_id, author_id, command, raw_content, parsed_json, processed_at
+        ) VALUES(?,?,?,?,?,?,?,?)
+        """,
+        (
+            reply_message_id,
+            channel_id,
+            parent_message_id,
+            author_id,
+            "skip_update",
+            raw_content,
+            json.dumps(
+                {
+                    "updated_target_reply_message_id": target_reply_message_id,
+                    "reason": new_reason,
+                    "skip_reason_candidates": skip_reason_candidates(sc, updated_parsed),
+                },
+                ensure_ascii=False,
+            ),
+            now,
         ),
     )
 
@@ -842,6 +967,43 @@ def main() -> int:
             if not cmd:
                 err = str((payload or {}).get("error", "unknown_command"))
                 if err == "unknown_command":
+                    if not args.dry_run and sc is not None and raw_content.strip():
+                        skip_row = latest_skip_reply(
+                            conn,
+                            parent_message_id=resolved_parent_mid,
+                            author_id=str((m.get("author") or {}).get("id", "")),
+                        )
+                        if skip_row is not None:
+                            new_reason = raw_content.strip()
+                            update_skip_reply(
+                                conn,
+                                target_reply_message_id=str(skip_row["reply_message_id"] or ""),
+                                reply_message_id=mid,
+                                channel_id=message_channel_id or channel_id,
+                                parent_message_id=resolved_parent_mid,
+                                author_id=str((m.get("author") or {}).get("id", "")),
+                                sc=sc,
+                                new_reason=new_reason,
+                                raw_content=raw_content,
+                            )
+                            try:
+                                api_post_ack(
+                                    token,
+                                    message_channel_id or channel_id,
+                                    mid,
+                                    ack_text(
+                                        "skip_update",
+                                        sc,
+                                        {"reason": new_reason},
+                                        None,
+                                        "更新",
+                                    ),
+                                )
+                            except Exception:
+                                pass
+                            processed += 1
+                            stats["handled"] += 1
+                            continue
                     stats["skip_unknown_text"] += 1
                     continue
                 stats["skip_invalid"] += 1
@@ -916,7 +1078,12 @@ def main() -> int:
                     author_id=author_id,
                     command=cmd,
                     raw_content=str(m.get("content", "")),
-                    parsed={**payload, "trade_id": trade_id, "ack_status": "反映"},
+                    parsed={
+                        **payload,
+                        "trade_id": trade_id,
+                        "ack_status": "反映",
+                        "skip_reason_candidates": skip_reason_candidates(sc, payload) if cmd == "skip" else [],
+                    },
                 )
                 try:
                     api_post_ack(

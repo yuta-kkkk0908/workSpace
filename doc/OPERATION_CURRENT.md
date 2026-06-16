@@ -40,10 +40,13 @@
 - これにより「朝タスク成功なのに候補0件（入力欠損）」を減らす
 - `inv-evening` では追加で次を日次更新する
   - `paper-exit-timing`（保有期間別傾向）
+    - 補助参考: `T+3 / T+10`
   - `paper-stats`（`paper_history/watch/live` のモード比較）
+  - `exit-analyzer`（収集・分析・処理ボトルネックの総合観測）
   - `watch-promotion`（watch→become昇格候補）
     - `Ladder` 運用: `strict > balanced > early > none` で WATCH 優先度を扱う
   - `trade-watch-review`（trade/watch 差分レビュー）
+  - 出口ボトルネックの設計基準: [2026-06-15 ExitAnalyzer 設計](/mnt/e/workSpace/doc/task/20260615-exit-analyzer-design.md)
 
 ## 取り逃し対応
 
@@ -69,6 +72,19 @@
   - `scenarioTier`: 出す/出さない、紙トレに留めるかを決める
   - `aggressiveness`: 出すならどこまで攻めるかを決める
   - したがって、`watch` でも `balanced` 以上のシグナルはありうるし、`trade` でも `conservative` で始めることがある
+- 実際にどこへ効くか
+
+| ラベル | 意味 | 効く場所 | 主な影響 |
+|---|---|---|---|
+| `trade` | 実運用に出す候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='paper'` | Discord 投稿、紙トレ履歴登録、後続の成績追跡 |
+| `paper_trade_only` | まず紙トレで様子を見る候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='watch'` | 投稿はするが実運用に上げず、紙トレ観測として残す |
+| `watch` | 監視継続候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='watch'` | 監視投稿、エントリー候補の補助表示、観測のみ |
+| `paper` | いまの紙トレ運用モード | `paper_trades` の登録・集計 | `trade` ティアの自動紙トレ記録に使う |
+| `paper_history` | 紙トレ履歴の分析ラベル | `scripts/investment/backtest/*` / `scripts/notify/render_paper_stats_discord_message.py` | `paper_trades` の勝率・平均リターン・保有期間比較に使う |
+
+- 補足
+  - `paper` は運用用、`paper_history` は分析用
+  - `backtest` は旧呼称で、今は内部互換のためだけに残している
 
 ## backtest 補完口
 
@@ -175,6 +191,8 @@
     - エントリー/イグジット/credit 応答は各スレッド内で受ける
     - シナリオ解決は `scenario_messages.thread_id` で行う
     - `trade` シナリオは投稿時に `paper_trades.mode='paper'` へ自動登録して事後成績を追跡する
+    - `paper_trade_only` と `watch` は `paper_trades.mode='watch'` として扱い、紙トレ/監視の観測に使う
+    - `paper_history` は既存の `paper_trades` 集計・分析で使う履歴ラベル
     - 手動 `entry paper` / `entry 机上` は補助用途（watchや個別観測用）
     - 返信同期は `scripts/notify/sync_scenario_replies_bot.py` が active threads を読んで DB 反映する
     - 日曜は `entry` が残っていないシナリオのスレッドとアンカー投稿を delete して整理する

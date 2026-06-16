@@ -469,8 +469,8 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
 
         conn.execute(
             """
-            INSERT INTO backtest_outcomes(outcome_id,date,source_signal_id,ticker,signal_date,disclosure_category,disclosure_category_label_ja,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,base_close_price,base_volume,t1_candle_type,t1_open_price,t1_high_price,t1_low_price,t1_close_price,t5_close_price,t20_close_price,t1_open_vs_base_pct,t1_high_vs_base_pct,t1_low_vs_base_pct,t1_close_vs_base_pct,t5_close_vs_base_pct,t20_close_vs_base_pct,t1_close_vs_open_pct,t1_range_pct,t1_body_pct,t1_upper_wick_pct,t1_lower_wick_pct,t1_close_location,t1_volume,t1_volume_ratio_5,t1_volume_ratio_25,t1_judge,t5_judge,t20_judge,outcome_type,source_path,updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO backtest_outcomes(outcome_id,date,source_signal_id,ticker,signal_date,disclosure_category,disclosure_category_label_ja,signal_type,signal_type_label_ja,expected_direction,expected_direction_label_ja,long_rank,short_rank,long_rank_label_ja,short_rank_label_ja,base_close_price,base_volume,t1_candle_type,t1_open_price,t1_high_price,t1_low_price,t1_close_price,t3_close_price,t5_close_price,t10_close_price,t20_close_price,t1_open_vs_base_pct,t1_high_vs_base_pct,t1_low_vs_base_pct,t1_close_vs_base_pct,t3_close_vs_base_pct,t5_close_vs_base_pct,t10_close_vs_base_pct,t20_close_vs_base_pct,t1_close_vs_open_pct,t1_range_pct,t1_body_pct,t1_upper_wick_pct,t1_lower_wick_pct,t1_close_location,t1_volume,t1_volume_ratio_5,t1_volume_ratio_25,t1_judge,t3_judge,t5_judge,t10_judge,t20_judge,outcome_type,source_path,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT DO UPDATE SET
             ticker=excluded.ticker,signal_date=excluded.signal_date,
             disclosure_category=excluded.disclosure_category,disclosure_category_label_ja=excluded.disclosure_category_label_ja,
@@ -479,13 +479,13 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
             long_rank=excluded.long_rank,short_rank=excluded.short_rank,long_rank_label_ja=excluded.long_rank_label_ja,short_rank_label_ja=excluded.short_rank_label_ja,
             base_close_price=excluded.base_close_price,base_volume=excluded.base_volume,t1_candle_type=excluded.t1_candle_type,
             t1_open_price=excluded.t1_open_price,t1_high_price=excluded.t1_high_price,t1_low_price=excluded.t1_low_price,t1_close_price=excluded.t1_close_price,
-            t5_close_price=excluded.t5_close_price,t20_close_price=excluded.t20_close_price,
+            t3_close_price=excluded.t3_close_price,t5_close_price=excluded.t5_close_price,t10_close_price=excluded.t10_close_price,t20_close_price=excluded.t20_close_price,
             t1_open_vs_base_pct=excluded.t1_open_vs_base_pct,t1_high_vs_base_pct=excluded.t1_high_vs_base_pct,t1_low_vs_base_pct=excluded.t1_low_vs_base_pct,
-            t1_close_vs_base_pct=excluded.t1_close_vs_base_pct,t5_close_vs_base_pct=excluded.t5_close_vs_base_pct,t20_close_vs_base_pct=excluded.t20_close_vs_base_pct,
+            t1_close_vs_base_pct=excluded.t1_close_vs_base_pct,t3_close_vs_base_pct=excluded.t3_close_vs_base_pct,t5_close_vs_base_pct=excluded.t5_close_vs_base_pct,t10_close_vs_base_pct=excluded.t10_close_vs_base_pct,t20_close_vs_base_pct=excluded.t20_close_vs_base_pct,
             t1_close_vs_open_pct=excluded.t1_close_vs_open_pct,t1_range_pct=excluded.t1_range_pct,t1_body_pct=excluded.t1_body_pct,
             t1_upper_wick_pct=excluded.t1_upper_wick_pct,t1_lower_wick_pct=excluded.t1_lower_wick_pct,t1_close_location=excluded.t1_close_location,
             t1_volume=excluded.t1_volume,t1_volume_ratio_5=excluded.t1_volume_ratio_5,t1_volume_ratio_25=excluded.t1_volume_ratio_25,
-            t1_judge=excluded.t1_judge,t5_judge=excluded.t5_judge,t20_judge=excluded.t20_judge,
+            t1_judge=excluded.t1_judge,t3_judge=excluded.t3_judge,t5_judge=excluded.t5_judge,t10_judge=excluded.t10_judge,t20_judge=excluded.t20_judge,
             outcome_type=excluded.outcome_type,source_path=excluded.source_path,updated_at=excluded.updated_at,
             outcome_id=excluded.outcome_id,date=excluded.date
             """,
@@ -503,13 +503,17 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
                 opt_float("T+1HighPrice"),
                 opt_float("T+1LowPrice"),
                 opt_float("T+1ClosePrice"),
+                opt_float("T+3ClosePrice"),
                 opt_float("T+5ClosePrice"),
+                opt_float("T+10ClosePrice"),
                 opt_float("T+20ClosePrice"),
                 opt_float("T+1OpenVsBasePct"),
                 opt_float("T+1HighVsBasePct"),
                 opt_float("T+1LowVsBasePct"),
                 opt_float("T+1CloseVsBasePct"),
+                opt_float("T+3CloseVsBasePct"),
                 opt_float("T+5CloseVsBasePct"),
+                opt_float("T+10CloseVsBasePct"),
                 opt_float("T+20CloseVsBasePct"),
                 opt_float("T+1CloseVsOpenPct"),
                 opt_float("T+1RangePct"),
@@ -520,7 +524,7 @@ def upsert_backtest(conn: sqlite3.Connection, path: Path):
                 opt_int("T+1Volume"),
                 opt_float("T+1VolumeRatio5"),
                 opt_float("T+1VolumeRatio25"),
-                judge_or_pending("T+1Judge"), judge_or_pending("T+5Judge"), judge_or_pending("T+20Judge"), r.get("roughOutcomeType",""),
+                judge_or_pending("T+1Judge"), judge_or_pending("T+3Judge"), judge_or_pending("T+5Judge"), judge_or_pending("T+10Judge"), judge_or_pending("T+20Judge"), r.get("roughOutcomeType",""),
                 str(path.relative_to(ROOT)), now(),
             ),
         )

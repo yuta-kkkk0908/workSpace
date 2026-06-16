@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sqlite3
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,9 @@ def main() -> int:
     if not m or str(m.get("status", "OK")).upper() != "ALERT":
         print("skip: signal quality alert not active")
         return 0
+    if not os.getenv("OPENAI_API_KEY", "").strip():
+        print("skip: OPENAI_API_KEY is empty")
+        return 0
     provider, model = resolve_model(args.model_route)
     if provider != "openai":
         print(f"skip: provider unsupported {provider}")
@@ -85,17 +89,25 @@ def main() -> int:
         ensure_ascii=False,
         indent=2,
     )
-    text, raw = call_openai_text(
-        model=model,
-        system_text="あなたは投資シグナル運用のSRE兼アナリストです。売買助言はしません。",
-        user_text=(
-            "次のアラートを運用目線で triage してください。"
-            "1) root cause 2) 直近の対処 3) 翌営業日の再発防止 を短く箇条書きで。"
-            f"\n\n{prompt}"
-        ),
-    )
+    try:
+        text, raw = call_openai_text(
+            model=model,
+            system_text="あなたは投資シグナル運用のSRE兼アナリストです。売買助言はしません。",
+            user_text=(
+                "次のアラートを運用目線で triage してください。"
+                "1) root cause 2) 直近の対処 3) 翌営業日の再発防止 を短く箇条書きで。"
+                f"\n\n{prompt}"
+            ),
+        )
+    except Exception as exc:
+        print(f"skip: OpenAI triage unavailable: {exc}")
+        return 0
     payload = {"date": args.date, "provider": provider, "model": model, "analysis": text, "raw": raw}
-    save_artifact(args.db, args.date, payload)
+    try:
+        save_artifact(args.db, args.date, payload)
+    except Exception as exc:
+        print(f"skip: failed to save triage artifact: {exc}")
+        return 0
     print(f"saved: collection_artifacts signal_quality_ai_triage {args.date}")
     return 0
 

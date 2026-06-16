@@ -43,6 +43,54 @@ def _max_drawdown(returns_pct: list[float]) -> float:
     return mdd * 100.0
 
 
+def _parse_price_path_summary(raw: str | None) -> dict[str, float | int | None]:
+    if not raw:
+        return {"available": 0, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": None}
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return {"available": 0, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": None}
+    if not isinstance(payload, dict):
+        return {"available": 0, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": None}
+    bars = payload.get("bars") or []
+    if not isinstance(bars, list) or not bars:
+        return {"available": 0, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": None}
+    base = None
+    if payload.get("base_close") is not None:
+        try:
+            base = float(payload.get("base_close"))
+        except Exception:
+            base = None
+    closes: list[float] = []
+    for bar in bars:
+        if not isinstance(bar, dict):
+            continue
+        close = bar.get("close")
+        try:
+            if close is None:
+                continue
+            closes.append(float(close))
+        except Exception:
+            continue
+    if not closes:
+        return {"available": 0, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": None}
+    if base is None:
+        try:
+            base = float(closes[0])
+        except Exception:
+            base = None
+    if base is None or base == 0:
+        return {"available": 1, "t10_return_pct": None, "max_drawdown_pct": None, "path_days": len(closes)}
+    t10 = ((closes[min(len(closes) - 1, 10)] / base) - 1.0) * 100.0
+    path_rets = [((c / base) - 1.0) * 100.0 for c in closes]
+    return {
+        "available": 1,
+        "t10_return_pct": t10,
+        "max_drawdown_pct": _max_drawdown(path_rets),
+        "path_days": len(closes),
+    }
+
+
 def main() -> int:
     args = parse_args()
     d0 = datetime.strptime(args.date, "%Y-%m-%d").date()
@@ -54,7 +102,7 @@ def main() -> int:
     try:
         rows = conn.execute(
             """
-            SELECT p.trade_id,p.entry_date,p.ticker,p.side,p.t1_return_pct,p.t5_return_pct,p.t20_return_pct,p.t5_judge
+            SELECT p.trade_id,p.entry_date,p.ticker,p.side,p.t1_return_pct,p.t5_return_pct,p.t20_return_pct,p.t5_judge,p.price_path_json
             FROM paper_trades p
             LEFT JOIN opening_scenarios os
               ON os.scenario_date=p.entry_date
@@ -78,6 +126,47 @@ def main() -> int:
     ev_t5 = (sum(judged_t5) / len(judged_t5)) if judged_t5 else 0.0
     mdd_t5 = _max_drawdown(judged_t5)
     shortage_rate = ((total - len(judged_t5)) / total) if total > 0 else 0.0
+    path_summaries = [_parse_price_path_summary(r["price_path_json"]) for r in rows]
+    available_paths = [p for p in path_summaries if p.get("available")]
+    t3_values = []
+    for r in rows:
+        raw = r["price_path_json"]
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        bars = payload.get("bars") or []
+        if not isinstance(bars, list) or len(bars) <= 3:
+            continue
+        base = payload.get("base_close")
+        try:
+            base_f = float(base)
+        except Exception:
+            continue
+        if base_f == 0:
+            continue
+        bar = bars[3]
+        if not isinstance(bar, dict):
+            continue
+        try:
+            close = float(bar.get("close"))
+        except Exception:
+            continue
+        sign = -1.0 if str(r["side"] or "").strip().lower() == "short" else 1.0
+        t3_values.append(((close / base_f) - 1.0) * 100.0 * sign)
+    t10_values = [float(p["t10_return_pct"]) for p in available_paths if p.get("t10_return_pct") is not None]
+    path_mdds = [float(p["max_drawdown_pct"]) for p in available_paths if p.get("max_drawdown_pct") is not None]
+    path_days = [int(p["path_days"]) for p in available_paths if p.get("path_days") is not None]
+    winrate_t3 = (sum(1 for x in t3_values if x > 0.0) / len(t3_values) * 100.0) if t3_values else 0.0
+    ev_t3 = (sum(t3_values) / len(t3_values)) if t3_values else 0.0
+    mdd_t3 = _max_drawdown(t3_values) if t3_values else 0.0
+    winrate_t10 = (sum(1 for x in t10_values if x > 0.0) / len(t10_values) * 100.0) if t10_values else 0.0
+    ev_t10 = (sum(t10_values) / len(t10_values)) if t10_values else 0.0
+    mdd_t10 = _max_drawdown(t10_values) if t10_values else 0.0
 
     payload = {
         "date": args.date,
@@ -91,6 +180,16 @@ def main() -> int:
             "expectedValueT5Pct": round(ev_t5, 3),
             "maxDrawdownT5Pct": round(mdd_t5, 3),
             "sampleShortageRate": round(shortage_rate, 4),
+            "pathsAvailable": len(available_paths),
+            "judgedT3": len(t3_values),
+            "winRateT3Pct": round(winrate_t3, 3),
+            "expectedValueT3Pct": round(ev_t3, 3),
+            "maxDrawdownT3Pct": round(mdd_t3, 3),
+            "judgedT10": len(t10_values),
+            "winRateT10Pct": round(winrate_t10, 3),
+            "expectedValueT10Pct": round(ev_t10, 3),
+            "maxDrawdownT10Pct": round(mdd_t10, 3),
+            "averagePathDays": round((sum(path_days) / len(path_days)), 2) if path_days else 0.0,
         },
     }
 
@@ -108,6 +207,16 @@ def main() -> int:
             f"- expectedValueT5Pct: {ev_t5:.2f}",
             f"- maxDrawdownT5Pct: {mdd_t5:.2f}",
             f"- sampleShortageRate: {shortage_rate:.1%}",
+            f"- pathsAvailable: {len(available_paths)}",
+            f"- judgedT3: {len(t3_values)}",
+            f"- winRateT3Pct: {winrate_t3:.2f}",
+            f"- expectedValueT3Pct: {ev_t3:.2f}",
+            f"- maxDrawdownT3Pct: {mdd_t3:.2f}",
+            f"- judgedT10: {len(t10_values)}",
+            f"- winRateT10Pct: {winrate_t10:.2f}",
+            f"- expectedValueT10Pct: {ev_t10:.2f}",
+            f"- maxDrawdownT10Pct: {mdd_t10:.2f}",
+            f"- averagePathDays: {(sum(path_days) / len(path_days)):.2f}" if path_days else "- averagePathDays: 0.00",
         ]
         out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"wrote {out_md.relative_to(ROOT)}")
@@ -124,8 +233,8 @@ def main() -> int:
         source_path="scripts/investment/analysis/report_paper_trade_only_kpi.py",
     )
     print(
-        "paper_trade_only_kpi date={0} sample={1} judged_t5={2} win={3:.3f} ev={4:.3f} mdd={5:.3f} shortage={6:.3f}".format(
-            args.date, total, len(judged_t5), winrate_t5, ev_t5, mdd_t5, shortage_rate
+        "paper_trade_only_kpi date={0} sample={1} judged_t5={2} win={3:.3f} ev={4:.3f} mdd={5:.3f} shortage={6:.3f} t3={7} t10={8} path_avail={9}".format(
+            args.date, total, len(judged_t5), winrate_t5, ev_t5, mdd_t5, shortage_rate, len(t3_values), len(t10_values), len(available_paths)
         )
     )
     return 0

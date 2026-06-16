@@ -11,6 +11,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
 from utils.paper_trade_mode import normalize_paper_trade_mode
+from investment.analysis.exit_horizon_utils import avg, collect_price_path_returns, win_rate
 
 DEFAULT_DB = resolve_investment_db()
 OUT = ROOT / "topics" / "investment-research" / "inbox"
@@ -24,18 +25,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--end-date")
     p.add_argument("--out-date", required=True)
     return p.parse_args()
-
-
-def win_rate(vals: list[float]) -> float:
-    if not vals:
-        return 0.0
-    return sum(1 for v in vals if v > 0) / len(vals) * 100.0
-
-
-def avg(vals: list[float]) -> float:
-    return sum(vals) / len(vals) if vals else 0.0
-
-
 def main() -> int:
     args = parse_args()
     conn = sqlite3.connect(args.db)
@@ -56,7 +45,7 @@ def main() -> int:
         rows = conn.execute(
             """
             select trade_id,mode,entry_date,ticker,company,side,status,
-                   t1_return_pct,t5_return_pct,t20_return_pct
+                   t1_return_pct,t5_return_pct,t20_return_pct,price_path_json
             from paper_trades
             where """
             + " and ".join(where)
@@ -68,6 +57,9 @@ def main() -> int:
 
     def horizon_vals(target_rows: list[sqlite3.Row], key: str) -> list[float]:
         return [float(r[key]) for r in target_rows if r[key] is not None]
+
+    def ref_horizon_vals(target_rows: list[sqlite3.Row], offset: int) -> list[float]:
+        return collect_price_path_returns(target_rows, offset=offset)
 
     def best_horizon(target_rows: list[sqlite3.Row]) -> tuple[str, float]:
         t1 = horizon_vals(target_rows, "t1_return_pct")
@@ -85,7 +77,9 @@ def main() -> int:
 
     def append_mode_block(lines: list[str], label: str, target_rows: list[sqlite3.Row]) -> None:
         t1 = horizon_vals(target_rows, "t1_return_pct")
+        t3_ref = ref_horizon_vals(target_rows, 3)
         t5 = horizon_vals(target_rows, "t5_return_pct")
+        t10_ref = ref_horizon_vals(target_rows, 10)
         t20 = horizon_vals(target_rows, "t20_return_pct")
         best, _ = best_horizon(target_rows)
         lines.extend(
@@ -93,7 +87,9 @@ def main() -> int:
                 f"### {label}",
                 f"- samples: {len(target_rows)}",
                 f"- T+1: n={len(t1)} winRate={win_rate(t1):.1f}% avgRet={avg(t1):.2f}%",
+                f"- T+3(ref): n={len(t3_ref)} winRate={win_rate(t3_ref):.1f}% avgRet={avg(t3_ref):.2f}%",
                 f"- T+5: n={len(t5)} winRate={win_rate(t5):.1f}% avgRet={avg(t5):.2f}%",
+                f"- T+10(ref): n={len(t10_ref)} winRate={win_rate(t10_ref):.1f}% avgRet={avg(t10_ref):.2f}%",
                 f"- T+20: n={len(t20)} winRate={win_rate(t20):.1f}% avgRet={avg(t20):.2f}%",
                 f"- suggested: {best}",
                 "",
@@ -105,6 +101,7 @@ def main() -> int:
         f"# {args.out_date} Paper Trade Exit Timing",
         "",
         "- caution: 仮想トレード統計に基づく保有期間の目安。売買助言ではない。",
+        "- reference horizons: T+3 / T+10 は price_path_json からの補助比較",
         f"- mode: {args.mode}",
         f"- samples: {len(rows)}",
         "",

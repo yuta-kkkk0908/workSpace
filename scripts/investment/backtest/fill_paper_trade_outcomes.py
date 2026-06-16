@@ -83,7 +83,7 @@ def fetch_prices(ticker: str, start: str, end: str, cache: dict) -> list[dict]:
 def fetch_prices_from_db(conn: sqlite3.Connection, ticker: str, start: str, end: str) -> list[dict]:
     rows = conn.execute(
         """
-        select date, close
+        select date, open, high, low, close, volume
           from facts_price_daily
          where ticker=?
            and date between ? and ?
@@ -94,7 +94,16 @@ def fetch_prices_from_db(conn: sqlite3.Connection, ticker: str, start: str, end:
     ).fetchall()
     out: list[dict] = []
     for r in rows:
-        out.append({"date": r["date"], "close": float(r["close"])})
+        item = {
+            "date": r["date"],
+            "close": float(r["close"]),
+        }
+        for key in ("open", "high", "low"):
+            if r[key] is not None:
+                item[key] = float(r[key])
+        if r["volume"] is not None:
+            item["volume"] = int(r["volume"])
+        out.append(item)
     return out
 
 
@@ -120,7 +129,31 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--as-of", default=date.today().isoformat(), help="only use prices up to this date")
     p.add_argument("--shares-per-lot", type=int, default=100)
     p.add_argument("--judge-threshold-pct", type=float, default=0.5)
+    p.add_argument("--path-days", type=int, default=10, help="number of future trading days to capture in price_path_json")
     return p.parse_args()
+
+
+def build_price_path(future: list[dict], max_days: int, side: str, base: float) -> str:
+    bars = []
+    for offset, row in enumerate(future[: max_days + 1]):
+        bar = {
+            "t": offset,
+            "date": row["date"],
+            "close": float(row["close"]),
+        }
+        for key in ("open", "high", "low", "volume"):
+            if key in row and row[key] is not None:
+                bar[key] = row[key]
+        if offset == 0:
+            bar["base"] = True
+        bars.append(bar)
+    payload = {
+        "side": side,
+        "base_close": base,
+        "path_days": max_days,
+        "bars": bars,
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def main() -> int:
@@ -169,6 +202,7 @@ def main() -> int:
             base = float(t["planned_entry_price"] or future[0]["close"])
             side_sign = 1.0 if t["side"] == "long" else -1.0
             qty = int(t["lots"] or 1) * int(args.shares_per_lot)
+            price_path_json = build_price_path(future, max(0, int(args.path_days)), str(t["side"] or ""), base)
 
             def ret_at(n: int) -> float | None:
                 if len(future) <= n:
@@ -192,13 +226,15 @@ def main() -> int:
             conn.execute(
                 """
                 update paper_trades
-                   set t1_return_pct=?, t5_return_pct=?, t20_return_pct=?,
+                   set price_path_json=?,
+                       t1_return_pct=?, t5_return_pct=?, t20_return_pct=?,
                        t1_pnl_jpy=?, t5_pnl_jpy=?, t20_pnl_jpy=?,
                        t1_judge=?, t5_judge=?, t20_judge=?,
                        status=?, updated_at=?
                  where trade_id=?
                 """,
                 (
+                    price_path_json,
                     t1,
                     t5,
                     t20,

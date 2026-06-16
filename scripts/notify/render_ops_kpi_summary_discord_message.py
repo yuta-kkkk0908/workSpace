@@ -5,7 +5,7 @@ import argparse
 import json
 import sqlite3
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +64,30 @@ def load_latest_artifact_before(conn: sqlite3.Connection, key: str, date_s: str)
         return {}
 
 
+def load_latest_collection_kpi(conn: sqlite3.Connection, date_s: str, target_bars: int) -> tuple[str | None, dict[str, Any]]:
+    row = conn.execute(
+        """
+        SELECT artifact_date, payload_json
+        FROM collection_artifacts
+        WHERE artifact_key=?
+          AND artifact_type='kpi_alert'
+          AND artifact_date<=?
+        ORDER BY artifact_date DESC, updated_at DESC
+        LIMIT 1
+        """,
+        (f"collection_kpi_target_{target_bars}", date_s),
+    ).fetchone()
+    if not row:
+        return None, {}
+    try:
+        payload = json.loads(str(row[1] or "{}"))
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return str(row[0] or ""), payload
+
+
 def load_latest_pipeline_payload(
     conn: sqlite3.Connection, *, stage: str, on_or_before: str
 ) -> tuple[str | None, dict[str, Any]]:
@@ -86,6 +110,157 @@ def load_latest_pipeline_payload(
     if not isinstance(payload, dict):
         payload = {}
     return str(row[0] or ""), payload
+
+
+def load_latest_inbox_payload(date_s: str, suffix: str, fallback_days: int = 3) -> tuple[str | None, dict[str, Any]]:
+    d0 = datetime.strptime(date_s, "%Y-%m-%d").date()
+    for i in range(0, max(0, fallback_days) + 1):
+        d = (d0 - timedelta(days=i)).isoformat()
+        path = ROOT / "topics" / "investment-research" / "inbox" / f"{d}-{suffix}"
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            payload = {}
+        if isinstance(payload, dict):
+            return d, payload
+    return None, {}
+
+
+def _fmt_source_tag(target_date: str, source_date: str | None) -> str:
+    if source_date and source_date != target_date:
+        return f" @{source_date}"
+    return ""
+
+
+def _fmt_pct(v: Any, digits: int = 1) -> str:
+    try:
+        return f"{float(v or 0.0):.{digits}f}%"
+    except Exception:
+        return f"{0.0:.{digits}f}%"
+
+
+def _level_for_ratio(value: float, warn: float, alert: float, reverse: bool = False) -> str:
+    if reverse:
+        if value <= alert:
+            return "ALERT"
+        if value <= warn:
+            return "WARN"
+        return "OK"
+    if value >= alert:
+        return "ALERT"
+    if value >= warn:
+        return "WARN"
+    return "OK"
+
+
+def _jp_level(label: str) -> str:
+    return {"ALERT": "赤", "WARN": "黄", "OK": "緑"}.get(label, "不明")
+
+
+def _collection_line(target_date: str, target_bars: int, source_date: str | None, payload: dict[str, Any]) -> str:
+    if not payload:
+        return f"- 収集 target{target_bars}: n/a"
+    kpi = payload.get("kpi") or {}
+    jpx = float(kpi.get("jpx_coverage_pct", 0.0))
+    bars = float(kpi.get("bars_coverage_pct", 0.0))
+    err = float(kpi.get("error_rate_pct", 0.0))
+    label = _level_for_ratio(bars, 70.0, 50.0, reverse=True)
+    return (
+        f"- 収集 target{target_bars}{_fmt_source_tag(target_date, source_date)}: "
+        f"jpx={_fmt_pct(jpx)} bars={_fmt_pct(bars)} error={_fmt_pct(err)} "
+        f"ready={int(kpi.get('ready_tickers', 0))}/{int(kpi.get('tracked_tickers', 0))} [{label}]"
+    )
+
+
+def _sample_health_line(target_date: str, source_date: str | None, payload: dict[str, Any]) -> str:
+    if not payload:
+        return "- 分析: sample-health n/a"
+    kpi = payload.get("kpi") or {}
+    pending = float(kpi.get("pendingAllRatio", 0.0)) * 100.0
+    effective = float(kpi.get("effectiveSampleRatio", 0.0)) * 100.0
+    accepted = int(kpi.get("acceptedScenarios", 0))
+    threshold = int(kpi.get("effectiveSampleThreshold", 0))
+    label = _level_for_ratio(pending, 25.0, 40.0)
+    return (
+        f"- サンプル健全性{_fmt_source_tag(target_date, source_date)}: pending={_fmt_pct(pending)} effective={_fmt_pct(effective)} "
+        f"accepted={accepted} threshold={threshold} [{label}]"
+    ).replace("- サンプル健全性", "- 分析")
+
+
+def _decision_diff_line(target_date: str, source_date: str | None, payload: dict[str, Any]) -> str:
+    if not payload:
+        return "- 分析: decision-support-diff n/a"
+    current = payload.get("current") or {}
+    diff = payload.get("diff") or {}
+    status = str(payload.get("status") or "unknown")
+    warnings = payload.get("warnings") or []
+    return (
+        f"- 決定支援差分{_fmt_source_tag(target_date, source_date)}: status={status} "
+        f"accepted={int(current.get('acceptedCount', 0))} winΔ={float(diff.get('winRateDeltaPp', 0.0)):+.1f}pp "
+        f"ddΔ={float(diff.get('ddApproxDeltaPp', 0.0)):+.1f}pp warnings={len(warnings)}"
+    ).replace("- 決定支援差分", "- 分析")
+
+
+def _slow_stage_lines(slow_rows: list[dict[str, Any]]) -> list[str]:
+    if not slow_rows:
+        return ["- 処理: 目立つ遅延ステージなし"]
+    out = []
+    for row in slow_rows[:3]:
+        stage = str(row.get("stage") or "unknown")
+        rc = int(row.get("return_code") or 0)
+        dur = row.get("duration_ms")
+        out.append(f"- 処理: {stage} {int(dur or 0)}ms rc={rc}")
+    return out
+
+
+def _processing_level(runtime: dict[str, Any], pending_files: int, freshness: list[str], slow_rows: list[dict[str, Any]]) -> str:
+    if int(runtime.get("error_count", 0)) > 0:
+        return "ALERT"
+    if pending_files > 0:
+        return "WARN"
+    if slow_rows:
+        return "WARN"
+    if freshness and len(freshness) > 0:
+        return "OK"
+    return "OK"
+
+
+def load_slowest_stages(conn: sqlite3.Connection, date_s: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT stage, return_code, duration_ms
+        FROM pipeline_events
+        WHERE pipeline='ops_scheduler'
+          AND slot='night'
+          AND event_date=?
+          AND stage<>'slot'
+        ORDER BY COALESCE(duration_ms, 0) DESC, id DESC
+        LIMIT 3
+        """,
+        (date_s,),
+    ).fetchall()
+    return [
+        {"stage": str(r[0] or ""), "return_code": int(r[1] or 0), "duration_ms": int(r[2] or 0)}
+        for r in rows
+        if r and str(r[0] or "").strip()
+    ]
+
+
+def load_processing_freshness() -> list[str]:
+    out: list[str] = []
+    for name in ("discord-signal.log", "discord-generic.log", "discord-scenario.log", "discord-paper-stats.log"):
+        path = ROOT / "logs" / name
+        if not path.exists():
+            continue
+        try:
+            age = (datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)).total_seconds() / 60.0
+            out.append(f"{name}:{age:.0f}m")
+        except Exception:
+            continue
+    out.sort(key=lambda x: float(x.split(":", 1)[1].rstrip("m")) if ":" in x else 0.0, reverse=True)
+    return out
 
 
 def load_night_runtime(conn: sqlite3.Connection, date_s: str) -> dict[str, Any]:
@@ -210,59 +385,73 @@ def main() -> int:
     args = parse_args()
     conn = sqlite3.connect(args.db)
     try:
-        kpi = load_artifact(conn, "signal_pipeline_kpi", args.date)
-        kpi_prev = load_latest_artifact_before(conn, "signal_pipeline_kpi", args.date)
-        weekly = load_artifact(conn, "weekly_tuning_review", args.date)
-        decision = load_artifact(conn, "collection_intensity_decision", args.date)
+        collection_200_date, collection_200 = load_latest_collection_kpi(conn, args.date, 200)
+        collection_500_date, collection_500 = load_latest_collection_kpi(conn, args.date, 500)
+        signal_kpi = load_artifact(conn, "signal_pipeline_kpi", args.date)
         runtime = load_night_runtime(conn, args.date)
-        sample_trend_date, sample_trend = load_latest_pipeline_payload(
-            conn, stage="report_samplecount_trade_trend", on_or_before=args.date
-        )
+        slow_stages = load_slowest_stages(conn, args.date)
     finally:
         conn.close()
 
-    f = ((kpi.get("kpi") or {}).get("funnel") or {})
-    f_prev = ((kpi_prev.get("kpi") or {}).get("funnel") or {})
-    r = ((kpi.get("kpi") or {}).get("rates_pct") or {})
-    wk = weekly.get("kpi") or {}
-    dec = decision or {}
-    sample_summary = sample_trend.get("summary") or {}
-    sample_label = "n/a"
-    if sample_summary:
-        sample_label = "{0:.1f}%->{1:.1f}% ({2:+.1f}pt)".format(
-            float(sample_summary.get("firstHalfRatio", 0.0)) * 100.0,
-            float(sample_summary.get("secondHalfRatio", 0.0)) * 100.0,
-            float(sample_summary.get("trendDelta", 0.0)) * 100.0,
-        )
-        if sample_trend_date and sample_trend_date != args.date:
-            sample_label = f"{sample_label} @{sample_trend_date}"
-    rate_alerts: list[str] = []
-    alerts = kpi.get("alerts") or {}
-    if ((alerts.get("conversion_drop") or {}).get("fired")):
-        rate_alerts.append("シグナル/TDnet低下")
-    if ((alerts.get("price_missing_rate") or {}).get("fired")):
-        rate_alerts.append("価格欠損")
-    if ((alerts.get("conversion_drop_by_type") or {}).get("fired")):
-        rate_alerts.append("種別別低下")
-    rate_alert_label = ", ".join(rate_alerts) if rate_alerts else "なし"
+    collection_200_payload = collection_200
+    collection_500_payload = collection_500
+    signal_funnel = ((signal_kpi.get("kpi") or {}).get("funnel") or {})
+    signal_rates = ((signal_kpi.get("kpi") or {}).get("rates_pct") or {})
+    signal_alerts = signal_kpi.get("alerts") or {}
+    signal_alert_bits: list[str] = []
+    if (signal_alerts.get("conversion_drop") or {}).get("fired"):
+        signal_alert_bits.append("conversion_drop")
+    if (signal_alerts.get("price_missing_rate") or {}).get("fired"):
+        signal_alert_bits.append("price_missing")
+    if (signal_alerts.get("conversion_drop_by_type") or {}).get("fired"):
+        signal_alert_bits.append("type_drop")
+    signal_alert_label = ", ".join(signal_alert_bits) if signal_alert_bits else "none"
+
+    sample_health_date, sample_health = load_latest_inbox_payload(args.date, "sample-health-kpi.json", fallback_days=7)
+    diff_date, decision_diff = load_latest_inbox_payload(args.date, "decision-support-diff.json", fallback_days=7)
+    pending_path = ROOT / "prompts" / "pending"
+    pending_files = len(list(pending_path.glob("*-discord-pending-*.txt"))) if pending_path.exists() else 0
+    freshness = load_processing_freshness()
     runtime_label = str(runtime.get("status") or "missing")
     if runtime.get("duration_minutes") is not None:
         runtime_label += f" / {int(runtime['duration_minutes'])}m"
 
+    collection_200_level = "OK"
+    if collection_200_payload:
+        collection_200_level = str((collection_200_payload.get("kpi") or {}).get("bars_coverage_level") or "OK")
+    collection_500_level = "OK"
+    if collection_500_payload:
+        collection_500_level = str((collection_500_payload.get("kpi") or {}).get("bars_coverage_level") or "OK")
+    analysis_level = "OK"
+    if sample_health:
+        analysis_level = _level_for_ratio(float((sample_health.get("kpi") or {}).get("pendingAllRatio", 0.0)) * 100.0, 25.0, 40.0)
+    if decision_diff and str(decision_diff.get("status") or "").lower() == "warning":
+        analysis_level = "ALERT" if analysis_level == "ALERT" else "WARN"
+    processing_level = _processing_level(runtime, pending_files, freshness, slow_stages)
+
     lines = [
-        f"運用夜間監視 ({args.date})",
+        f"夜間ボトルネック観測 ({args.date})",
+        f"- 総合: 収集={_jp_level(collection_200_level if collection_200_level != 'OK' else collection_500_level)} 分析={_jp_level(analysis_level)} 処理={_jp_level(processing_level)}",
         f"- 実行状況: {runtime_label} / 実行数={int(runtime.get('command_count', 0))} エラー数={int(runtime.get('error_count', 0))}",
-        f"- 流量: 生ログ={int(f.get('raw_events', 0))} TDnet={int(f.get('tdnet_disclosures', 0))} シグナル={int(f.get('signals', 0))} 候補={int(f.get('entry_candidates', 0))} 昇格={int(f.get('opening_scenarios', 0))}",
-        f"- 推移: シグナル {format_delta(f.get('signals', 0), f_prev.get('signals', 0))} / 昇格 {format_delta(f.get('opening_scenarios', 0), f_prev.get('opening_scenarios', 0))}",
-        f"- 指標: シグナル/TDnet={float(r.get('signals_from_tdnet', 0.0)):.1f}% 価格欠損={float(r.get('price_missing_rate_active_universe', 0.0)):.1f}% / 警告={rate_alert_label}",
-        f"- サンプル推移: {sample_label}",
-        f"- 週次: 監視比率={float(wk.get('watch_ratio_pct', 0.0)):.1f}% 低サンプル={float(wk.get('low_sample_ratio_pct', 0.0)):.1f}% 却下上位={str(wk.get('dominant_reject_reason') or 'n/a')}",
-        f"- 3営業日判定: {str(dec.get('decision') or 'n/a')} / 営業日={bool(dec.get('is_business_day', True))}",
-        f"- 生成時刻: {datetime.now().strftime('%Y-%m-%d %H:%M JST')}",
+        "",
+        "## 収集",
+        f"- 収集: raw={int(signal_funnel.get('raw_events', 0))} TDnet={int(signal_funnel.get('tdnet_disclosures', 0))} signals={int(signal_funnel.get('signals', 0))} candidates={int(signal_funnel.get('entry_candidates', 0))} scenarios={int(signal_funnel.get('opening_scenarios', 0))} / sig/tdnet={float(signal_rates.get('signals_from_tdnet', 0.0)):.1f}% 価格欠損={float(signal_rates.get('price_missing_rate_active_universe', 0.0)):.1f}% 警告={signal_alert_label}",
+        _collection_line(args.date, 200, collection_200_date, collection_200_payload),
+        _collection_line(args.date, 500, collection_500_date, collection_500_payload),
+        "",
+        "## 分析",
+        _sample_health_line(args.date, sample_health_date, sample_health) if sample_health else "- 分析: sample-health 未生成",
+        _decision_diff_line(args.date, diff_date, decision_diff) if decision_diff else "- 分析: decision-support-diff 未生成",
+        "",
+        "## 処理",
+        f"- 処理: pending_queue={pending_files} files / freshness={', '.join(freshness[:4]) if freshness else 'n/a'}",
     ]
+    if slow_stages:
+        lines.extend(_slow_stage_lines(slow_stages))
     failures = runtime.get("failures") or []
     if failures:
         lines.append(f"- 失敗: {'; '.join(str(x) for x in failures)}")
+    lines.append(f"- 生成時刻: {datetime.now().strftime('%Y-%m-%d %H:%M JST')}")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     try:

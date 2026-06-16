@@ -31,7 +31,9 @@ DEFAULT_OPS_DB = ROOT / "data" / "ops.db"
 DEFAULT_CONTEXT_CHARS = 12000
 WORKTREE_BASE = ROOT.parent / ".codex-worktrees"
 GITHUB_API_BASE = "https://api.github.com"
-MAX_IMPROVEMENT_ROUNDS = 2
+DEFAULT_MAX_IMPROVEMENT_ROUNDS = 3
+DEFAULT_VALIDATION_RETRY_ROUNDS = 2
+DEFAULT_REVIEW_RETRY_ROUNDS = 2
 AUDIT_LOG_DDL = """
 CREATE TABLE IF NOT EXISTS improvement_audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,6 +74,24 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--model", default="", help="Optional explicit model override for codex exec.")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--context-chars", type=int, default=DEFAULT_CONTEXT_CHARS)
+    p.add_argument(
+        "--max-rounds",
+        type=int,
+        default=DEFAULT_MAX_IMPROVEMENT_ROUNDS,
+        help="Maximum recursive improvement rounds per work item.",
+    )
+    p.add_argument(
+        "--validation-retry-rounds",
+        type=int,
+        default=DEFAULT_VALIDATION_RETRY_ROUNDS,
+        help="Maximum retry count for validation failures within one work item.",
+    )
+    p.add_argument(
+        "--review-retry-rounds",
+        type=int,
+        default=DEFAULT_REVIEW_RETRY_ROUNDS,
+        help="Maximum retry count for self-review revisions within one work item.",
+    )
     return p.parse_args()
 
 
@@ -84,6 +104,33 @@ def get_github_token() -> str:
         os.getenv("GITHUB_TOKEN", "").strip()
         or os.getenv("GH_TOKEN", "").strip()
     )
+
+
+def codex_runtime_context() -> dict[str, str]:
+    return {
+        "cwd": str(Path.cwd()),
+        "python": sys.executable,
+        "path": os.environ.get("PATH", ""),
+    }
+
+
+def resolve_codex_launcher() -> str:
+    launcher = shutil.which("codex")
+    if launcher:
+        return launcher
+    ctx = codex_runtime_context()
+    raise FileNotFoundError(
+        "codex not found on PATH "
+        f"(cwd={ctx['cwd']}, python={ctx['python']}, PATH={ctx['path']})"
+    )
+
+
+def publication_state(github_token: str, pr_url: str, enabled: bool) -> dict[str, Any]:
+    return {
+        "enabled": bool(enabled),
+        "github_token_present": bool(github_token),
+        "published": bool(pr_url),
+    }
 
 
 def slugify_branch_component(text: str) -> str:
@@ -104,6 +151,8 @@ def run_git(base_dir: Path, args: list[str], check: bool = True) -> subprocess.C
         cwd=base_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=check,
     )
 
@@ -125,6 +174,8 @@ def create_worktree_branch(item: dict[str, Any], base_dir: Path, branch_name: st
             cwd=ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
     else:
@@ -133,6 +184,8 @@ def create_worktree_branch(item: dict[str, Any], base_dir: Path, branch_name: st
             cwd=ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
         )
     return worktree_root
@@ -256,6 +309,8 @@ def cleanup_worktree(worktree_root: Path) -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     clean_worktree_dir(worktree_root)
@@ -264,6 +319,8 @@ def cleanup_worktree(worktree_root: Path) -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     try:
@@ -285,6 +342,8 @@ def build_context(item: dict[str, Any], base_dir: Path, max_chars: int) -> dict[
         cwd=base_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     ).stdout.strip()
     git_diff_stat = subprocess.run(
@@ -292,6 +351,8 @@ def build_context(item: dict[str, Any], base_dir: Path, max_chars: int) -> dict[
         cwd=base_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     ).stdout.strip()
     return {
@@ -377,6 +438,8 @@ def push_branch(worktree_root: Path, branch_name: str, repository_full_name: str
         cwd=worktree_root,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if proc.returncode != 0:
@@ -514,8 +577,10 @@ def run_codex_json_stage(
         message_path = tmp / "last-message.json"
         schema_path.write_text(json.dumps(output_schema, ensure_ascii=False, indent=2), encoding="utf-8")
 
+        codex_launcher = resolve_codex_launcher()
+
         cmd = [
-            "codex",
+            codex_launcher,
             "exec",
             "--cd",
             str(worktree_root),
@@ -531,14 +596,23 @@ def run_codex_json_stage(
             cmd.extend(["--model", model.strip()])
         cmd.append("-")
 
-        proc = subprocess.run(
-            cmd,
-            input=prompt,
-            cwd=worktree_root,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            proc = subprocess.run(
+                cmd,
+                input=prompt,
+                cwd=worktree_root,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+        except FileNotFoundError as exc:
+            ctx = codex_runtime_context()
+            raise FileNotFoundError(
+                "failed to launch codex "
+                f"(launcher={codex_launcher!r}, cwd={ctx['cwd']}, python={ctx['python']}, PATH={ctx['path']})"
+            ) from exc
 
         final_message = ""
         if message_path.exists():
@@ -546,6 +620,8 @@ def run_codex_json_stage(
 
         return {
             "command": cmd,
+            "launcher": codex_launcher,
+            "runtime": codex_runtime_context(),
             "returncode": proc.returncode,
             "stdout": proc.stdout[-8000:],
             "stderr": proc.stderr[-8000:],
@@ -589,6 +665,8 @@ def parse_codex_json_result(raw_text: str, codex_run: dict[str, Any], *, stage: 
             )
     result["codex_run"] = {
         "command": codex_run.get("command", []),
+        "launcher": codex_run.get("launcher", ""),
+        "runtime": codex_run.get("runtime", {}),
         "returncode": codex_run.get("returncode", 0),
         "stdout": codex_run.get("stdout", ""),
         "stderr": codex_run.get("stderr", ""),
@@ -645,6 +723,64 @@ def build_review_prompt(
     )
 
 
+def build_validation_retry_feedback(failed_command: str, stdout: str = "", stderr: str = "") -> str:
+    parts = [
+        "前回の検証で失敗しました。",
+        f"失敗コマンド: {failed_command}.",
+    ]
+    if stdout.strip():
+        parts.append(f"stdout: {stdout.strip()[:1000]}.")
+    if stderr.strip():
+        parts.append(f"stderr: {stderr.strip()[:1000]}.")
+    parts.append("検証が通るまで必要最小限で修正してください。")
+    return " ".join(parts)
+
+
+def build_review_retry_feedback(review_result: dict[str, Any]) -> str:
+    findings = review_result.get("findings", [])
+    finding_lines: list[str] = []
+    if isinstance(findings, list):
+        for finding in findings[:6]:
+            if isinstance(finding, dict):
+                finding_lines.append(
+                    f"[{finding.get('severity', 'medium')}] {finding.get('file', '')}: {finding.get('message', '')}"
+                )
+    parts = [
+        f"自己レビューで修正要求あり: {review_result.get('summary', '')}",
+        "指摘点を優先して修正してください。",
+        *finding_lines,
+        str(review_result.get("notes") or "").strip(),
+    ]
+    return "\n".join(part for part in parts if str(part).strip()).strip()
+
+
+def build_no_diff_retry_feedback() -> str:
+    return (
+        "前回の実行ではファイル差分が作成されませんでした。"
+        "必ず対象ファイルを編集して、検証可能な変更を残してください。"
+    )
+
+
+def build_blocked_retry_feedback(blocked_reason: str) -> str:
+    reason = blocked_reason.strip().lower()
+    if "could not be parsed as json" in reason or "json" in reason:
+        return (
+            "前回のCodex出力はJSONとして解析できませんでした。"
+            "出力は JSON のみとし、`status`, `summary`, `validation_commands`, `blocked_reason`, `notes` を必ず埋めてください。"
+        )
+    if "failed to launch codex" in reason or "codex exec failed" in reason or "return code" in reason:
+        return (
+            "前回のCodex実行に失敗しました。"
+            "起動引数と実行環境を確認し、再実行できる状態にしてください。"
+        )
+    if reason:
+        return (
+            f"前回の実行は blocked で終了しました。理由: {blocked_reason}. "
+            "必要な変更を完了させてから再実行してください。"
+        )
+    return ""
+
+
 def run_validation_commands(base_dir: Path, commands: list[str]) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for cmd in commands:
@@ -653,11 +789,12 @@ def run_validation_commands(base_dir: Path, commands: list[str]) -> list[dict[st
         raw_cmd = str(cmd).strip()
         if os.name == "nt":
             proc = subprocess.run(
-                raw_cmd,
+                ["powershell.exe", "-NoLogo", "-NoProfile", "-Command", raw_cmd],
                 cwd=base_dir,
                 capture_output=True,
                 text=True,
-                shell=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
         else:
@@ -666,6 +803,8 @@ def run_validation_commands(base_dir: Path, commands: list[str]) -> list[dict[st
                 cwd=base_dir,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 check=False,
             )
         results.append(
@@ -687,6 +826,8 @@ def git_changed_files(base_dir: Path) -> list[str]:
         cwd=base_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if proc.returncode != 0:
@@ -700,6 +841,8 @@ def git_diff_summary(base_dir: Path) -> dict[str, Any]:
         cwd=base_dir,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     return {
@@ -707,6 +850,19 @@ def git_diff_summary(base_dir: Path) -> dict[str, Any]:
         "stat": proc.stdout.strip(),
         "error": proc.stderr.strip(),
     }
+
+
+def git_has_changes(base_dir: Path) -> bool:
+    proc = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=base_dir,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return bool(proc.stdout.strip())
 
 
 def sync_worktree_inputs(item: dict[str, Any], worktree_root: Path) -> dict[str, Any]:
@@ -819,6 +975,9 @@ def main() -> int:
     _provider, route_model = resolve_model(args.model_route)
     model = args.model.strip() or route_model
     github_token = get_github_token()
+    max_rounds = max(1, int(args.max_rounds or DEFAULT_MAX_IMPROVEMENT_ROUNDS))
+    validation_retry_rounds = max(0, int(args.validation_retry_rounds or DEFAULT_VALIDATION_RETRY_ROUNDS))
+    review_retry_rounds = max(0, int(args.review_retry_rounds or DEFAULT_REVIEW_RETRY_ROUNDS))
 
     conn = sqlite3.connect(args.db)
     try:
@@ -853,6 +1012,8 @@ def main() -> int:
             review_result: dict[str, Any] = {}
             round_history: list[dict[str, Any]] = []
             audit_log_ids: list[int] = []
+            validation_retry_count = 0
+            review_retry_count = 0
             try:
                 if args.dry_run:
                     worktree_root = create_worktree_branch(item, WORKTREE_BASE, None)
@@ -883,7 +1044,7 @@ def main() -> int:
                     worktree_root = create_worktree_branch(item, WORKTREE_BASE, branch_name)
                     context = sync_worktree_inputs(item, worktree_root)
                     retry_feedback = ""
-                    for round_no in range(1, MAX_IMPROVEMENT_ROUNDS + 1):
+                    for round_no in range(1, max_rounds + 1):
                         prompt = build_prompt_with_feedback(item, context, retry_feedback)
                         codex_run = run_codex_exec(prompt, model, worktree_root)
                         raw_text = codex_run["final_message"]
@@ -907,11 +1068,10 @@ def main() -> int:
                                 result["status"] = "blocked"
                                 blocked_reason = f"validation failed: {failed['command']}"
                                 result["blocked_reason"] = blocked_reason
-                                retry_feedback = (
-                                    "前回の検証で失敗しました。"
-                                    f"失敗コマンド: {failed['command']}. "
-                                    f"stdout: {failed.get('stdout', '')[:1000]}. "
-                                    f"stderr: {failed.get('stderr', '')[:1000]}."
+                                retry_feedback = build_validation_retry_feedback(
+                                    str(failed["command"]),
+                                    str(failed.get("stdout") or ""),
+                                    str(failed.get("stderr") or ""),
                                 )
                             else:
                                 blocked_reason = ""
@@ -997,7 +1157,8 @@ def main() -> int:
                                 )
                             )
                             round_history.append(round_record)
-                            if round_no >= MAX_IMPROVEMENT_ROUNDS:
+                            validation_retry_count += 1
+                            if validation_retry_count > validation_retry_rounds or round_no >= max_rounds:
                                 status = "blocked"
                                 blocked_reason = blocked_reason or "validation failed and retry budget exhausted"
                                 break
@@ -1084,30 +1245,57 @@ def main() -> int:
                             )
 
                             if str(review_result.get("status") or "").strip() == "done":
+                                if not git_has_changes(worktree_root or ROOT):
+                                    audit_log_ids.append(
+                                        insert_audit_log(
+                                            conn,
+                                            item=item,
+                                            attempt_no=attempt_count,
+                                            stage="retry",
+                                            round_no=round_no,
+                                            event_type="retry",
+                                            status="retry",
+                                            summary="codex returned done but no diff was detected",
+                                            blocked_reason=None,
+                                            input_payload={
+                                                "prompt": review_prompt,
+                                                "execution_result": {
+                                                    "status": result.get("status"),
+                                                    "summary": result.get("summary"),
+                                                },
+                                                "validation_result": round_record["validation"],
+                                            },
+                                            output_payload={
+                                                "reason": "no diff detected after codex exec",
+                                                "next_feedback": "前回の実行ではファイル差分が作成されませんでした。"
+                                                "必ず対象ファイルを編集して、検証可能な変更を残してください。",
+                                            },
+                                            validation_payload=round_record["validation"],
+                                            review_payload=review_result,
+                                            branch_name=branch_name,
+                                            commit_sha=commit_sha,
+                                            pr_url=pr_url,
+                                        )
+                                    )
+                                    retry_feedback = build_no_diff_retry_feedback()
+                                    round_history.append(round_record)
+                                    if round_no >= max_rounds:
+                                        status = "blocked"
+                                        blocked_reason = "codex produced no diff and retry budget exhausted"
+                                        break
+                                    blocked_reason = ""
+                                    continue
                                 status = "done"
                                 blocked_reason = ""
                                 round_history.append(round_record)
                                 break
 
                             if str(review_result.get("status") or "").strip() == "revise":
-                                findings = review_result.get("findings", [])
-                                finding_lines = []
-                                if isinstance(findings, list):
-                                    for finding in findings[:6]:
-                                        if isinstance(finding, dict):
-                                            finding_lines.append(
-                                                f"[{finding.get('severity', 'medium')}] {finding.get('file', '')}: {finding.get('message', '')}"
-                                            )
-                                retry_feedback = "\n".join(
-                                    [
-                                        f"自己レビューで修正要求あり: {review_result.get('summary', '')}",
-                                        *finding_lines,
-                                        str(review_result.get("notes") or "").strip(),
-                                    ]
-                                ).strip()
+                                retry_feedback = build_review_retry_feedback(review_result)
                                 blocked_reason = ""
                                 round_history.append(round_record)
-                                if round_no >= MAX_IMPROVEMENT_ROUNDS:
+                                review_retry_count += 1
+                                if review_retry_count > review_retry_rounds or round_no >= max_rounds:
                                     status = "blocked"
                                     blocked_reason = "self review requested revision but retry budget exhausted"
                                     break
@@ -1115,10 +1303,22 @@ def main() -> int:
 
                             status = "blocked"
                             blocked_reason = str(review_result.get("blocked_reason") or "").strip() or "self review blocked"
+                            retry_reason = build_blocked_retry_feedback(blocked_reason)
+                            if retry_reason and round_no < max_rounds:
+                                retry_feedback = retry_reason
+                                round_history.append(round_record)
+                                blocked_reason = ""
+                                continue
                             round_history.append(round_record)
                             break
 
                         if str(result.get("status") or "").strip() == "blocked":
+                            retry_reason = build_blocked_retry_feedback(blocked_reason or str(result.get("blocked_reason") or ""))
+                            if retry_reason and round_no < max_rounds:
+                                retry_feedback = retry_reason
+                                round_history.append(round_record)
+                                blocked_reason = ""
+                                continue
                             status = "blocked"
                             round_history.append(round_record)
                             break
@@ -1255,6 +1455,7 @@ def main() -> int:
                             "branch_name": branch_name,
                             "commit_sha": commit_sha,
                             "pr_url": pr_url,
+                            "publication": publication_state(github_token, pr_url, can_publish),
                         },
                         validation_payload={
                             "commands": validation_commands,
@@ -1286,10 +1487,7 @@ def main() -> int:
                     "branch_name": branch_name,
                     "commit_sha": commit_sha,
                     "pr_url": pr_url,
-                    "publication": {
-                        "enabled": can_publish,
-                        "published": bool(pr_url),
-                    },
+                    "publication": publication_state(github_token, pr_url, can_publish),
                     "self_review": result.get("self_review", review_result),
                 }
                 validation_result = {
@@ -1364,10 +1562,7 @@ def main() -> int:
                         "branch_name": branch_name,
                         "commit_sha": commit_sha,
                         "pr_url": pr_url,
-                        "publication": {
-                            "enabled": can_publish,
-                            "published": bool(pr_url),
-                        },
+                                "publication": publication_state(github_token, pr_url, can_publish),
                     },
                     ensure_ascii=False,
                 ),
@@ -1399,6 +1594,7 @@ def main() -> int:
                                 "branch_name": branch_name,
                                 "commit_sha": commit_sha,
                                 "pr_url": pr_url,
+                                "publication": publication_state(github_token, pr_url, can_publish),
                             },
                             validation_payload={
                                 "commands": validation_commands,

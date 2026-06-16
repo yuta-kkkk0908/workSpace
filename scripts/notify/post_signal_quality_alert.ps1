@@ -16,10 +16,19 @@ function Write-QualityAlertLog([string]$level, [string]$message) {
   "[$ts] [$level] $message" | Out-File -FilePath $logFile -Encoding utf8 -Append
 }
 
+function Format-ReasonCode([string]$code) {
+  $k = [string]$code
+  if ([string]::IsNullOrWhiteSpace($k)) { return "" }
+  return $k
+}
+
 Load-EnvFile (Join-Path $repo ".env.local")
 
 $webhook = $env:DISCORD_ALERT_WEBHOOK_URL
-if (-not $webhook) { throw "DISCORD_ALERT_WEBHOOK_URL is empty" }
+if ([string]::IsNullOrWhiteSpace($webhook)) {
+  Write-QualityAlertLog "ERROR" "DISCORD_ALERT_WEBHOOK_URL is empty; skip signal quality alert"
+  exit 0
+}
 
 $diagRaw = ""
 $rcCheck = $null
@@ -78,43 +87,21 @@ $reasonCodes = @()
 if ($diag.qualityReasonCodes) {
   $reasonCodes = @($diag.qualityReasonCodes | ForEach-Object { [string]$_ })
 }
-$reasonLabels = @{
-  "CREDIT_THIN" = "信用情報が薄い"
-  "DATA_THIN" = "シグナル件数が少ない"
-  "MATERIAL_NONE_TODAY" = "当日材料がない"
-  "MATERIAL_STALE" = "材料が古い"
-  "NOON_DATA_GAP" = "昼のスナップショット不足"
-  "REPEATED_TICKER_BIAS" = "同一銘柄の連続出現が多い"
-  "SCENARIO_BIAS" = "有望シグナル配分が偏っている"
-  "SIDE_IMBALANCE" = "上昇/下落方向の偏りが大きい"
-}
-
-function Format-ReasonCode([string]$code) {
-  $k = [string]$code
-  if ([string]::IsNullOrWhiteSpace($k)) { return "" }
-  $label = $reasonLabels[$k]
-  if ($label) {
-    return ("{0}（{1}）" -f $k, $label)
-  }
-  return $k
-}
-
-$reasonLine = if ($reasonCodes.Count -gt 0) { ($reasonCodes | ForEach-Object { Format-ReasonCode $_ }) -join ", " } else { "なし" }
-$root = if ($diag.inferredRootCause) { [string]$diag.inferredRootCause } else { "不明" }
-$rootDisplay = Format-ReasonCode $root
-
+$reasonLine = if ($reasonCodes.Count -gt 0) { ($reasonCodes | ForEach-Object { Format-ReasonCode $_ }) -join ", " } else { "none" }
+$root = if ($diag.inferredRootCause) { [string]$diag.inferredRootCause } else { "unknown" }
 $becomeCount = $diag.becomeScenarioCount
 if ($null -eq $becomeCount) { $becomeCount = $diag.tradeScenarioCount }
+
 $lines = @(
-  ("シグナル品質アラート {0}" -f $Date),
-  "- 判定: 警告",
-  ("- 主因: {0}" -f $rootDisplay),
-  ("- 理由コード: {0}" -f $reasonLine),
-  ("- 要約: シグナル={0} 有望={1} 監視={2} 監視比率={3:P0}" -f $diag.signalCount, $becomeCount, $diag.watchScenarioCount, $watchShare)
+  ("Signal quality alert {0}" -f $Date),
+  "- status: ALERT",
+  ("- root: {0}" -f $root),
+  ("- reason_codes: {0}" -f $reasonLine),
+  ("- summary: signals={0} become={1} watch={2} watch_share={3:P0}" -f $diag.signalCount, $becomeCount, $diag.watchScenarioCount, $watchShare)
 )
 if ($diag.alerts) {
   foreach ($a in $diag.alerts) {
-    $lines += ("- 警告: " + [string]$a)
+    $lines += ("- alert: " + [string]$a)
   }
 }
 $msg = ($lines -join "`n").Trim()
@@ -133,7 +120,7 @@ Write-QualityAlertLog "START" ("msg_len={0}" -f $msg.Length)
 $maxAttempts = 3
 for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
   try {
-    $sent = Send-DiscordContent -WebhookUrl $webhook -Content ("AIOS シグナル品質アラート`n" + $msg) -WriteLog {
+    $sent = Send-DiscordContent -WebhookUrl $webhook -Content ("AIOS Signal Quality Alert`n" + $msg) -WriteLog {
       param($level, $message)
       Write-QualityAlertLog $level $message
     } -MaxAttempts 1

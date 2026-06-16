@@ -56,6 +56,10 @@
       - 30日: 毎日
       - 90日: 毎週月曜
       - 180日: 毎月1日
+  - 夜間KPIダッシュボード
+    - `scripts/notify/render_ops_kpi_summary_discord_message.py --date YYYY-MM-DD`
+    - `scripts/notify/post_ops_kpi_discord.ps1`
+    - 収集・分析・処理のボトルネックを Discord に最終出力する
   - 週次AIレビュー（月曜のみ）
     - `scripts/investment/analysis/generate_weekly_tuning_ai_review.py --date YYYY-MM-DD`
 
@@ -93,10 +97,22 @@
     - `scripts/investment/analysis/analyze_signal_quality_alert_ai.py --date YYYY-MM-DD`（ALERT時のみ）
     - `scripts/notify/render_market_signals_discord_message.py --date YYYY-MM-DD --fallback-days 3`
   - 後段ポスト
-    - `scripts/ops/do_inv_morning_and_post.ps1`
-    - `scripts/run_ops_scheduler.py --slot inv-morning --date YYYY-MM-DD` の内部で TDnet 朝ダイジェスト生成と note 下書き保存を実行する
+  - `scripts/ops/do_inv_morning_and_post.ps1`
+  - `scripts/run_ops_scheduler.py --slot inv-morning --date YYYY-MM-DD` の内部で TDnet 朝ダイジェスト生成と note 下書き保存を実行する
 
 ---
+
+## Job: AIOS-Disclosure-Weekend
+
+- status: active
+- schedule: 土日 07:40
+- entrypoint: `scripts/ops/do_weekend_disclosure_and_note.ps1`
+- 目的:
+  - 土日の TDnet 適時開示を個別に集計し、note 下書きまで保存する
+- 処理内容:
+  - `scripts/investment/analysis/run_morning_disclosure_digest.py --date YYYY-MM-DD --db data/investment.db --output-dir topics/investment-research/inbox --limit 20 --lookback-days 90 --max-items 120`
+  - `configs/note.local.json` があれば `scripts/notify/post_note_draft.py` で `note-ready.md` を保存する
+  - 平日の `AIOS-Inv-Morning` と同じ朝ダイジェスト生成系だが、週末でも後段を止めない
 
 ## Job: AIOS-Inv-Noon
 
@@ -131,8 +147,9 @@
     - `scripts/investment/backtest/backfill_pending_outcomes.py --as-of YYYY-MM-DD --window-days 90 --max-dates 8`
     - 月曜夜: `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 90 --db-lookback-days 90 --seed-list rough_backtest_light`
     - 月初夜: `scripts/investment/backtest/backfill_recent_outcomes_window.py --as-of YYYY-MM-DD --window-days 180 --db-lookback-days 180 --seed-list rough_backtest_light`
-  - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`
+  - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`（`T+3 / T+10` は参考窓）
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
+  - `scripts/investment/analysis/report_exit_analyzer.py --date YYYY-MM-DD --window-days 30`
   - `scripts/notify/render_paper_stats_discord_message.py --date YYYY-MM-DD --fallback-days 3`
   - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
   - `scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date YYYY-MM-DD`
@@ -214,7 +231,7 @@
 ## Job: AIOS-Scenario-Replies-Sync
 
 - status: active
-- schedule: 定期poll（Task Scheduler 登録値に従う）
+- schedule: 定期poll（Task Scheduler 登録値に従う。現行は 09:00-10:00 / 12:30-13:30 / 15:30-23:00 の 5 分間隔）
 - entrypoint: `scripts/ops/run_sync_scenario_replies.ps1`
 - 目的:
   - シナリオスレッド内の `entry / exit / cancel / credit` 指示を DB に反映する
@@ -313,8 +330,9 @@
   - `scripts/data/init_investment_db.py`
   - `scripts/data/ingest_investment_db.py --date YYYY-MM-DD`
   - `scripts/investment/analysis/materialize_signal_type_aggressiveness.py --date YYYY-MM-DD --window-days 365`
-  - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`
+  - `scripts/investment/backtest/analyze_exit_timing.py --out-date YYYY-MM-DD --mode all`（`T+3 / T+10` は参考窓）
   - `scripts/investment/backtest/analyze_paper_trade_stats.py --out-date YYYY-MM-DD --mode all`
+  - `scripts/investment/analysis/report_exit_analyzer.py --date YYYY-MM-DD --window-days 30`
   - `scripts/investment/backtest/analyze_watch_promotion.py --out-date YYYY-MM-DD`
   - `scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date YYYY-MM-DD`
 

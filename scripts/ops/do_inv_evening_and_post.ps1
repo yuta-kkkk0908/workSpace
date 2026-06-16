@@ -37,6 +37,8 @@ if ($rc -eq 0 -and -not $isWeekend) {
   if ($stepRc -ne 0) { $rc = $stepRc }
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_paper_stats_discord.ps1" -Stage "post_paper_stats_discord.ps1"
   if ($stepRc -ne 0) { $rc = $stepRc }
+  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_exit_analyzer_discord.ps1" -Stage "post_exit_analyzer_discord.ps1"
+  if ($stepRc -ne 0) { $rc = $stepRc }
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_signal_quality_alert.ps1" -Stage "post_signal_quality_alert.ps1"
   if ($stepRc -ne 0) { $rc = $stepRc }
 } elseif ($rc -eq 0 -and $isWeekend) {

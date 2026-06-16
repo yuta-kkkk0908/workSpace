@@ -38,6 +38,9 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
 - `scripts/notify/post_paper_stats_discord.ps1`
   - `prompts/paper-stats-discord-message.txt` を投稿
   - 同文スキップ運用あり（ハッシュ判定）
+- `scripts/notify/post_ops_kpi_discord.ps1`
+  - `prompts/ops-kpi-summary-discord-message.txt` を投稿
+  - 夜間の収集・分析・処理ボトルネックを1枚に集約して Discord へ出す
 - `scripts/notify/post_scenario_discord.ps1`
   - `prompts/opening-scenarios-discord-message.txt` を投稿
 - `scripts/notify/post_generic_discord.ps1`
@@ -90,6 +93,9 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
 - `scripts/notify/post_note_draft.py`
   - `markdown-path` から note 本文を読み、Playwright で下書き保存を実行する
   - `configs/note.local.json` を読む
+- `scripts/ops/do_weekend_disclosure_and_note.ps1`
+  - 土日の TDnet 適時開示を note 下書きまで個別実行する
+  - `AIOS-Disclosure-Weekend` の実体
 - `scripts/ops/do_morning_disclosure_and_note.ps1`
   - 単体実行用の後段フロー
   - `AIOS-Inv-Morning` の主経路は `scripts/run_ops_scheduler.py --slot inv-morning`

@@ -221,6 +221,9 @@ proposal を元に、Codex CLI が改修・検証までを担う。
   - `AIOS-Inv-Morning` の slot 内で TDnet 適時開示の朝用ダイジェストを生成する
   - `scripts/investment/analysis/run_morning_disclosure_digest.py` で `topics/investment-research/inbox/*` に md を出力し、DB にも保存する
   - `configs/note.local.json` があれば `scripts/notify/post_note_draft.py` で `note-ready.md` を読んで下書き保存まで morning に合わせて行う
+- `scripts/ops/do_weekend_disclosure_and_note.ps1`
+  - 土日の TDnet 適時開示を個別に集計し、note 下書き保存まで実行する
+  - `AIOS-Disclosure-Weekend` の専用ジョブとして運用する
 - `scripts/ops/do_morning_disclosure_and_note.ps1`
   - 単体実行用の後段フロー。scheduler からの主経路は `run_ops_scheduler.py --slot inv-morning`
 - 正本は `data/investment.db` と `collection_artifacts` / `daily_digest`

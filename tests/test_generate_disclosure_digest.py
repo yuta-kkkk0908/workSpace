@@ -167,7 +167,9 @@ class GenerateDisclosureDigestTests(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            article_text = (output_dir / "2026-06-11-daily-disclosure-digest.md").read_text(encoding="utf-8")
             note_text = (output_dir / "2026-06-11-note-ready.md").read_text(encoding="utf-8")
+            self.assertIn("### テスト社 (1234)", article_text)
             self.assertEqual(note_text.count("### テスト社 (1234)"), 1)
             self.assertIn("同銘柄で2件の開示", note_text)
             self.assertIn("価格反応: 当日終値 110.00", note_text)
@@ -186,6 +188,75 @@ class GenerateDisclosureDigestTests(unittest.TestCase):
             payload = json.loads(artifact["payload_json"])
             self.assertEqual(len(payload["payload"]["items"]), 1)
             self.assertEqual(len(payload["payload"]["items"][0]["disclosures"]), 2)
+
+    def test_includes_previous_trading_day_disclosures_when_target_day_is_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            db_path = tmp / "digest.db"
+            output_dir = tmp / "inbox"
+            conn = sqlite3.connect(db_path)
+            try:
+                conn.execute(
+                    "create table daily_digest(topic text not null, date text not null, path text not null, summary text, updated_at text not null, primary key(topic, date))"
+                )
+                conn.execute(
+                    "create table collection_artifacts(artifact_key text not null, artifact_date text not null, artifact_type text not null, payload_json text not null, updated_at text not null, primary key(artifact_key, artifact_date))"
+                )
+                conn.execute(
+                    "create table tdnet_disclosures(date text not null, disclosed_at text, ticker text not null, company text, title text, category text, tdnet_url text, source_kind text, source_path text not null)"
+                )
+                conn.execute(
+                    "create table facts_price_daily(date text not null, ticker text not null, open real, high real, low real, close real, volume integer, source_kind text not null, source_url text, fetched_at text not null, updated_at text not null, primary key(date, ticker))"
+                )
+                conn.execute(
+                    "insert into tdnet_disclosures(date,disclosed_at,ticker,company,title,category,tdnet_url,source_kind,source_path) values(?,?,?,?,?,?,?,?,?)",
+                    (
+                        "2026-06-10",
+                        "2026-06-10T16:05:00+09:00",
+                        "9999",
+                        "前営業日社",
+                        "前営業日の適時開示",
+                        "upward_revision",
+                        "https://example.com/yesterday",
+                        "tdnet_web",
+                        "db:tdnet:yesterday",
+                    ),
+                )
+                conn.executemany(
+                    "insert into facts_price_daily(date,ticker,open,high,low,close,volume,source_kind,source_url,fetched_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        ("2026-06-10", "9999", 100, 101, 99, 100, 1000, "test", "", "now", "now"),
+                        ("2026-06-11", "9999", 101, 103, 100, 102, 1000, "test", "", "now", "now"),
+                    ],
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "scripts/investment/analysis/generate_disclosure_digest.py"),
+                    "--date",
+                    "2026-06-11",
+                    "--db",
+                    str(db_path),
+                    "--output-dir",
+                    str(output_dir),
+                    "--lookback-days",
+                    "30",
+                    "--limit",
+                    "20",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            note_text = (output_dir / "2026-06-11-note-ready.md").read_text(encoding="utf-8")
+            self.assertIn("前営業日社 (9999)", note_text)
+            self.assertIn("前営業日の適時開示", note_text)
+            self.assertNotIn("対象開示が見つかりませんでした", note_text)
 
     def test_prefers_signal_price_snapshot_over_latest_fact_price(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

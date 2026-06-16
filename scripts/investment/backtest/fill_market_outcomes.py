@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fill rough T+1/T+5/T+20 outcomes for investment backtest seed files.
+"""Fill rough T+1/T+3/T+5/T+10/T+20 outcomes for investment backtest seed files.
 
 This is intentionally rough: it uses Yahoo Finance daily closes and compares
 future closes with the close on the signal date. It is for research logs, not
@@ -538,7 +538,9 @@ def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_pa
         return f"{row['date']} close {row['close']:.2f} ({pct_value:+.2f}%)"
 
     t1 = nth(1)
+    t3 = nth(3)
     t5 = nth(5)
+    t10 = nth(10)
     t20 = nth(20)
     avg5 = avg_volume(base_idx, 5)
     avg25 = avg_volume(base_idx, 25)
@@ -546,7 +548,7 @@ def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_pa
     t1_vol_ratio_25 = vol_ratio(t1, avg25)
     t1_candle = candle_metrics(t1)
     returns = []
-    for row in (t1, t5, t20):
+    for row in (t1, t3, t5, t10, t20):
         if row:
             returns.append((row["close"] / base["close"] - 1) * 100)
     if not returns:
@@ -566,7 +568,9 @@ def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_pa
         "base": f"{base['date']} close {base['close']:.2f}",
         "base_ohlc": f"{base['date']} O:{base.get('open'):.2f} H:{base.get('high'):.2f} L:{base.get('low'):.2f} C:{base.get('close'):.2f}",
         "T+1": ret(t1),
+        "T+3": ret(t3),
         "T+5": ret(t5),
+        "T+10": ret(t10),
         "T+20": ret(t20),
         "baseClosePrice": round(base["close"], 4),
         "baseVolume": base.get("volume"),
@@ -575,10 +579,14 @@ def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_pa
         "T+1HighPrice": round(float(t1["high"]), 4) if t1 and t1.get("high") is not None else None,
         "T+1LowPrice": round(float(t1["low"]), 4) if t1 and t1.get("low") is not None else None,
         "T+1ClosePrice": round(float(t1["close"]), 4) if t1 else None,
+        "T+3ClosePrice": round(float(t3["close"]), 4) if t3 else None,
         "T+5ClosePrice": round(float(t5["close"]), 4) if t5 else None,
+        "T+10ClosePrice": round(float(t10["close"]), 4) if t10 else None,
         "T+20ClosePrice": round(float(t20["close"]), 4) if t20 else None,
         "T+1_pct": pct(t1),
+        "T+3_pct": pct(t3),
         "T+5_pct": pct(t5),
+        "T+10_pct": pct(t10),
         "T+20_pct": pct(t20),
         "T+1_volume": t1.get("volume") if t1 else None,
         "volumeAvg5BeforeSignal": round(avg5, 2) if avg5 else None,
@@ -589,7 +597,9 @@ def compute_outcome(signal: Signal, cache: dict, cache_only: bool = False, db_pa
         "T+1HighVsBasePct": round(t1_candle["highVsBasePct"], 2) if t1_candle["highVsBasePct"] is not None else None,
         "T+1LowVsBasePct": round(t1_candle["lowVsBasePct"], 2) if t1_candle["lowVsBasePct"] is not None else None,
         "T+1CloseVsBasePct": round(t1_candle["closeVsBasePct"], 2) if t1_candle["closeVsBasePct"] is not None else None,
+        "T+3CloseVsBasePct": round(pct(t3), 2) if t3 else None,
         "T+5CloseVsBasePct": round(pct(t5), 2) if t5 else None,
+        "T+10CloseVsBasePct": round(pct(t10), 2) if t10 else None,
         "T+20CloseVsBasePct": round(pct(t20), 2) if t20 else None,
         "T+1CloseVsOpenPct": round(t1_candle["closeVsOpenPct"], 2) if t1_candle["closeVsOpenPct"] is not None else None,
         "T+1RangePct": round(t1_candle["rangePct"], 2) if t1_candle["rangePct"] is not None else None,
@@ -650,7 +660,7 @@ def infer_category(category: str, signal_type: str) -> str:
 def build_aggregation(rows: list[tuple[Signal, dict]], date: str, source_log: str) -> str:
     from collections import Counter, defaultdict
 
-    windows = ["T+1", "T+5", "T+20"]
+    windows = ["T+1", "T+3", "T+5", "T+10", "T+20"]
     total_by_window = {w: Counter() for w in windows}
     category_by_window: dict[str, dict[str, Counter]] = {w: defaultdict(Counter) for w in windows}
     rank_by_window: dict[str, dict[str, Counter]] = {w: defaultdict(Counter) for w in windows}
@@ -774,7 +784,7 @@ def main() -> int:
         f"- cacheOnly: {args.cache_only}",
         f"- includeDbSignals: {args.include_db_signals}",
         f"- dbLookbackDays: {args.db_lookback_days}",
-        "- method: signalDate以降の最初の取引日終値をbaseとし、T+1/T+5/T+20営業日後の調整後終値を比較。T+1はOHLCから寄り付きギャップ、ヒゲ、引け位置を粗分類する。",
+        "- method: signalDate以降の最初の取引日終値をbaseとし、T+1/T+3/T+5/T+10/T+20営業日後の調整後終値を比較。T+1はOHLCから寄り付きギャップ、ヒゲ、引け位置を粗分類する。",
         "- caution: 発表時刻、場中織り込み、分割/配当調整、TOBイベント、流動性は未精査の粗計算。売買助言ではない。",
         "",
         "## Summary",
@@ -812,17 +822,23 @@ def main() -> int:
                 f"- baseClosePrice: {outcome.get('baseClosePrice')}",
                 f"- baseVolume: {outcome.get('baseVolume')}",
                 f"- T+1: {outcome['T+1']}",
+                f"- T+3: {outcome['T+3']}",
                 f"- T+5: {outcome['T+5']}",
+                f"- T+10: {outcome['T+10']}",
                 f"- T+20: {outcome['T+20']}",
                 f"- T+1Candle: {outcome.get('T+1Candle')}",
                 f"- T+1OpenPrice: {outcome.get('T+1OpenPrice')}",
                 f"- T+1HighPrice: {outcome.get('T+1HighPrice')}",
                 f"- T+1LowPrice: {outcome.get('T+1LowPrice')}",
                 f"- T+1ClosePrice: {outcome.get('T+1ClosePrice')}",
+                f"- T+3ClosePrice: {outcome.get('T+3ClosePrice')}",
                 f"- T+5ClosePrice: {outcome.get('T+5ClosePrice')}",
+                f"- T+10ClosePrice: {outcome.get('T+10ClosePrice')}",
                 f"- T+20ClosePrice: {outcome.get('T+20ClosePrice')}",
                 f"- T+1Judge: {judge(signal.expected, outcome.get('T+1_pct'))}",
+                f"- T+3Judge: {judge(signal.expected, outcome.get('T+3_pct'))}",
                 f"- T+5Judge: {judge(signal.expected, outcome.get('T+5_pct'))}",
+                f"- T+10Judge: {judge(signal.expected, outcome.get('T+10_pct'))}",
                 f"- T+20Judge: {judge(signal.expected, outcome.get('T+20_pct'))}",
                 f"- volumeContext:",
                 f"  - baseVolume: {outcome.get('baseVolume')}",
@@ -836,7 +852,9 @@ def main() -> int:
                 f"  - T+1HighVsBasePct: {outcome.get('T+1HighVsBasePct')}",
                 f"  - T+1LowVsBasePct: {outcome.get('T+1LowVsBasePct')}",
                 f"  - T+1CloseVsBasePct: {outcome.get('T+1CloseVsBasePct')}",
+                f"  - T+3CloseVsBasePct: {outcome.get('T+3CloseVsBasePct')}",
                 f"  - T+5CloseVsBasePct: {outcome.get('T+5CloseVsBasePct')}",
+                f"  - T+10CloseVsBasePct: {outcome.get('T+10CloseVsBasePct')}",
                 f"  - T+20CloseVsBasePct: {outcome.get('T+20CloseVsBasePct')}",
                 f"  - T+1CloseVsOpenPct: {outcome.get('T+1CloseVsOpenPct')}",
                 f"  - T+1RangePct: {outcome.get('T+1RangePct')}",

@@ -72,6 +72,19 @@
   - `scenarioTier` は「出すかどうか」
   - `aggressiveness` は「出すならどれだけ攻めるか」
   - したがって `watch` でも `balanced` 以上の研究対象はありうるし、`trade` でも `conservative` で始めることはある
+- 実際にどこへ効くか
+
+| ラベル | 意味 | 効く場所 | 主な影響 |
+|---|---|---|---|
+| `trade` | 実運用に出す候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='paper'` | Discord 投稿、紙トレ履歴登録、後続の成績追跡 |
+| `paper_trade_only` | まず紙トレで様子を見る候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='watch'` | 投稿はするが実運用に上げず、紙トレ観測として残す |
+| `watch` | 監視継続候補 | `scripts/notify/post_scenarios_bot.py` / `opening_scenarios` / `paper_trades.mode='watch'` | 監視投稿、エントリー候補の補助表示、観測のみ |
+| `paper` | いまの紙トレ運用モード | `paper_trades` の登録・集計 | `trade` ティアの自動紙トレ記録に使う |
+| `paper_history` | 紙トレ履歴の分析ラベル | `scripts/investment/backtest/*` / `scripts/notify/render_paper_stats_discord_message.py` | `paper_trades` の勝率・平均リターン・保有期間比較に使う |
+
+- 補足
+  - `paper` は運用用、`paper_history` は分析用
+  - `backtest` は旧呼称で、今は内部互換のためだけに残している
 
 ## ルール改定ループ
 
@@ -93,14 +106,17 @@
 ## シナリオ投稿運用（Discord）
 
 - 1銘柄1投稿で通知する（返信で entry/exit を扱う）
+- 返信で `見送り` を送ると、見送り理由候補を返し、内容は `scenario_reply_events` に記録する
 - 同一 `ticker + direction + tier` の短時間連投は抑止（`dedupe-hours`）
 - `trade` が不足するときのみ `watch` を補助表示し、検証母数を増やす
 - 返信フォーマット異常時はエラーACKを返し、誤登録を防止する
+- 未エントリのシナリオスレッドは週次整理で削除する
 - `watch` 投稿は `Ladder` で優先度を表示する（`strict > balanced > early > none`）
 - `none` は失格ではなく「現時点で昇格条件未達」の意味で、継続観測対象
 
 ## 次に強化する項目
 
+- ExitAnalyzer（出口ボトルネック観測）
 - 地合いスコア
 - 材料強度スコア
 - ボラ/ギャップ判定

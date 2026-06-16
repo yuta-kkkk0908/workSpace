@@ -24,6 +24,7 @@ Run-Step -Name "init_investment_db" -Action { py scripts/data/init_investment_db
 Run-Step -Name "ingest_investment_db" -Action { py scripts/data/ingest_investment_db.py --date $d }
 Run-Step -Name "analyze_exit_timing" -Action { py scripts/investment/backtest/analyze_exit_timing.py --out-date $d --mode all }
 Run-Step -Name "analyze_paper_trade_stats" -Action { py scripts/investment/backtest/analyze_paper_trade_stats.py --out-date $d --mode all }
+Run-Step -Name "report_exit_analyzer" -Action { py scripts/investment/analysis/report_exit_analyzer.py --date $d --window-days 30 }
 Run-Step -Name "analyze_watch_promotion" -Action { py scripts/investment/backtest/analyze_watch_promotion.py --out-date $d --ladder }
 Run-Step -Name "generate_trade_watch_weekly_review" -Action { py scripts/investment/backtest/generate_trade_watch_weekly_review.py --out-date $d }
 Run-Step -Name "fill_market_outcomes_full_weekly" -Action { py scripts/investment/backtest/fill_market_outcomes.py --date $d --seed-list rough_backtest_full }

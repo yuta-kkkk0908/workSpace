@@ -2,6 +2,7 @@ import unittest
 
 from scripts.investment.signals.build_opening_scenarios import (
     _compute_execution_feasibility,
+    pick_horizon_by_wr,
     scenario_for_row,
 )
 
@@ -116,6 +117,18 @@ class ExecutionFeasibilityTests(unittest.TestCase):
         self.assertEqual(out["aggressivenessHoldHorizon"], "T+5")
         self.assertEqual(out["aggressivenessScore"], 2)
         self.assertIn("AGGR_BALANCED", out["why_pass_codes"])
+
+    def test_pick_horizon_by_wr_caps_t20_to_t5_for_opening_scenarios(self) -> None:
+        rule_ctx = {
+            "appearances": 12,
+            "t1": "wr=41.0%",
+            "t5": "wr=48.0%",
+            "t20": "wr=57.0%",
+        }
+        horizon_code, win_text, win_value = pick_horizon_by_wr(rule_ctx)
+        self.assertEqual(horizon_code, "T+5")
+        self.assertTrue(win_text.startswith("T+5想定勝率=57.0%"))
+        self.assertEqual(win_value, 57.0)
 
 
 if __name__ == "__main__":

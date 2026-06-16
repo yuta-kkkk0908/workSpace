@@ -666,6 +666,8 @@ def run_investment_cycle_evening(py: str, d: str, backtest: bool = False, weeken
     if not backtest:
         # sync_scenario_replies_bot.py loads .env by itself.
         rc |= run([py, 'scripts/notify/sync_scenario_replies_bot.py', '--limit', '100'], allow_fail=True)
+    # ExitAnalyzer: collection / analysis / processing bottleneck snapshot.
+    rc |= run([py, 'scripts/investment/analysis/report_exit_analyzer.py', '--date', d, '--window-days', '30'], allow_fail=True)
     if not backtest:
         rc |= run([py, 'scripts/notify/render_market_signals_discord_message.py', '--date', d], allow_fail=True)
     return rc

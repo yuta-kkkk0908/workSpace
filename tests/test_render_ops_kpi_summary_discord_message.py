@@ -108,20 +108,27 @@ class RenderOpsKpiSummaryDiscordMessageTests(unittest.TestCase):
             conn.execute(
                 "INSERT INTO collection_artifacts VALUES(?,?,?,?,?)",
                 (
-                    "weekly_tuning_review",
+                    "collection_kpi_target_200",
                     "2026-05-30",
-                    "weekly_review",
-                    json.dumps({"kpi": {"watch_ratio_pct": 33.3, "low_sample_ratio_pct": 20.0, "dominant_reject_reason": "sample_low"}}),
-                    "2026-05-30T12:00:00Z",
-                ),
-            )
-            conn.execute(
-                "INSERT INTO collection_artifacts VALUES(?,?,?,?,?)",
-                (
-                    "collection_intensity_decision",
-                    "2026-05-30",
-                    "decision",
-                    json.dumps({"decision": "maintain", "is_business_day": True}),
+                    "kpi_alert",
+                    json.dumps(
+                        {
+                            "date": "2026-05-30",
+                            "generated_at": "2026-05-30T12:00:00Z",
+                            "kpi": {
+                                "jpx_coverage_pct": 100.0,
+                                "jpx_coverage_level": "OK",
+                                "bars_coverage_pct": 55.0,
+                                "bars_coverage_level": "WARN",
+                                "tdnet_rows": 12,
+                                "error_rate_pct": 12.0,
+                                "error_rate_level": "WARN",
+                                "target_bars": 200,
+                                "ready_tickers": 11,
+                                "tracked_tickers": 20,
+                            },
+                        }
+                    ),
                     "2026-05-30T12:00:00Z",
                 ),
             )
@@ -221,6 +228,50 @@ class RenderOpsKpiSummaryDiscordMessageTests(unittest.TestCase):
             conn.commit()
             conn.close()
 
+            inbox = Path(tmp) / "topics" / "investment-research" / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
+            (inbox / "2026-05-30-sample-health-kpi.json").write_text(
+                json.dumps(
+                    {
+                        "date": "2026-05-30",
+                        "kpi": {
+                            "outcomesTotal": 10,
+                            "outcomesPendingAll": 4,
+                            "outcomesJudgedAny": 6,
+                            "pendingAllRatio": 0.4,
+                            "judgedAnyRatio": 0.6,
+                            "acceptedScenarios": 5,
+                            "effectiveSampleThreshold": 3,
+                            "effectiveSampleCount": 2,
+                            "effectiveSampleRatio": 0.4,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (inbox / "2026-05-30-decision-support-diff.json").write_text(
+                json.dumps(
+                    {
+                        "date": "2026-05-30",
+                        "current": {
+                            "acceptedCount": 9,
+                        },
+                        "previous": {
+                            "acceptedCount": 12,
+                        },
+                        "diff": {
+                            "winRateDeltaPp": -3.4,
+                            "ddApproxDeltaPp": -1.2,
+                            "acceptedDropRatio": 0.25,
+                            "improved": False,
+                        },
+                        "warnings": ["accepted_drop", "winrate_drop"],
+                        "status": "warning",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
             argv = [
                 "render_ops_kpi_summary_discord_message.py",
                 "--date",
@@ -230,15 +281,22 @@ class RenderOpsKpiSummaryDiscordMessageTests(unittest.TestCase):
                 "--out",
                 str(out_path),
             ]
-            with patch.object(sys, "argv", argv):
+            with patch.object(sys, "argv", argv), patch.object(mod, "ROOT", Path(tmp)):
                 rc = mod.main()
             self.assertEqual(rc, 0)
             text = out_path.read_text(encoding="utf-8")
-            self.assertIn("運用夜間監視 (2026-05-30)", text)
+            self.assertIn("夜間ボトルネック観測 (2026-05-30)", text)
+            self.assertIn("総合: 収集=黄 分析=赤 処理=赤", text)
             self.assertIn("実行状況: done_with_error / 5m / 実行数=2 エラー数=1", text)
-            self.assertIn("推移: シグナル +5 / 昇格 +2", text)
-            self.assertIn("警告=価格欠損", text)
-            self.assertIn("サンプル推移: 20.0%->40.0% (+20.0pt) @2026-05-29", text)
+            self.assertIn("## 収集", text)
+            self.assertIn("収集: raw=18 TDnet=12 signals=9 candidates=6 scenarios=3 / sig/tdnet=75.0% 価格欠損=2.5% 警告=price_missing", text)
+            self.assertIn("収集 target200", text)
+            self.assertIn("## 分析", text)
+            self.assertIn("分析: pending=40.0% effective=40.0% accepted=5 threshold=3 [ALERT]", text)
+            self.assertIn("分析: status=warning accepted=9 winΔ=-3.4pp ddΔ=-1.2pp warnings=2", text)
+            self.assertIn("## 処理", text)
+            self.assertIn("処理: pending_queue=0 files", text)
+            self.assertIn("処理: ingest_topics_db.py 1000ms rc=2", text)
             self.assertIn("失敗: ingest_topics_db.py(rc=2, db_error)", text)
 
 

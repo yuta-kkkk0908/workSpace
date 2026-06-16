@@ -192,14 +192,14 @@ def to_message(date_str: str, idx: int, row: dict, ai_summary: str = "") -> str:
                 f"損切: {stop}",
                 f"想定保有日数: {hold_days_ja(hold_code)}（{hold_code or 'N/A'}）",
                 f"無効化条件: {invalidation(row)}",
-                "返信例: entry 100 4022 / entry paper 100 4022 / entry 机上 100 4022 / exit tp 4070 / cancel / credit ng|ok|unknown",
+                "返信例: entry 100 4022 / entry paper 100 4022 / entry 机上 100 4022 / exit tp 4070 / cancel / 見送り / credit ng|ok|unknown",
             ]
         )
     else:
         lines.extend(
             [
                 f"エントリー: {entry}",
-                "返信例: entry paper 100 4022 / entry 机上 100 4022 / cancel / credit ng|ok|unknown",
+                "返信例: entry paper 100 4022 / entry 机上 100 4022 / cancel / 見送り / credit ng|ok|unknown",
             ]
         )
     if tier != "trade":

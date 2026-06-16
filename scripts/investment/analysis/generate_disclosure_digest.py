@@ -6,7 +6,7 @@ import json
 import sqlite3
 import sys
 from collections import Counter
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -87,15 +87,34 @@ def ensure_storage_schema(conn: sqlite3.Connection) -> None:
     )
 
 
+def resolve_disclosure_window_start(conn: sqlite3.Connection, target_date: str) -> str:
+    if table_exists(conn, "facts_price_daily"):
+        row = conn.execute(
+            """
+            SELECT date
+            FROM facts_price_daily
+            WHERE date < ?
+            ORDER BY date DESC
+            LIMIT 1
+            """,
+            (target_date,),
+        ).fetchone()
+        if row and row[0]:
+            return str(row[0])
+    return (date.fromisoformat(target_date) - timedelta(days=1)).isoformat()
+
+
 def fetch_disclosures(conn: sqlite3.Connection, target_date: str, limit: int) -> list[dict[str, Any]]:
     if not table_exists(conn, "tdnet_disclosures"):
         return []
+    start_date = resolve_disclosure_window_start(conn, target_date)
     rows = conn.execute(
         """
         SELECT date,disclosed_at,ticker,company,title,category,tdnet_url,source_kind,source_path
         FROM tdnet_disclosures
-        WHERE date=?
+        WHERE date BETWEEN ? AND ?
         ORDER BY
+          date DESC,
           CASE
             WHEN category IN ('upward_revision_highest_profit','upward_revision_plus_dividend','downward_revision_dividend_cut','offering_or_dilution') THEN 0
             WHEN COALESCE(category,'')<>'' THEN 1
@@ -105,7 +124,7 @@ def fetch_disclosures(conn: sqlite3.Connection, target_date: str, limit: int) ->
           ticker
         LIMIT ?
         """,
-        (target_date, max(1, limit)),
+        (start_date, target_date, max(1, limit)),
     ).fetchall()
     return [dict(r) for r in rows]
 
@@ -588,6 +607,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     items = payload.get("items") or []
     if not items:
         parts.extend(["- 対象開示が見つかりませんでした。", ""])
+    else:
         for item in items:
             parts.extend(
                 [
@@ -600,7 +620,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
                     *render_disclosure_lines(item),
                     "",
                 ]
-        )
+            )
     parts.extend(["## 全体メモ", ""])
     for line in overview_lines(payload):
         parts.append(f"- {line}")

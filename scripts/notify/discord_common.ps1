@@ -1,20 +1,20 @@
 $ErrorActionPreference = "Stop"
 
 function Load-EnvFile([string]$envFilePath) {
+  if (-not (Test-Path $envFilePath)) { return }
+  foreach ($line in Get-Content $envFilePath -Encoding UTF8) {
+    if ($line -match "^\s*#") { continue }
+    if ($line -match "^\s*$") { continue }
+    if ($line -notmatch "=") { continue }
+    $k, $v = $line.Split("=", 2)
+    $v = $v.Trim().Trim('"').Trim("'")
+    [Environment]::SetEnvironmentVariable($k.Trim(), $v, "Process")
+  }
   if ($envFilePath -like "*.env" -and $envFilePath -notlike "*.env.local") {
     $localPath = Join-Path (Split-Path $envFilePath -Parent) ".env.local"
     if (Test-Path $localPath) {
       Load-EnvFile $localPath
     }
-  }
-  if (-not (Test-Path $envFilePath)) { return }
-  Get-Content $envFilePath -Encoding UTF8 | ForEach-Object {
-    if ($_ -match "^\s*#") { return }
-    if ($_ -match "^\s*$") { return }
-    if ($_ -notmatch "=") { return }
-    $k, $v = $_.Split("=", 2)
-    $v = $v.Trim().Trim('"').Trim("'")
-    [Environment]::SetEnvironmentVariable($k.Trim(), $v, "Process")
   }
 }
 
@@ -72,11 +72,12 @@ function Invoke-DiscordWebhookJson {
     [Parameter(Mandatory = $true)][scriptblock]$WriteLog,
     [int]$MaxAttempts = 3
   )
+  $utf8Body = [Text.Encoding]::UTF8.GetBytes($Body)
   $iwrParams = @{
     Method = "Post"
     Uri = $WebhookUrl
     ContentType = "application/json; charset=utf-8"
-    Body = $Body
+    Body = $utf8Body
     TimeoutSec = 20
     ErrorAction = "Stop"
   }

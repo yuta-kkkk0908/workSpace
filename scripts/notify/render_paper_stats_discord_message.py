@@ -14,6 +14,7 @@ if str(ROOT / "scripts") not in sys.path:
 from utils.investment_db_path import resolve_investment_db
 from utils.paper_trade_mode import normalize_paper_trade_mode
 from utils.terminology import glossary_line
+from investment.analysis.exit_horizon_utils import avg, collect_price_path_returns, win_rate
 
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
 OUT_DIR = ROOT / "prompts"
@@ -21,7 +22,7 @@ DEFAULT_DB = resolve_investment_db()
 
 SECTION_RE = re.compile(r"^###\s+(paper_history|watch|live|paper|all)\s*$")
 SAMPLE_RE = re.compile(r"^- sampleTrades:\s*(\d+)\s*$")
-T5_RE = re.compile(r"^- T\+5:\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
+HORIZON_RE = re.compile(r"^- T\+(\d+)(?:\(ref\))?:\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
 SIDE_RE = re.compile(r"^- (long|short):\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
 RANK_RE = re.compile(r"^- ([A-Z0-9+\-]+|UNKNOWN):\s*n=(\d+)\s+winRate=([0-9.]+)%\s+avgRet=([\-0-9.]+)%")
 
@@ -98,11 +99,12 @@ def parse_stats(text: str) -> dict[str, dict[str, str]]:
         if m:
             rows[cur]["sample"] = m.group(1)
             continue
-        m = T5_RE.match(line)
+        m = HORIZON_RE.match(line)
         if m:
-            rows[cur]["t5_n"] = m.group(1)
-            rows[cur]["t5_wr"] = m.group(2)
-            rows[cur]["t5_ret"] = m.group(3)
+            horizon = m.group(1)
+            rows[cur][f"t{horizon}_n"] = m.group(2)
+            rows[cur][f"t{horizon}_wr"] = m.group(3)
+            rows[cur][f"t{horizon}_ret"] = m.group(4)
             continue
         m = SIDE_RE.match(line)
         if m:
@@ -124,58 +126,49 @@ def load_stats_from_db(db_path: Path, date_str: str) -> dict[str, dict[str, str]
     if not db_path.exists():
         return {}
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     try:
         out: dict[str, dict[str, str]] = {}
-        for mode in ("paper_history", "watch", "live", "paper"):
-            mode_sql = "mode=?"
-            mode_params = (mode,)
-            row = conn.execute(
-                """
-                SELECT
-                  COUNT(*) AS sample,
-                  SUM(CASE WHEN t5_return_pct IS NOT NULL THEN 1 ELSE 0 END) AS t5_n,
-                  AVG(t5_return_pct) AS t5_avg,
-                  AVG(CASE WHEN t5_return_pct > 0 THEN 1.0 ELSE 0.0 END) AS t5_wr
-                FROM paper_trades
-                WHERE {mode_sql} AND entry_date<=?
-                """.format(mode_sql=mode_sql),
-                (*mode_params, date_str),
-            ).fetchone()
-            if not row:
-                continue
-            sample = int(row[0] or 0)
-            t5_n = int(row[1] or 0)
-            t5_avg = float(row[2] or 0.0)
-            t5_wr = float(row[3] or 0.0) * 100.0 if t5_n > 0 else 0.0
-            out[mode] = {
-                "sample": str(sample),
-                "t5_n": str(t5_n),
-                "t5_wr": f"{t5_wr:.1f}",
-                "t5_ret": f"{t5_avg:.2f}",
-            }
-        row_all = conn.execute(
+        rows = conn.execute(
             """
-            SELECT
-              COUNT(*) AS sample,
-              SUM(CASE WHEN t5_return_pct IS NOT NULL THEN 1 ELSE 0 END) AS t5_n,
-              AVG(t5_return_pct) AS t5_avg,
-              AVG(CASE WHEN t5_return_pct > 0 THEN 1.0 ELSE 0.0 END) AS t5_wr
+            SELECT mode, side, t1_return_pct, t5_return_pct, t20_return_pct, price_path_json
             FROM paper_trades
             WHERE entry_date<=?
             """,
             (date_str,),
-        ).fetchone()
-        if row_all:
-            sample = int(row_all[0] or 0)
-            t5_n = int(row_all[1] or 0)
-            t5_avg = float(row_all[2] or 0.0)
-            t5_wr = float(row_all[3] or 0.0) * 100.0 if t5_n > 0 else 0.0
-            out["all"] = {
+        ).fetchall()
+
+        def build_summary(target_rows: list[sqlite3.Row]) -> dict[str, str]:
+            sample = len(target_rows)
+            t1 = [float(r["t1_return_pct"]) for r in target_rows if r["t1_return_pct"] is not None]
+            t3 = collect_price_path_returns(target_rows, offset=3)
+            t5 = [float(r["t5_return_pct"]) for r in target_rows if r["t5_return_pct"] is not None]
+            t10 = collect_price_path_returns(target_rows, offset=10)
+            t20 = [float(r["t20_return_pct"]) for r in target_rows if r["t20_return_pct"] is not None]
+            out_row = {
                 "sample": str(sample),
-                "t5_n": str(t5_n),
-                "t5_wr": f"{t5_wr:.1f}",
-                "t5_ret": f"{t5_avg:.2f}",
+                "t1_n": str(len(t1)),
+                "t1_wr": f"{win_rate(t1):.1f}",
+                "t1_ret": f"{avg(t1):.2f}",
+                "t3_n": str(len(t3)),
+                "t3_wr": f"{win_rate(t3):.1f}",
+                "t3_ret": f"{avg(t3):.2f}",
+                "t5_n": str(len(t5)),
+                "t5_wr": f"{win_rate(t5):.1f}",
+                "t5_ret": f"{avg(t5):.2f}",
+                "t10_n": str(len(t10)),
+                "t10_wr": f"{win_rate(t10):.1f}",
+                "t10_ret": f"{avg(t10):.2f}",
+                "t20_n": str(len(t20)),
+                "t20_wr": f"{win_rate(t20):.1f}",
+                "t20_ret": f"{avg(t20):.2f}",
             }
+            return out_row
+
+        for mode in ("paper_history", "watch", "live", "paper"):
+            subset = [r for r in rows if normalize_paper_trade_mode(r["mode"]) == mode]
+            out[mode] = build_summary(subset)
+        out["all"] = build_summary(rows)
         return out
     finally:
         conn.close()
@@ -223,16 +216,27 @@ def parse_ops_throughput(text: str) -> list[str]:
 
 def to_line(mode: str, row: dict[str, str]) -> str:
     sample = row.get("sample", "0")
+    t3n = row.get("t3_n", "0")
+    t3wr = row.get("t3_wr", "0.0")
+    t3ret = row.get("t3_ret", "0.00")
     t5n = row.get("t5_n", "0")
     t5wr = row.get("t5_wr", "0.0")
     t5ret = row.get("t5_ret", "0.00")
+    t10n = row.get("t10_n", "0")
+    t10wr = row.get("t10_wr", "0.0")
+    t10ret = row.get("t10_ret", "0.00")
     display_mode = {
         "live": "trade実績(live)",
         "watch": "watch",
         "paper": "paper",
         "paper_history": "paper_history",
     }.get(mode, mode)
-    return f"- {display_mode}: サンプル={sample} / T+5 n={t5n} 勝率={t5wr}% 平均={t5ret}%"
+    return (
+        f"- {display_mode}: サンプル={sample} / "
+        f"T+5 n={t5n} 勝率={t5wr}% 平均={t5ret}% / "
+        f"参考 T+3 n={t3n} 勝率={t3wr}% 平均={t3ret}% / "
+        f"T+10 n={t10n} 勝率={t10wr}% 平均={t10ret}%"
+    )
 
 
 def build_message(
@@ -273,7 +277,7 @@ def build_message(
     ]
     if source_date != target_date:
         lines.insert(2, f"- 注意: 当日未生成のため {source_date} を参照")
-    lines.append("【モード比較（T+5中心）】")
+    lines.append("【モード比較（T+5中心、T+3/T+10は参考）】")
     for mode in ("paper_history", "watch", "live", "paper"):
         lines.append(to_line(mode, rows.get(mode, {})))
     lines.append("")

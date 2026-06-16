@@ -31,6 +31,78 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def find_latest_signal_date(conn: sqlite3.Connection, date_str: str, lookback_days: int) -> str | None:
+    base = datetime.strptime(date_str, "%Y-%m-%d").date()
+    for i in range(1, max(0, lookback_days) + 1):
+        d = (base - timedelta(days=i)).isoformat()
+        n = conn.execute("SELECT COUNT(*) FROM signals WHERE date=?", (d,)).fetchone()[0]
+        if n and int(n) > 0:
+            return d
+    return None
+
+
+def load_signal_rows(conn: sqlite3.Connection, date_str: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        """
+        SELECT signal_id,ticker,company,signal_type,expected_direction,long_rank,short_rank,source,url,session,
+               gate_status,material_signal_checked,external_context_checked,technical_signal_checked,
+               credit_status,credit_buy_status,credit_sell_status,credit_source_kind,credit_source_date,credit_freshness_hours
+        FROM signals
+        WHERE date=?
+        ORDER BY signal_id
+        """,
+        (date_str,),
+    ).fetchall()
+
+
+def carry_over_signal_rows(
+    conn: sqlite3.Connection,
+    date_str: str,
+    source_date: str,
+) -> list[dict[str, str]]:
+    src_rows = load_signal_rows(conn, source_date)
+    conn.execute("DELETE FROM signals WHERE date=?", (date_str,))
+    ymd = date_str.replace("-", "")
+    for i, r in enumerate(src_rows, 1):
+        sid = f"signal_{ymd}_{i:03d}"
+        conn.execute(
+            """
+            INSERT INTO signals(
+              signal_id,date,ticker,company,signal_type,expected_direction,long_rank,short_rank,
+              gate_status,url,source,session,material_signal_checked,external_context_checked,technical_signal_checked,
+              credit_status,credit_buy_status,credit_sell_status,credit_source_kind,credit_source_date,credit_freshness_hours,
+              source_path,updated_at
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+            """,
+            (
+                sid,
+                date_str,
+                r["ticker"] or "",
+                r["company"] or "",
+                r["signal_type"] or "",
+                r["expected_direction"] or "",
+                r["long_rank"] or "C",
+                r["short_rank"] or "C",
+                r["gate_status"] or "pass",
+                r["url"] or "",
+                r["source"] or "",
+                r["session"] or "after_close",
+                r["material_signal_checked"] or "yes",
+                r["external_context_checked"] or "yes",
+                r["technical_signal_checked"] or "yes",
+                r["credit_status"] or "unknown",
+                r["credit_buy_status"] or "unknown",
+                r["credit_sell_status"] or "unknown",
+                r["credit_source_kind"] or "",
+                r["credit_source_date"] or "",
+                r["credit_freshness_hours"],
+                "db:carry-over",
+            ),
+        )
+    conn.commit()
+    return load_signal_rows(conn, date_str)
+
+
 def parse_entries(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
@@ -300,7 +372,12 @@ def build_rows(args: argparse.Namespace) -> list[dict[str, str]]:
             }
         )
     if not all_rows:
-        return []
+        with sqlite3.connect(args.db) as fallback_conn:
+            fallback_conn.row_factory = sqlite3.Row
+            source_date = find_latest_signal_date(fallback_conn, args.date, args.lookback_days)
+            if not source_date:
+                return []
+            return carry_over_signal_rows(fallback_conn, args.date, source_date)
     filtered: list[dict[str, str]] = []
     for r in all_rows:
         sd = normalize_date(r.get("signalDate", "")) or normalize_date(r.get("publishedAt", ""))

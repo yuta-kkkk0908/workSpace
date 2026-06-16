@@ -14,11 +14,12 @@
 - `AIOS-Data-Harvest`: 23:40 / `scripts/ops/run_data_harvest.ps1`
 - `AIOS-Scenario-Replies-Sync-Morning`: 09:00-10:00 5分間隔
 - `AIOS-Scenario-Replies-Sync-Noon`: 12:30-13:30 5分間隔
+- `AIOS-Scenario-Replies-Sync-Evening`: 15:30-23:00 5分間隔
 - `AIOS-Scenario-Replies-Sync-Manual`: 手動実行用
 - `AIOS-Tasks-Channel-Sync`: 毎日 00:00 起点で1時間間隔（24h）
 
 補足:
-- `scripts/ops/register_tasks.ps1` の定義は `AIOS-Inv-Evening=17:00` に修正済み。
+- `scripts/ops/register_tasks.ps1` の定義は `AIOS-Inv-Evening=17:00` と scenario reply sync の 3 窓構成に修正済み。
 
 ## 2. slot別の処理（scripts/run_ops_scheduler.py）
 

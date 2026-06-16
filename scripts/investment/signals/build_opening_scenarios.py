@@ -825,6 +825,9 @@ def pick_horizon_by_wr(rule_ctx: dict, min_samples: int = 3) -> tuple[str, str, 
         return ("T+1", "勝率目安データ不足", None)
     best = max(cand, key=lambda x: x[1])
     verdict = "50%超" if best[1] >= 50.0 else "50%未満"
+    if best[0] == "T+20":
+        # Opening scenarios should frame profit expectation on the shorter T+5 horizon.
+        return ("T+5", f"T+5想定勝率={best[1]:.1f}%（{verdict}）", float(best[1]))
     if n < max(1, min_samples):
         return (best[0], f"{best[0]}想定勝率={best[1]:.1f}%（参考値 n={n}）", float(best[1]))
     return (best[0], f"{best[0]}想定勝率={best[1]:.1f}%（{verdict}）", float(best[1]))

@@ -88,28 +88,39 @@ def _stable_source_key(prefix: str, *parts: str) -> str:
 
 def fetch_task_error_seeds(conn: sqlite3.Connection, start_ts: str, end_ts: str) -> list[dict[str, Any]]:
     conn.row_factory = sqlite3.Row
+    columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(task_log_events)").fetchall()}
+    has_source_key = "source_key" in columns
+    source_key_expr = "COALESCE(NULLIF(source_key, ''), '')" if has_source_key else "''"
+    source_key_group_expr = source_key_expr if has_source_key else "task_name"
+    source_key_select_expr = source_key_expr if has_source_key else "task_name"
     rows = conn.execute(
         """
-        SELECT task_name, level, COUNT(*) AS cnt, MAX(ts) AS last_ts,
+        SELECT
+               {source_key_select_expr} AS source_key,
+               task_name, level, COUNT(*) AS cnt, MAX(ts) AS last_ts,
                MAX(COALESCE(message, '')) AS sample_message
         FROM task_log_events
         WHERE ts >= ? AND ts < ?
           AND LOWER(level) IN ('error', 'exception', 'fatal')
-        GROUP BY task_name, level
+        GROUP BY {source_key_group_expr}, task_name, level
         HAVING COUNT(*) >= 1
-        ORDER BY cnt DESC, task_name
+        ORDER BY cnt DESC, {source_key_group_expr}, task_name
         LIMIT 20
-        """,
+        """.format(
+            source_key_select_expr=source_key_select_expr,
+            source_key_group_expr=source_key_group_expr,
+        ),
         (start_ts, end_ts),
     ).fetchall()
     seeds: list[dict[str, Any]] = []
     for row in rows:
         task = str(row["task_name"] or "unknown")
+        source_key = str(row["source_key"] or f"ops.task.{task.lower()}")
         cnt = int(row["cnt"] or 0)
         msg = str(row["sample_message"] or "").strip()
         seeds.append(
             {
-                "source_key": f"ops.task.{task.lower()}",
+                "source_key": source_key,
                 "title": f"{task} のエラー再発を確認",
                 "category": "ops",
                 "source": "ops.task_log_events",

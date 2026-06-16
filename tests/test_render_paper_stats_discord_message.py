@@ -36,6 +36,7 @@ class RenderPaperStatsDiscordMessageTests(unittest.TestCase):
                   signal_id TEXT,
                   source_path TEXT NOT NULL DEFAULT '',
                   updated_at TEXT NOT NULL,
+                  price_path_json TEXT,
                   t1_return_pct REAL,
                   t5_return_pct REAL,
                   t20_return_pct REAL
@@ -54,12 +55,61 @@ class RenderPaperStatsDiscordMessageTests(unittest.TestCase):
                 """
                 INSERT INTO paper_trades(
                   trade_id, mode, entry_date, ticker, company, side, lots, entry_style,
-                  planned_entry_price, status, signal_id, source_path, updated_at, t1_return_pct, t5_return_pct, t20_return_pct
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                  planned_entry_price, status, signal_id, source_path, updated_at, price_path_json,
+                  t1_return_pct, t5_return_pct, t20_return_pct
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 [
-                    ("t1", "live", "2026-06-04", "1111", "Test Live", "long", 1, "auto", None, "open", "", "", "2026-06-04T00:00:00Z", 1.0, 2.0, 3.0),
-                    ("t2", "watch", "2026-06-04", "2222", "Test Watch", "long", 1, "auto", None, "open", "", "", "2026-06-04T00:00:00Z", -1.0, -2.0, -3.0),
+                    (
+                        "t1",
+                        "live",
+                        "2026-06-04",
+                        "1111",
+                        "Test Live",
+                        "long",
+                        1,
+                        "auto",
+                        None,
+                        "open",
+                        "",
+                        "",
+                        "2026-06-04T00:00:00Z",
+                        json.dumps(
+                            {
+                                "base_close": 100.0,
+                                "bars": [{"close": 100.0}, {"close": 101.0}, {"close": 102.0}, {"close": 103.0}, {"close": 104.0}, {"close": 105.0}, {"close": 106.0}, {"close": 107.0}, {"close": 108.0}, {"close": 109.0}, {"close": 110.0}],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        1.0,
+                        2.0,
+                        3.0,
+                    ),
+                    (
+                        "t2",
+                        "watch",
+                        "2026-06-04",
+                        "2222",
+                        "Test Watch",
+                        "long",
+                        1,
+                        "auto",
+                        None,
+                        "open",
+                        "",
+                        "",
+                        "2026-06-04T00:00:00Z",
+                        json.dumps(
+                            {
+                                "base_close": 100.0,
+                                "bars": [{"close": 100.0}, {"close": 99.0}, {"close": 98.0}, {"close": 97.0}, {"close": 96.0}, {"close": 95.0}, {"close": 94.0}, {"close": 93.0}, {"close": 92.0}, {"close": 91.0}, {"close": 90.0}],
+                            },
+                            ensure_ascii=False,
+                        ),
+                        -1.0,
+                        -2.0,
+                        -3.0,
+                    ),
                 ],
             )
             conn.execute(
@@ -124,6 +174,8 @@ class RenderPaperStatsDiscordMessageTests(unittest.TestCase):
             self.assertIn("【次週アクション（ルールベース）】", text)
             self.assertIn("【AIレビュー】", text)
             self.assertIn("trade実績(live)", text)
+            self.assertIn("T+3", text)
+            self.assertIn("T+10", text)
             self.assertIn("用語: trade=実エントリー / become=有望シグナル / watch=監視", text)
             self.assertIn("trade実績が薄い", text)
             self.assertIn("AI要点A", text)

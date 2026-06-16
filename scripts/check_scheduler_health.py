@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -28,9 +29,11 @@ DEFAULT_TASKS = [
     "AIOS-Inv-Heavy-2000",
     "AIOS-Inv-Scenario-0810",
     "AIOS-Alert-Healthcheck",
+    "AIOS-DB-Backup-2230",
 ]
 
 LINE_RE = re.compile(r"^\[(?P<ts>[^\]]+)\]\s+\[(?P<task>[^\]]+)\]\s+\[(?P<kind>[^\]]+)\]")
+FAILURE_KINDS = {"ERROR", "EXCEPTION", "FATAL"}
 
 
 def task_source_key(task_name: str) -> str:
@@ -137,9 +140,12 @@ def main() -> int:
 
     per_task: dict[str, dict] = {}
     alerts: list[str] = []
+    notifications: list[str] = []
+    notification_source_keys: dict[str, dict] = {}
     warns: list[str] = []
     db_alerts: list[str] = []
     recurring_source_keys: dict[str, dict] = {}
+    notify_threshold = max(1, int(os.getenv("SCHEDULER_NOTIFY_ACTIVE_ERROR_THRESHOLD", "2")))
 
     def recurring_error_count(stat: dict) -> int:
         try:
@@ -151,9 +157,10 @@ def main() -> int:
         ev = [x for x in events if x["task"] == t]
         starts = [x for x in ev if x["kind"] == "START"]
         oks = [x for x in ev if x["kind"] == "OK"]
-        errs = [x for x in ev if x["kind"] == "ERROR"]
+        errs = [x for x in ev if x["kind"] in FAILURE_KINDS]
+        source_key = ev[-1]["source_key"] if ev else task_source_key(t)
         per_task[t] = {
-            "source_key": task_source_key(t),
+            "source_key": source_key,
             "start_count": len(starts),
             "ok_count": len(oks),
             "error_count": len(errs),
@@ -161,13 +168,35 @@ def main() -> int:
         }
         if not ev:
             warns.append(f"{t}: 参照期間内イベントなし")
+
+    events_by_source_key: dict[str, list[dict]] = {}
+    for ev in events:
+        key = str(ev.get("source_key") or task_source_key(str(ev.get("task") or "")))
+        events_by_source_key.setdefault(key, []).append(ev)
+
+    for source_key, sev in events_by_source_key.items():
+        starts = [x for x in sev if x["kind"] == "START"]
+        oks = [x for x in sev if x["kind"] == "OK"]
+        errs = [x for x in sev if x["kind"] in FAILURE_KINDS]
+        tasks_for_key = sorted({str(x.get("task") or "") for x in sev if str(x.get("task") or "").strip()})
+        last_ok_index = max((i for i, x in enumerate(sev) if x["kind"] == "OK"), default=-1)
+        active_errs = [x for i, x in enumerate(sev) if i > last_ok_index and x["kind"] in FAILURE_KINDS]
         if errs:
-            alerts.append(f"{t}: エラー {len(errs)}件")
-            key = task_source_key(t)
-            recurring_source_keys[key] = {
-                "task": t,
-                "error_count": len(errs),
-                "last_event": errs[-1]["line"],
+            alerts.append(f"{source_key}: エラー {len(errs)}件")
+            if active_errs:
+                alerts.append(f"{source_key}: 未復旧エラー {len(active_errs)}件")
+                if len(active_errs) >= notify_threshold:
+                    notifications.append(f"{source_key}: 通知対象の未復旧エラー {len(active_errs)}件")
+                    notification_source_keys[source_key] = {
+                        "tasks": tasks_for_key,
+                        "error_count": len(active_errs),
+                        "total_error_count": len(errs),
+                    }
+            recurring_source_keys[source_key] = {
+                "tasks": tasks_for_key,
+                "error_count": len(active_errs) if active_errs else len(errs),
+                "total_error_count": len(errs),
+                "last_event": (active_errs[-1]["line"] if active_errs else errs[-1]["line"]),
             }
 
     # DB integrity check for backtest_outcomes duplicate identity.
@@ -257,6 +286,9 @@ def main() -> int:
         "lookbackHours": int(args.hours),
         "status": status,
         "alerts": alerts,
+        "notifications": notifications,
+        "notificationSourceKeys": notification_source_keys,
+        "notificationThreshold": notify_threshold,
         "warnings": warns,
         "tasks": per_task,
         "recurringSourceKeys": recurring_source_keys,
@@ -281,7 +313,13 @@ def main() -> int:
     if recurring_source_keys:
         lines.append("- 再発 source_key:")
         for key, stat in sorted(recurring_source_keys.items()):
-            lines.append(f"  - {key}: error={recurring_error_count(stat)} task={stat['task']}")
+            tasks = stat.get("tasks") or []
+            task_text = ", ".join(str(t) for t in tasks if str(t).strip()) or "(unknown)"
+            lines.append(f"  - {key}: error={recurring_error_count(stat)} tasks={task_text}")
+    if notifications:
+        lines.append("- 通知対象:")
+        for n in notifications:
+            lines.append(f"  - {n}")
     lines.append(f"- 推奨キーワード: {recommended_action}")
     lines.append("- 実行: python scripts/ops/keyword_action.py <推奨キーワード>")
     if args.mode == "weekly":

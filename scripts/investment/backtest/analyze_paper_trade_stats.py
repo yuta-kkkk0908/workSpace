@@ -11,6 +11,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
 from utils.paper_trade_mode import normalize_paper_trade_mode
+from investment.analysis.exit_horizon_utils import avg, collect_price_path_returns
 
 DEFAULT_DB = resolve_investment_db()
 OUT = ROOT / "topics" / "investment-research" / "inbox"
@@ -24,8 +25,6 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--end-date")
     p.add_argument("--out-date", required=True, help="label date for output file")
     return p.parse_args()
-
-
 def main() -> int:
     args = parse_args()
     conn = sqlite3.connect(args.db)
@@ -51,7 +50,7 @@ def main() -> int:
         """
 
         rows = conn.execute(
-            "select p.trade_id,p.mode,p.entry_date,p.ticker,p.side,p.t1_return_pct,p.t5_return_pct,p.t20_return_pct,"
+            "select p.trade_id,p.mode,p.entry_date,p.ticker,p.side,p.t1_return_pct,p.t5_return_pct,p.t20_return_pct,p.price_path_json,"
             "coalesce(s.long_rank,'') as long_rank,coalesce(s.short_rank,'') as short_rank "
             + base_sql,
             params,
@@ -65,6 +64,13 @@ def main() -> int:
             return (0, 0, 0.0)
         wins = sum(1 for v in vals if v > 0)
         return (len(vals), wins, sum(vals) / len(vals))
+
+    def summarize_ref(target_rows, offset: int):
+        vals = collect_price_path_returns(target_rows, offset=offset)
+        if not vals:
+            return (0, 0, 0.0)
+        wins = sum(1 for v in vals if v > 0)
+        return (len(vals), wins, avg(vals))
 
     def side_summary(target_rows):
         by_side: dict[str, list[float]] = {"long": [], "short": []}
@@ -108,14 +114,18 @@ def main() -> int:
 
     def add_metric_lines(lines: list[str], target_rows, label: str):
         t1 = summarize(target_rows, "t1_return_pct")
+        t3 = summarize_ref(target_rows, 3)
         t5 = summarize(target_rows, "t5_return_pct")
+        t10 = summarize_ref(target_rows, 10)
         t20 = summarize(target_rows, "t20_return_pct")
         lines.extend(
             [
                 f"### {label}",
                 f"- sampleTrades: {len(target_rows)}",
                 f"- T+1: n={t1[0]} winRate={(t1[1]/t1[0]*100 if t1[0] else 0):.1f}% avgRet={t1[2]:.2f}%",
+                f"- T+3(ref): n={t3[0]} winRate={(t3[1]/t3[0]*100 if t3[0] else 0):.1f}% avgRet={t3[2]:.2f}%",
                 f"- T+5: n={t5[0]} winRate={(t5[1]/t5[0]*100 if t5[0] else 0):.1f}% avgRet={t5[2]:.2f}%",
+                f"- T+10(ref): n={t10[0]} winRate={(t10[1]/t10[0]*100 if t10[0] else 0):.1f}% avgRet={t10[2]:.2f}%",
                 f"- T+20: n={t20[0]} winRate={(t20[1]/t20[0]*100 if t20[0] else 0):.1f}% avgRet={t20[2]:.2f}%",
                 "",
                 "#### Side (T+5)",
@@ -140,6 +150,7 @@ def main() -> int:
         f"# {args.out_date} Paper Trade Stats",
         "",
         "- caution: 仮想トレード検証。売買助言ではない。",
+        "- reference horizons: T+3 / T+10 are auxiliary checks derived from price_path_json",
         f"- mode: {args.mode}",
     ]
 
