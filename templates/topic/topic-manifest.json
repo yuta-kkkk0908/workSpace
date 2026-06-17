@@ -7,6 +7,6 @@
   "status": "active",
   "publishable": false,
   "description": "この topic で扱う対象を記載する。",
-  "sourcePolicy": "mixed",
+  "sourcePolicy": "source-first",
   "updatedAt": "2026-04-27"
 }

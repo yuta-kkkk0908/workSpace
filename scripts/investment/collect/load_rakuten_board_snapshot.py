@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_IN = ROOT / "data" / "rakuten_rss" / "board_latest.csv"
-OUT_DIR = ROOT / "topics" / "investment-research" / "inbox"
+OUT_DIR = ROOT / "topics" / "investment-research" / "source"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db

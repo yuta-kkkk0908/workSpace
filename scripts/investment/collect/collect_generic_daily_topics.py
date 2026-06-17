@@ -364,46 +364,49 @@ def select_diverse_items(topic: str, rows: list[RssItem], max_items: int) -> lis
 
 def load_topic_history(topic: str, target_date: date) -> tuple[set[str], set[str]]:
     """
-    Return previously seen URLs and normalized titles from the topic's inbox.
+    Return previously seen URLs and normalized titles from the topic's source/inbox history.
 
     URLs are suppressed across all prior daily files.
     Titles are suppressed within a configurable lookback window.
     """
-    inbox = TOPICS_DIR / topic / "inbox"
-    if not inbox.exists():
+    history_dirs = [TOPICS_DIR / topic / "source", TOPICS_DIR / topic / "inbox"]
+    if not any(d.exists() for d in history_dirs):
         return set(), set()
     lookback_days = TOPIC_HISTORY_LOOKBACK_DAYS.get(topic, 14)
     title_cutoff = target_date - timedelta(days=lookback_days)
     seen_urls: set[str] = set()
     seen_titles: set[str] = set()
-    for p in sorted(inbox.glob("*.md")):
-        m = re.match(r"^(\d{4}-\d{2}-\d{2})-(.+)\.md$", p.name)
-        if not m:
+    for history_dir in history_dirs:
+        if not history_dir.exists():
             continue
-        try:
-            file_date = date.fromisoformat(m.group(1))
-        except ValueError:
-            continue
-        if file_date >= target_date:
-            continue
-        try:
-            text = p.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        for url in URL_RE.findall(text):
-            u = url.strip()
-            if u:
-                seen_urls.add(u)
-        if file_date < title_cutoff:
-            continue
-        for raw in text.splitlines():
-            s = raw.strip()
-            m_title = re.match(r"^\d+\.\s+(.+)$", s)
-            if not m_title:
+        for p in sorted(history_dir.glob("*.md")):
+            m = re.match(r"^(\d{4}-\d{2}-\d{2})-(.+)\.md$", p.name)
+            if not m:
                 continue
-            norm = normalize_history_title(m_title.group(1))
-            if norm:
-                seen_titles.add(norm)
+            try:
+                file_date = date.fromisoformat(m.group(1))
+            except ValueError:
+                continue
+            if file_date >= target_date:
+                continue
+            try:
+                text = p.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            for url in URL_RE.findall(text):
+                u = url.strip()
+                if u:
+                    seen_urls.add(u)
+            if file_date < title_cutoff:
+                continue
+            for raw in text.splitlines():
+                s = raw.strip()
+                m_title = re.match(r"^\d+\.\s+(.+)$", s)
+                if not m_title:
+                    continue
+                norm = normalize_history_title(m_title.group(1))
+                if norm:
+                    seen_titles.add(norm)
     return seen_urls, seen_titles
 
 
@@ -457,9 +460,9 @@ def pick_recent_winner_decks(rows: list[RssItem], now_utc: datetime, within_days
 
 
 def write_topic_daily(topic: str, target_date: str, rows: list[RssItem], overwrite: bool) -> Path:
-    inbox = TOPICS_DIR / topic / "inbox"
-    inbox.mkdir(parents=True, exist_ok=True)
-    path = inbox / f"{target_date}-daily.md"
+    source_dir = TOPICS_DIR / topic / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    path = source_dir / f"{target_date}-daily.md"
     if path.exists() and not overwrite:
         return path
 

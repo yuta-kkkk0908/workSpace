@@ -16,7 +16,7 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.investment_db_path import resolve_investment_db
 
-INBOX = ROOT / "topics" / "investment-research" / "inbox"
+SOURCE_DIR = ROOT / "topics" / "investment-research" / "source"
 DEFAULT_DB = resolve_investment_db()
 JST = timezone(timedelta(hours=9))
 USER_AGENT = "AIOSResearchBot/1.0 (tdnet collector)"
@@ -348,7 +348,8 @@ def main() -> int:
             "count": len(rows),
             "rows": rows,
         }
-        out_path = INBOX / f"{day}-tdnet-disclosures.json"
+        SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+        out_path = SOURCE_DIR / f"{day}-tdnet-disclosures.json"
         out_path.write_text(json.dumps(out, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         upserted = upsert_db(args.db, day, str(out_path.relative_to(ROOT)), rows)
         recat = refresh_tdnet_categories(args.db, day)

@@ -1,10 +1,11 @@
 # Command: organize
 
 ## Purpose
-topic の `inbox/` にある未整理情報を整理し、正本ファイルの更新案または更新を行う。
+topic の `source/` にある原本を整理し、正本ファイルの更新案または更新を行う。
 
 ## Trigger
-- `inbox/` に未整理情報が溜まった
+- `source/` に原本が溜まった
+- `inbox/` に残った作業メモを整理したい
 - topic の現状を正本に反映したい
 - 次アクションを整理したい
 
@@ -31,6 +32,7 @@ topic の `inbox/` にある未整理情報を整理し、正本ファイルの�
 - `topics/{{topic}}/decisions.md`
 - `topics/{{topic}}/tasks.json`
 - `topics/{{topic}}/sources.json`
+- `topics/{{topic}}/source/*`
 - `topics/{{topic}}/inbox/*`
 
 ## Write Scope

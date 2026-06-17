@@ -197,10 +197,10 @@
   - `trade=0` と `watchShare高` を `シナリオ構成偏り` 1行に統合
 
 - 生成確認（2026-05-21 再レンダリング）
-  - `prompts/generic-topics-discord-message.txt`
-  - `prompts/market-signals-discord-message.txt`
-  - `prompts/opening-scenarios-discord-message.txt`
-  - `prompts/signal-quality-alert.txt`
+  - `tmp/prompts/generic-topics-discord-message.txt`
+  - `tmp/prompts/market-signals-discord-message.txt`
+  - `tmp/prompts/opening-scenarios-discord-message.txt`
+  - `tmp/prompts/signal-quality-alert.txt`
 
 ### 追加メモ（2026-05-21 夜）: inv-evening手動実行と通知見え方
 - ユーザー操作: タスクスケジューラーから `AIOS-Inv-Evening` を手動実行。

@@ -36,7 +36,7 @@ topic の正本情報をもとに、現状・判断・次アクション・根�
 - `topics/{{topic}}/sources.json`
 
 必要時のみ:
-- `topics/{{topic}}/inbox/*`
+- `topics/{{topic}}/source/*`
 - `topics/{{topic}}/archive/*`
 
 ## Write Scope

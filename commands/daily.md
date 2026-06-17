@@ -77,19 +77,19 @@
 - `topics/{{topic}}/tag-index.md`（存在する場合）
 - `topics/{{topic}}/tasks.json`
 - `topics/{{topic}}/sources.json`
-- 必要に応じて `topics/{{topic}}/inbox/*`
+- 必要に応じて `topics/{{topic}}/source/*`
 
 ## Write Scope
 ### present-only
 - なし
 
 ### collect-and-present
-- `topics/{{topic}}/inbox/*`
+- `topics/{{topic}}/source/*`
 - `topics/{{topic}}/sources.json`
 - 必要に応じて `topics/{{topic}}/summary.md`
 - 必要に応じて `topics/{{topic}}/decisions.md`
 - 必要に応じて `topics/{{topic}}/tasks.json`
-- `topics/product-idea-watch/inbox/*`
+- `topics/product-idea-watch/source/*`
 - `topics/product-idea-watch/sources.json`
 - 必要に応じて `topics/product-idea-watch/summary.md`
 - 必要に応じて `topics/product-idea-watch/tasks.json`
@@ -101,7 +101,7 @@
 ## Default Behavior
 `daily` は、ユーザーが明示的に `present-only` を指定しない限り `collect-and-present` で実行する。
 
-毎回の daily で、確認した情報は topic ごとに短い収集メモとして `inbox/` に保存し、`sources.json` に参照を追加する。
+毎回の daily で、確認した情報は topic ごとに短い収集メモとして `source/` に保存し、`sources.json` に参照を追加する。
 これにより、同じ情報を繰り返し提示するのではなく、topic に日々の情報蓄積を残す。
 
 ## DB-First Policy (Mandatory)
@@ -112,14 +112,14 @@
    - 投資は `data/investment.db` を正本として、`signals` / `entry_candidates` / `daily_digest` を確認する。
    - 非投資 topic は `data/topics.db` の `topic_daily_digest` / `topic_links` を優先参照する。
 2. 不足補完（必要時のみ）
-   - DB に当日データがない topic のみ、`topics/{{topic}}/inbox/YYYY-MM-DD-*.md` を参照する。
+   - DB に当日データがない topic のみ、`topics/{{topic}}/source/YYYY-MM-DD-*.md` を参照する。
 3. 要約生成
    - 可能な限り DB ベースで要約し、補完分だけファイル由来として扱う。
 4. 実行報告
    - 出力時に「DB確認済み」「不足補完の有無」を明示する。
 
 禁止事項:
-- DB を確認せずに `inbox` のみで `今日の情報` を作成すること。
+- DB を確認せずに `source` のみで `今日の情報` を作成すること。
 
 ## Rate Budget Policy
 weekly / 5h のレート残量が厳しい場合は、収集の網羅性よりも継続性を優先する。
@@ -147,9 +147,9 @@ weekly / 5h のレート残量が厳しい場合は、収集の網羅性より�
 ### lean
 低消費モード。毎日継続するための最小構成。
 
-- 読むファイルは `AGENT.md`、`commands/daily.md`、`templates/present/daily.md`、対象 topic の `summary.md` / `decisions.md` / `tasks.json` / 当日と直近1〜2日の inbox に絞る
+- 読むファイルは `AGENT.md`、`commands/daily.md`、`templates/present/daily.md`、対象 topic の `summary.md` / `decisions.md` / `tasks.json` / 当日と直近1〜2日の source / inbox に絞る
 - `sources.json` は必要な topic の末尾付近と重複 path 確認だけに使い、全量を読み込まない
-- `inbox/*` の全探索を避け、日付指定、最新 daily、最新 market-signals、最新 `daily-rule-brief` を優先する
+- `source/*` と `inbox/*` の全探索を避け、日付指定、最新 daily、最新 market-signals、最新 `daily-rule-brief` を優先する
 - topic ごとの新規収集は原則 1〜3件までにする
 - AIニュース、技術記事、ポケモンカードは「重要変化があるか」の確認を優先し、変化なしは確認済み `N/C` でよい
 - 投資は外部トリガー、市場地合い、重要開示、期限到来 outcome、最新 `daily-rule-brief` の反映を優先する
@@ -198,7 +198,7 @@ weekly / 5h のレート残量が厳しい場合は、収集の網羅性より�
 
 投資情報では、朝の情報取得時に `external-trigger` も確認する。
 米国要人発言、FRB高官発言、地政学、金利、為替、原油、米国株、SOX、日経先物を確認し、ニュースから市場データ反応、日本株セクター影響まで変換する。
-保存先は `topics/investment-research/inbox/YYYY-MM-DD-external-triggers.md` とし、daily 本文では重要なものだけ短く出す。
+保存先は `topics/investment-research/source/YYYY-MM-DD-external-triggers.md` とし、daily 本文では重要なものだけ短く出す。
 
 投資情報では、個別材料だけでなく、その日の市場背景も保存する。
 これにより、後日の検証で「シグナル自体が効いたのか」「地合い・セクター・需給に助けられた/負けたのか」を分けて読めるようにする。
@@ -207,14 +207,14 @@ weekly / 5h のレート残量が厳しい場合は、収集の網羅性より�
 投資情報では、`topics/investment-research/signal-rules.md` が存在する場合は必ず読む。
 daily の投資ランク付けでは、暫定ルールにある材料、地合い、信用需給、出来高、ローソク足、セクターの組み合わせを確認し、`longSignalRank` / `shortSignalRank` / 見送り理由に反映する。
 ただし、暫定ルールは売買判断ではなく監視優先度と確認観点であり、n<4 の仮説は強く扱わない。
-`topics/investment-research/inbox/YYYY-MM-DD-daily-rule-brief.md` または最新の `*-daily-rule-brief.md` がある場合は参照し、再現性のある `active_rule` と検証中の `hypothesis_only` を分けて表示する。
+`topics/investment-research/source/YYYY-MM-DD-daily-rule-brief.md` または最新の `*-daily-rule-brief.md` がある場合は参照し、再現性のある `active_rule` と検証中の `hypothesis_only` を分けて表示する。
 `topics/investment-research/rule-history.md` がある場合は、単日の印象より累積傾向を優先し、出現回数が少ないルールは「仮説」と明示する。
 `topics/investment-research/tag-index.md` がある場合は、同種シグナルの既存タグを参照し、`deep_queue` と `no_change` の切り分けに使う。
 
 ## Collection Record Policy
 `collect-and-present` では、daily watch 対象 topic ごとに次を行う。
 
-1. 当日確認した情報を `topics/{{topic}}/inbox/YYYY-MM-DD-daily.md` に保存する
+1. 当日確認した情報を `topics/{{topic}}/source/YYYY-MM-DD-daily.md` に保存する
 2. 同じ日に同じ topic の daily メモがある場合は、新規ファイルを増やさず既存ファイルを更新する
 3. `sources.json` に daily メモへの source entry を追加する
 4. 既に同じ `path` の source entry がある場合は重複追加せず、必要に応じて既存 entry を更新する
@@ -228,7 +228,7 @@ daily の投資ランク付けでは、暫定ルールにある材料、地合�
 1. `commands/need-watch.md` の制約に従う
 2. 1回あたりの巡回は5〜10か所程度に抑える
 3. 投稿本文を保存せず、不満パターン、要望、既存代替、作れそう度、検証方法だけを保存する
-4. 保存先は `topics/product-idea-watch/inbox/YYYY-MM-DD-daily-background-need-watch.md`
+4. 保存先は `topics/product-idea-watch/source/YYYY-MM-DD-daily-background-need-watch.md`
 5. 同じ日の background need-watch メモがある場合は、新規ファイルを増やさず既存ファイルを更新する
 6. `topics/product-idea-watch/sources.json` に source entry を追加または更新する
 7. daily 本文では、閾値到達や分析候補の増加だけを短く通知する
@@ -258,7 +258,7 @@ daily の投資ランク付けでは、暫定ルールにある材料、地合�
 - 未確認や対象外は「低消費モードのため深掘り保留」と明示する
 
 1. `commands/market-signal.md` の制約に従う
-2. 当日の一次情報シグナルを `topics/investment-research/inbox/YYYY-MM-DD-market-signals.md` に保存する
+2. 当日の一次情報シグナルを `topics/investment-research/source/YYYY-MM-DD-market-signals.md` に保存する
 3. 同じ日の market signal メモがある場合は、新規ファイルを増やさず既存ファイルを更新する
 4. `topics/investment-research/sources.json` に source entry を追加または更新する
 5. 過去の open signals が T+1 / T+5 / T+20 の確認時期に来ていれば、結果と lesson を追記する
@@ -284,7 +284,7 @@ daily の投資ランク付けでは、暫定ルールにある材料、地合�
 `collect-and-present` では、投資情報の前提として `external-trigger` も軽量に更新する。
 
 1. `commands/external-trigger.md` の制約に従う
-2. 保存先は `topics/investment-research/inbox/YYYY-MM-DD-external-triggers.md`
+2. 保存先は `topics/investment-research/source/YYYY-MM-DD-external-triggers.md`
 3. 同じ日の external trigger メモがある場合は、新規ファイルを増やさず既存ファイルを更新する
 4. `topics/investment-research/sources.json` に source entry を追加または更新する
 5. 収集順は「ニュース検知 → 市場データ反応 → 日本株セクター影響 → rank補正」とする
@@ -482,7 +482,7 @@ daily 本文では、該当がある場合だけ「配当株の買い増し地�
 - 技術記事の個別URLが未確認の場合は、一覧ページURLで代用せず「個別URL未確認」と明示する
 - AIニュースは、発表の羅列ではなく実務への影響を含める
 - `product-idea-watch` は通常の daily 本文には出さず、分析閾値に達したときだけ通知する
-- `product-idea-watch` の裏収集は、daily 本文に載せない場合でも `inbox/` と `sources.json` には残す
+- `product-idea-watch` の裏収集は、daily 本文に載せない場合でも `source/` と `sources.json` には残す
 - 未確認の情報は未確認として明示する
 - 出典URLを付ける
 
@@ -557,4 +557,4 @@ daily 本文では、該当がある場合だけ「配当株の買い増し地�
 - topic ごとの関心に沿っている
 - 根拠URLがある
 - 未確認事項が明示されている
-- topic の `inbox/` と `sources.json` に当日分の情報蓄積が残っている
+- topic の `source/` と `sources.json` に当日分の情報蓄積が残っている

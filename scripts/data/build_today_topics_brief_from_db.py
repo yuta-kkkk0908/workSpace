@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "topics.db"
-DEFAULT_OUT = ROOT / "prompts" / "today-topics-db-brief.md"
+DEFAULT_OUT = ROOT / "tmp" / "prompts" / "today-topics-db-brief.md"
 
 
 def parse_args() -> argparse.Namespace:

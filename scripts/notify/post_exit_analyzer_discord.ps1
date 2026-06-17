@@ -15,11 +15,11 @@ if ($primary) {
 powershell -NoProfile -ExecutionPolicy Bypass -File "E:\workSpace\scripts\notify\post_discord_message.ps1" `
   -Repo "E:\workSpace" `
   -Kind "exit-analyzer" `
-  -MessagePath "E:\workSpace\prompts\exit-analyzer-discord-message.txt" `
+  -MessagePath "E:\workSpace\tmp\prompts\exit-analyzer-discord-message.txt" `
   -PrimaryWebhookEnv "DISCORD_EXIT_ANALYZER_ACTIVE_WEBHOOK_URL" `
   -FallbackWebhookEnv "DISCORD_ALERT_WEBHOOK_URL" `
-  -HashFile "E:\workSpace\prompts\.last-exit-analyzer-message.sha256.txt" `
-  -UnchangedStreakFile "E:\workSpace\prompts\.exit-analyzer-unchanged-streak.txt" `
+  -HashFile "E:\workSpace\tmp\prompts\.last-exit-analyzer-message.sha256.txt" `
+  -UnchangedStreakFile "E:\workSpace\tmp\prompts\.exit-analyzer-unchanged-streak.txt" `
   -UnchangedFailThreshold 3 `
   -PendingPrefix "exit-analyzer" `
   -SkipIfUnchanged `

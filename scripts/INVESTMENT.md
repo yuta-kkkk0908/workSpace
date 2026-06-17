@@ -235,12 +235,12 @@ make investment-seed-compare DATE=YYYY-MM-DD LEFT_SEED=rough_backtest_light RIGH
 ### 1. Framework / Topic Utilities
 | script | role |
 | --- | --- |
-| `validate_topics.py` | topic / tasks / sources のスキーマと参照ファイルを検証する |
-| `new_topic.py` | template から topic を作成する |
-| `export_sample_topic.py` | 実 topic から公開サンプルを出力する |
-| `diff_topic.py` | topic と sample-topic の差分を確認する |
-| `check_daily_missing.py` | daily の実行漏れを検知し、補完プロンプトを生成する |
-| `check_daily_missing_toast.ps1` | Windows Toast 通知とクリップボード補助 |
+| `topic_tools/validate_topics.py` | topic / tasks / sources のスキーマと参照ファイルを検証する |
+| `topic_tools/new_topic.py` | template から topic を作成する |
+| `topic_tools/export_sample_topic.py` | 実 topic から公開サンプルを出力する |
+| `topic_tools/diff_topic.py` | topic と sample-topic の差分を確認する |
+| `monitoring/check_daily_missing.py` | daily の実行漏れを検知し、補完プロンプトを生成する |
+| `monitoring/check_daily_missing_toast.ps1` | Windows Toast 通知とクリップボード補助 |
 
 ### 2. Collect
 | script | input | output | notes |
@@ -253,7 +253,7 @@ make investment-seed-compare DATE=YYYY-MM-DD LEFT_SEED=rough_backtest_light RIGH
 | --- | --- | --- | --- |
 | `fill_market_outcomes.py` | backtest / market-signals | `{date}-rough-backtest-outcomes-*` + Yahoo chart cache | T+1/T+5/T+20の基礎。`--date` / `--output` / `--aggregation-output` / positional inputs 対応。ネット取得あり |
 | `fill_sector_context.py` | outcome rows | `{date}-sector-context-data.json` | セクター分類補完。`--date` / `--output` 対応 |
-| `extract_margin_context.py` | manual margin fill | `{date}-margin-context-data.json` | 信用文脈抽出。`--date` / `--input` / `--output` 対応。指定日の入力がなければ旧priority fillへfallback |
+| `manual/extract_margin_context.py` | manual margin fill | `{date}-margin-context-data.json` | 信用文脈抽出。`--date` / `--input` / `--output` 対応。指定日の入力がなければ旧priority fillへfallback |
 | `fill_technical_context.py` | Yahoo chart cache + outcome rows | `{date}-technical-context-*` | MA/RSI/MACD/ローソク足など。`--date` / `--output-*` 対応。必要時ネット取得あり |
 | `fill_borrow_context.py` | JPX貸借一覧 + rows | `{date}-borrow-context-*` | JPX現時点の貸借区分。`--date` / `--output-*` 対応。ネット取得あり |
 | `fill_market_context.py` | market proxy data | `{date}-market-context-data.json` | 外部市場文脈。`--date` / `--output` 対応。取得失敗時も unknown で継続 |

@@ -11,8 +11,8 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_MESSAGE = ROOT / "prompts" / "generic-topics-discord-message.txt"
-DEFAULT_STATE = ROOT / "prompts" / "generic-forum-state.json"
+DEFAULT_MESSAGE = ROOT / "tmp" / "prompts" / "generic-topics-discord-message.txt"
+DEFAULT_STATE = ROOT / "tmp" / "prompts" / "generic-forum-state.json"
 
 
 def parse_args() -> argparse.Namespace:

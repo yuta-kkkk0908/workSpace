@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
-PROMPTS = ROOT / "prompts"
+PROMPTS = ROOT / "tmp" / "prompts"
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 from utils.reason_labels import format_quality_reason

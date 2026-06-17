@@ -22,15 +22,17 @@ daily の実行漏れを検知し、Codex に貼る補完用プロンプトを�
   - `check`
   - `generate-prompt`
 - `prompt_path`
-  - 指定がなければ `prompts/pending-daily.prompt.md`
+  - 指定がなければ `tmp/prompts/pending-daily/latest.prompt.md`（runtime の一時出力）
 
 ## Read Scope
 - `topics/*/topic-manifest.json`
-- `topics/*/inbox/*`
+- `topics/*/source/*`
+- `topics/*/inbox/*`（作業メモの補助参照）
 - `commands/daily.md`
 
 ## Write Scope
-- `prompts/pending-daily.prompt.md`
+- `tmp/prompts/pending-daily/latest.prompt.md`
+  - runtime の一時出力。消えていても再生成してよい
 
 ## Local Script
 実行漏れ確認には次を使う。
@@ -78,26 +80,26 @@ python3 scripts/check_daily_missing.py --date today --days 7
 ## Expected Files
 対象日は次のファイルがあるか確認する。
 
-- `topics/<daily-watch-topic>/inbox/YYYY-MM-DD-daily.md`
-- `topics/investment-research/inbox/YYYY-MM-DD-market-signals.md`
-- `topics/product-idea-watch/inbox/YYYY-MM-DD-daily-background-need-watch.md`
+- `topics/<daily-watch-topic>/source/YYYY-MM-DD-daily.md`
+- `topics/investment-research/source/YYYY-MM-DD-market-signals.md`
+- `topics/product-idea-watch/source/YYYY-MM-DD-daily-background-need-watch.md`
 
 ## Output
 不足がある場合:
 
 - 標準出力に missing file を出す
-- `prompts/pending-daily/latest.prompt.md` に補完用プロンプトを書く
-- `prompts/pending-daily/latest.status.txt` に、Codexへそのまま貼れる短い実行文を含む通知本文を書く
-- `prompts/pending-daily/latest.clipboard.txt` に、クリップボード用のプロンプト本文を書く
-- `prompts/pending-daily/archive/` に日付付き履歴を残す
+- `tmp/prompts/pending-daily/latest.prompt.md` に補完用プロンプトを書く
+- `tmp/prompts/pending-daily/latest.status.txt` に、Codexへそのまま貼れる短い実行文を含む通知本文を書く
+- `tmp/prompts/pending-daily/latest.clipboard.txt` に、クリップボード用のプロンプト本文を書く
+- `tmp/prompts/pending-daily/archive/` に日付付き履歴を残す
 - 複数日チェックの場合は、不足日の一覧と最初に補完すべき日を書く
 - exit code `1` を返す
 
 不足がない場合:
 
 - 揃っていることを出す
-- `prompts/pending-daily/latest.prompt.md` に present-only 用の短いプロンプトを書く
-- `prompts/pending-daily/latest.status.txt` に OK の短い本文を書く
+- `tmp/prompts/pending-daily/latest.prompt.md` に present-only 用の短いプロンプトを書く
+- `tmp/prompts/pending-daily/latest.status.txt` に OK の短い本文を書く
 - exit code `0` を返す
 
 ## Scheduler Examples

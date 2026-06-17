@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 . (Join-Path $Repo "scripts\notify\discord_common.ps1")
 Load-EnvFile (Join-Path $Repo ".env.local")
 
-$pendingDir = Join-Path $Repo "prompts\pending"
+$pendingDir = Join-Path $Repo "tmp\prompts\pending"
 if (-not (Test-Path $pendingDir)) {
   Write-Host "no pending dir"
   exit 0
@@ -22,9 +22,9 @@ $map = @{
   "paper-stats" = "DISCORD_STATS_WEBHOOK_URL"
 }
 $hashFileMap = @{
-  "generic" = "E:\workSpace\prompts\.last-generic-message.sha256.txt"
-  "signal" = "E:\workSpace\prompts\.last-signal-message.sha256.txt"
-  "paper-stats" = "E:\workSpace\prompts\.last-paper-stats-message.sha256.txt"
+  "generic" = "E:\workSpace\tmp\prompts\.last-generic-message.sha256.txt"
+  "signal" = "E:\workSpace\tmp\prompts\.last-signal-message.sha256.txt"
+  "paper-stats" = "E:\workSpace\tmp\prompts\.last-paper-stats-message.sha256.txt"
 }
 $fallbackMap = @{
   "generic" = "DISCORD_ALERT_WEBHOOK_URL"

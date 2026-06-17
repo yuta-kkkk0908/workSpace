@@ -44,11 +44,11 @@
 - `topics/investment-research/decisions.md`
 - `topics/investment-research/tasks.json`
 - `topics/investment-research/sources.json`
-- 必要に応じて `topics/investment-research/inbox/*external-triggers*.md`
-- 必要に応じて `topics/investment-research/inbox/*daily*.md`
+- 必要に応じて `topics/investment-research/source/*external-triggers*.md`
+- 必要に応じて `topics/investment-research/source/*daily*.md`
 
 ## Write Scope
-- `topics/investment-research/inbox/YYYY-MM-DD-external-triggers.md`
+- `topics/investment-research/source/YYYY-MM-DD-external-triggers.md`
 - `topics/investment-research/sources.json`
 - 必要に応じて `topics/investment-research/summary.md`
 - 必要に応じて `topics/investment-research/decisions.md`
@@ -148,7 +148,7 @@
   - tailwind: 国内代替、内需、防衛/政策テーマは内容次第
 
 ## Log Format
-`topics/investment-research/inbox/YYYY-MM-DD-external-triggers.md` に保存する。
+`topics/investment-research/source/YYYY-MM-DD-external-triggers.md` に保存する。
 
 ```md
 # YYYY-MM-DD External Triggers

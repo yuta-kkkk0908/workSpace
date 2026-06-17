@@ -15,11 +15,11 @@ if ($primary) {
 powershell -NoProfile -ExecutionPolicy Bypass -File "E:\workSpace\scripts\notify\post_discord_message.ps1" `
   -Repo "E:\workSpace" `
   -Kind "paper-stats" `
-  -MessagePath "E:\workSpace\prompts\paper-stats-discord-message.txt" `
+  -MessagePath "E:\workSpace\tmp\prompts\paper-stats-discord-message.txt" `
   -PrimaryWebhookEnv "DISCORD_PAPER_STATS_ACTIVE_WEBHOOK_URL" `
   -FallbackWebhookEnv "DISCORD_ALERT_WEBHOOK_URL" `
-  -HashFile "E:\workSpace\prompts\.last-paper-stats-message.sha256.txt" `
-  -UnchangedStreakFile "E:\workSpace\prompts\.paper-stats-unchanged-streak.txt" `
+  -HashFile "E:\workSpace\tmp\prompts\.last-paper-stats-message.sha256.txt" `
+  -UnchangedStreakFile "E:\workSpace\tmp\prompts\.paper-stats-unchanged-streak.txt" `
   -UnchangedFailThreshold 3 `
   -PendingPrefix "paper-stats" `
   -SkipIfUnchanged `

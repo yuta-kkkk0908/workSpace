@@ -15,7 +15,7 @@ if str(ROOT / "scripts") not in sys.path:
 from utils.investment_db_path import resolve_investment_db
 
 DEFAULT_DB = resolve_investment_db()
-DEFAULT_OUT = ROOT / "prompts" / "ops-kpi-summary-discord-message.txt"
+DEFAULT_OUT = ROOT / "tmp" / "prompts" / "ops-kpi-summary-discord-message.txt"
 
 
 def parse_args() -> argparse.Namespace:
@@ -409,7 +409,7 @@ def main() -> int:
 
     sample_health_date, sample_health = load_latest_inbox_payload(args.date, "sample-health-kpi.json", fallback_days=7)
     diff_date, decision_diff = load_latest_inbox_payload(args.date, "decision-support-diff.json", fallback_days=7)
-    pending_path = ROOT / "prompts" / "pending"
+    pending_path = ROOT / "tmp" / "prompts" / "pending"
     pending_files = len(list(pending_path.glob("*-discord-pending-*.txt"))) if pending_path.exists() else 0
     freshness = load_processing_freshness()
     runtime_label = str(runtime.get("status") or "missing")

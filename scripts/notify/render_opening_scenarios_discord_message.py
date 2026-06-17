@@ -15,7 +15,7 @@ from utils.investment_db_path import resolve_investment_db
 from utils.terminology import scenario_tier_label
 from utils.sector_inference import resolve_sector_label
 
-OUT_DIR = ROOT / "prompts"
+OUT_DIR = ROOT / "tmp" / "prompts"
 DEFAULT_DB = resolve_investment_db()
 
 
@@ -382,12 +382,9 @@ def main() -> int:
     message = build_message(args.date, rows, zero_case_stats, rejected_rows, ai_summary)
 
     out_txt = OUT_DIR / "opening-scenarios-discord-message.txt"
-    out_md = OUT_DIR / "opening-scenarios-discord-message.md"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_txt.write_text(message, encoding="utf-8")
-    out_md.write_text("```text\n" + message + "```\n", encoding="utf-8")
     print(f"wrote {out_txt.relative_to(ROOT)}")
-    print(f"wrote {out_md.relative_to(ROOT)}")
     return 0
 
 

@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 JST = timezone(timedelta(hours=9))
-DEFAULT_OUTPUT = ROOT / "topics/investment-research/inbox/{date}-six-month-rough-backtest-batch-5-kabutan-surprise.md"
+DEFAULT_OUTPUT = ROOT / "topics/investment-research/source/{date}-six-month-rough-backtest-batch-5-kabutan-surprise.md"
 DEFAULT_URLS = [
     "https://s.kabutan.jp/news/n202601081087/",
     "https://s.kabutan.jp/news/n202601091187/",

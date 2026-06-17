@@ -20,9 +20,9 @@ flowchart LR
     CODEX --> NEEDDB
     CODEX --> INVDB
     CODEX --> OUT[要約を提示]
-    INV --> SIGMSG[prompts/market-signals-discord-message.txt]
-    SCN --> SCNMSG[prompts/opening-scenarios-discord-message.txt]
-    ALT --> ALMSG[prompts/pending-daily/latest.status.txt]
+    INV --> SIGMSG[tmp/prompts/market-signals-discord-message.txt]
+    SCN --> SCNMSG[tmp/prompts/opening-scenarios-discord-message.txt]
+    ALT --> ALMSG[tmp/prompts/pending-daily/latest.status.txt]
     SIGMSG --> D1[Discord Signal Webhook]
     SCNMSG --> D2[Discord Scenario Webhook]
     ALMSG --> D3[Discord Alert Webhook]

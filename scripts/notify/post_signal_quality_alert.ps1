@@ -107,7 +107,7 @@ if ($diag.alerts) {
 $msg = ($lines -join "`n").Trim()
 if ([string]::IsNullOrWhiteSpace($msg)) { exit 0 }
 
-$hashFile = "E:\workSpace\prompts\.last-signal-quality-alert.sha256.txt"
+$hashFile = "E:\workSpace\tmp\prompts\.last-signal-quality-alert.sha256.txt"
 $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($msg))).Replace("-","").ToLower()
 $last = if (Test-Path $hashFile) { (Get-Content $hashFile -Raw -Encoding UTF8).Trim() } else { "" }
 if ($hash -eq $last) {

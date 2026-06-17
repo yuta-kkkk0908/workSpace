@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 CACHE = ROOT / ".cache/market-outcomes/yahoo-us-market-overview-cache.json"
 JST = timezone(timedelta(hours=9))
-INBOX = ROOT / "topics/investment-research/inbox"
+SOURCE_DIR = ROOT / "topics/investment-research/source"
 
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
@@ -229,9 +229,9 @@ def main() -> int:
     save_cache(cache)
     payload = build_overview(args.date, series)
 
-    out_json = INBOX / f"{args.date}-us-market-overview.json"
-    out_md = INBOX / f"{args.date}-us-market-overview.md"
-    INBOX.mkdir(parents=True, exist_ok=True)
+    SOURCE_DIR.mkdir(parents=True, exist_ok=True)
+    out_json = SOURCE_DIR / f"{args.date}-us-market-overview.json"
+    out_md = SOURCE_DIR / f"{args.date}-us-market-overview.md"
     out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     out_md.write_text(render_markdown(payload), encoding="utf-8")
 

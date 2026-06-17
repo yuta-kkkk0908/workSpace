@@ -13,7 +13,7 @@ if str(ROOT / "scripts") not in sys.path:
 from utils.investment_db_path import resolve_investment_db
 
 DEFAULT_DB = resolve_investment_db()
-DEFAULT_OUT = ROOT / 'prompts' / 'today-db-brief.md'
+DEFAULT_OUT = ROOT / 'tmp' / 'prompts' / 'today-db-brief.md'
 
 
 def parse_args() -> argparse.Namespace:

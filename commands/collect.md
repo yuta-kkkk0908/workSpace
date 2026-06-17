@@ -1,7 +1,7 @@
 # Command: collect
 
 ## Purpose
-外部情報やメモを topic の `inbox/` に取り込み、`sources.json` に登録する。
+外部情報やメモを topic の `source/` に取り込み、`sources.json` に登録する。
 
 ## Trigger
 - 新しい URL を保存したい
@@ -28,10 +28,11 @@
 - `prompts/collector.prompt.md`
 - `topics/{{topic}}/topic-manifest.json`
 - `topics/{{topic}}/index.md`
+- `topics/{{topic}}/source/*`
 - `topics/{{topic}}/sources.json`
 
 ## Write Scope
-- `topics/{{topic}}/inbox/*`
+- `topics/{{topic}}/source/*`
 - `topics/{{topic}}/sources.json`
 
 ## Execution Mode
@@ -40,7 +41,7 @@
 - `apply`
 
 ## Constraints
-- 生データは `inbox/` にのみ保存する
+- 生データは `source/` にのみ保存する
 - `summary.md` `decisions.md` `tasks.json` は変更しない
 - 既存 source を削除しない
 - `path` と `id` は重複させない
@@ -80,6 +81,6 @@
 - `suggested_action`
 
 ## Success Criteria
-- 入力情報が追跡可能な形で `inbox/` に保存される
+- 入力情報が追跡可能な形で `source/` に保存される
 - `sources.json` にスキーマ準拠の entry が追加される
 - 後続の `organize` が処理可能な状態になる

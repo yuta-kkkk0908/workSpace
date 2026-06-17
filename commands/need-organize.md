@@ -45,14 +45,14 @@
 - `topics/product-idea-watch/decisions.md`
 - `topics/product-idea-watch/tasks.json`
 - `topics/product-idea-watch/sources.json`
-- `topics/product-idea-watch/inbox/*`
+- `topics/product-idea-watch/source/*`
 
 ## Write Scope
 - `topics/product-idea-watch/summary.md`
 - `topics/product-idea-watch/decisions.md`
 - `topics/product-idea-watch/tasks.json`
 - `topics/product-idea-watch/sources.json`
-- 必要に応じて `topics/product-idea-watch/inbox/*analysis*.md`
+- 必要に応じて `topics/product-idea-watch/source/*analysis*.md`
 
 ## Execution Mode
 - `proposal`
@@ -153,9 +153,9 @@ Noteなどの記事にできる題材を抽出する。
 - `scripts/build_needs_ai_queue.py --limit 20`
 
 2. Codex二次レビュー（手動実行）
-- 入力: `prompts/needs-ai-queue.md` または `prompts/needs-ai-queue.json`
+- 入力: `tmp/prompts/needs-ai-queue.md` または `tmp/prompts/needs-ai-queue.json`（runtime の一時出力）
 - 目的: 重複統合、優先度見直し、`watch/investigate/discard` の確定、根拠メモ整備
-- 反映: `scripts/apply_needs_triage.py --input prompts/needs-ai-queue.json`
+- 反映: `scripts/apply_needs_triage.py --input tmp/prompts/needs-ai-queue.json`
 
 ### Shortcut Prompt
 `prompts/needs-triage.prompt.md` をCodexに貼って実行する。

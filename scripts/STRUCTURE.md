@@ -1,12 +1,29 @@
 # Scripts Structure
 
-## Root (shared orchestrators/utilities)
+## Root (shared orchestrators / compatibility shims)
 - `run_ops_scheduler.py`: slot-based scheduler entrypoint (night / inv-morning / inv-noon / inv-evening / inv-scenario)
 - `run_pipeline.py`: investment collection pipeline (`daily` / `deep`)
 - `run_investment_automation.py`: legacy wrapper for morning/night automation
+- Legacy shims kept for backwards compatibility:
+  - `check_daily_missing.py`, `check_scheduler_health.py`, `check_needs_freshness.py`
+  - `new_topic.py`, `validate_topics.py`, `diff_topic.py`, `export_sample_topic.py`
+  - `build_needs_ai_queue.py`, `apply_needs_triage.py`
+  - `extract_margin_context.py`
+
+## `scripts/monitoring/`
 - `check_daily_missing.py`: daily missing-file check
-- `validate_topics.py`, `new_topic.py`, `diff_topic.py`, `export_sample_topic.py`: topic maintenance
-- `build_needs_ai_queue.py`, `apply_needs_triage.py`: needs triage helpers
+- `check_scheduler_health.py`: scheduler health / duplicate alert check
+- `check_needs_freshness.py`: needs freshness check
+- `check_daily_missing_toast.ps1`: Windows toast notification wrapper
+
+## `scripts/topic_tools/`
+- `new_topic.py`, `validate_topics.py`, `diff_topic.py`, `export_sample_topic.py`
+
+## `scripts/needs/`
+- `build_needs_ai_queue.py`, `apply_needs_triage.py`
+
+## `scripts/investment/manual/`
+- `extract_margin_context.py`
 
 ## `scripts/data/`
 - DB init/ingest and DB-based brief generation

@@ -53,25 +53,27 @@ def load_topic_manifests(include_kinds: set[str]) -> list[tuple[str, str]]:
 
 
 def target_files(topic: str, date: str | None) -> list[Path]:
-    inbox = TOPICS_DIR / topic / "inbox"
-    if not inbox.exists():
-        return []
-    files = sorted(p for p in inbox.glob("*.md") if p.is_file())
-    out: list[Path] = []
-    for p in files:
-        m = DATE_FILE_RE.match(p.name)
-        if not m:
+    candidate_dirs = [TOPICS_DIR / topic / "source", TOPICS_DIR / topic / "inbox"]
+    picked: dict[str, Path] = {}
+    for base in candidate_dirs:
+        if not base.exists():
             continue
-        d, suffix = m.group(1), m.group(2)
-        if date and d != date:
-            continue
-        if topic == "pokemon-card-watch":
-            if "daily" not in suffix and "source-plan" not in suffix:
+        for p in sorted(base.glob("*.md")):
+            if not p.is_file():
                 continue
-        elif "daily" not in suffix:
-            continue
-        out.append(p)
-    return out
+            m = DATE_FILE_RE.match(p.name)
+            if not m:
+                continue
+            d, suffix = m.group(1), m.group(2)
+            if date and d != date:
+                continue
+            if topic == "pokemon-card-watch":
+                if "daily" not in suffix and "source-plan" not in suffix:
+                    continue
+            elif "daily" not in suffix:
+                continue
+            picked.setdefault(p.name, p)
+    return [picked[name] for name in sorted(picked)]
 
 
 def summarize(text: str, max_lines: int = 8) -> str:

@@ -12,10 +12,10 @@ if (Test-Path $python) {
 powershell -NoProfile -ExecutionPolicy Bypass -File "E:\workSpace\scripts\notify\post_discord_message.ps1" `
   -Repo $repo `
   -Kind "ai-investment-digest" `
-  -MessagePath "E:\workSpace\prompts\ai-investment-digest.txt" `
+  -MessagePath "E:\workSpace\tmp\prompts\ai-investment-digest.txt" `
   -PrimaryWebhookEnv "DISCORD_SIGNAL_WEBHOOK_URL" `
   -FallbackWebhookEnv "DISCORD_ALERT_WEBHOOK_URL" `
-  -HashFile "E:\workSpace\prompts\.last-ai-investment-digest.sha256.txt" `
+  -HashFile "E:\workSpace\tmp\prompts\.last-ai-investment-digest.sha256.txt" `
   -PendingPrefix "ai-investment-digest" `
   -SkipIfUnchanged
 

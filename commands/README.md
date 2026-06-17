@@ -1,7 +1,7 @@
 # Commands
 
-- `collect`: 未整理情報を `inbox/` と `sources.json` に追加する
-- `organize`: `inbox/` の情報を正本ファイルへ整理する
+- `collect`: 未整理情報を `source/` と `sources.json` に追加する
+- `organize`: `source/` と `inbox/` の情報を正本ファイルへ整理する
 - `present`: 正本ファイルをもとに情報を提示する
 - `daily`: daily watch 対象の topic から今日見るべき情報を提示する
 - `need-watch`: ネット上の不満・要望・未充足ニーズを蓄積する

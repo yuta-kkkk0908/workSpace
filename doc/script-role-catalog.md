@@ -33,20 +33,20 @@ py scripts\run_ops_scheduler.py --slot inv-morning --date 2026-05-14
 ## 2. Discord投稿系（PowerShell）
 
 - `scripts/notify/post_signal_discord.ps1`
-  - `prompts/market-signals-discord-message.txt` を投稿
+  - `tmp/prompts/market-signals-discord-message.txt` を投稿
   - 同文スキップ運用あり（ハッシュ判定）
 - `scripts/notify/post_paper_stats_discord.ps1`
-  - `prompts/paper-stats-discord-message.txt` を投稿
+  - `tmp/prompts/paper-stats-discord-message.txt` を投稿
   - 同文スキップ運用あり（ハッシュ判定）
 - `scripts/notify/post_ops_kpi_discord.ps1`
-  - `prompts/ops-kpi-summary-discord-message.txt` を投稿
+  - `tmp/prompts/ops-kpi-summary-discord-message.txt` を投稿
   - 夜間の収集・分析・処理ボトルネックを1枚に集約して Discord へ出す
 - `scripts/notify/post_scenario_discord.ps1`
-  - `prompts/opening-scenarios-discord-message.txt` を投稿
+  - `tmp/prompts/opening-scenarios-discord-message.txt` を投稿
 - `scripts/notify/post_generic_discord.ps1`
-  - `prompts/generic-topics-discord-message.txt` を投稿
+  - `tmp/prompts/generic-topics-discord-message.txt` を投稿
 - `scripts/notify/post_alert_discord.ps1`
-  - `prompts/pending-daily/latest.status.txt` を投稿
+  - `tmp/prompts/pending-daily/latest.status.txt` を投稿
 
 ## 3. 投資パイプライン中核（Python）
 
@@ -159,4 +159,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File E:\workSpace\scripts\run_bac
 
 1. まず `run_*_and_post.ps1` を見る（入口）
 2. 次に `run_ops_scheduler.py` の該当 `slot` を見る（実行順）
-3. どの `prompts/*.txt` が投稿されるか確認する（成果物）
+3. どの `tmp/prompts/*.txt` が投稿されるか確認する（成果物）

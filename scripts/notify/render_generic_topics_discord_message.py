@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DB = ROOT / "data" / "topics.db"
-OUT_DIR = ROOT / "prompts"
+OUT_DIR = ROOT / "tmp" / "prompts"
 
 TOPIC_LABELS = {
     "ai-news-watch": "AIニュース",
@@ -288,12 +288,9 @@ def main() -> int:
         shrink_note = f"- 自動圧縮: 文字数上限のため表示件数を{items_per_topic}件/トピックへ調整"
 
     out_txt = OUT_DIR / "generic-topics-discord-message.txt"
-    out_md = OUT_DIR / "generic-topics-discord-message.md"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_txt.write_text(msg, encoding="utf-8")
-    out_md.write_text("```text\n" + msg + "```\n", encoding="utf-8")
     print(f"wrote {out_txt.relative_to(ROOT)}")
-    print(f"wrote {out_md.relative_to(ROOT)}")
     return 0
 
 

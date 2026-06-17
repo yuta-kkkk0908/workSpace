@@ -118,7 +118,8 @@ AGENT.md と commands/daily.md を読んで、「今日の情報」をまとめ�
 この Repo は、次の流れを安定して回すための仕組みです。
 
 - 気になる情報を探す
-- 必要なものだけ `inbox/` に残す
+- 必要なものだけ `source/` に残す
+- 作業途中のメモは `inbox/` に残す
 - 根拠を `sources.json` で追跡する
 - `summary.md` や `decisions.md` に整理する
 - ユーザーに短く分かりやすく解説する
@@ -141,7 +142,8 @@ topic ごとに次の 5 つを管理します。
 
 ## Core Model
 - `topic` = 関心領域ごとの情報蓄積
-- `inbox/` = 未整理情報の置き場
+- `source/` = 原本・収集ログの置き場
+- `inbox/` = 作業途中の未整理メモの置き場
 - 正本ファイル = topic の現在状態
 - `archive/` = 参照頻度が下がった情報の退避先
 
@@ -155,9 +157,10 @@ topic ごとに次の 5 つを管理します。
 - needs: `data/needs.db`
 - investment: `data/investment.db`
 - alerts/ops: `data/ops.db`
-- `topics/*/inbox/*.md|*.json`: 監査・再現用ログ（補助）
+- `topics/*/source/*.md|*.json`: 収集した原本・監査ログ
+- `topics/*/inbox/*.md|*.json`: 作業中メモ・一時ファイル
 - 判定ロジックや要約処理は、DBに同等データがある場合はDBを優先
-- `inbox` 生成物は保持期間ベースで定期クリーンアップ可能（無制限保持を前提にしない）
+- `source` と `inbox` の生成物は保持期間ベースで定期クリーンアップ可能（無制限保持を前提にしない）
 
 ## Ops Docs
 運用構想メモ（タスクスケジューラー / DB設計）:
@@ -174,6 +177,9 @@ topic ごとに次の 5 つを管理します。
 
 - `AGENT.md`: AI が守る基本ルール
 - `commands/`: 収集、整理、提示の契約
+- `doc/`: 運用方針、タスク、設計メモ
+- `prompts/`: ソース prompt 定義
+- `tmp/prompts/`: runtime の一時出力
 - `prompts/startup.prompt.md`: 新規チャット用の起動プロンプト
 - `schemas/`: JSON の形
 - `scripts/validate_topics.py`: topic の構造と根拠の検証
@@ -190,6 +196,7 @@ topic ごとに次の 5 つを管理します。
 ├── README.md
 ├── agents/
 ├── commands/
+├── doc/
 ├── examples/
 ├── prompts/
 ├── sample-topics/
@@ -197,6 +204,7 @@ topic ごとに次の 5 つを管理します。
 ├── scripts/
 ├── templates/
 │   └── present/
+├── tmp/
 └── topics/
     └── <topic>/
         ├── index.md
@@ -205,12 +213,15 @@ topic ごとに次の 5 つを管理します。
         ├── decisions.md
         ├── tasks.json
         ├── sources.json
+        ├── source/
         ├── inbox/
         └── archive/
 ```
 
 `topics/` はローカル workspace です。通常は `.gitignore` で除外し、GitHub には載せません。
 公開用のサンプルは `sample-topics/` に置きます。
+`source/` は topic の原本、`inbox/` は作業途中のメモです。
+`prompts/` はソース prompt 定義だけを残し、Discord 向け本文や status は `tmp/prompts/` に再生成します。
 
 ## Framework vs Workspace
 この Repo は 2 層に分けて考えるのが自然です。
@@ -218,7 +229,9 @@ topic ごとに次の 5 つを管理します。
 - framework:
   - `AGENT.md`
   - `commands/`
+  - `doc/`
   - `prompts/`
+  - `tmp/`
   - `schemas/`
   - `scripts/`
   - `templates/`
@@ -227,7 +240,7 @@ topic ごとに次の 5 つを管理します。
 - workspace:
   - `topics/`
   - 日々の収集結果
-  - `inbox/` の生データ
+- `source/` の生データ
   - 個別調査メモ
   - 監視対象や個人判断に紐づく情報
 
@@ -261,14 +274,14 @@ topic ごとに次の 5 つを管理します。
 URL、会話メモ、調査結果、ローカルファイル由来の内容などを受け取ります。
 
 ### 2. まだ結論にしない
-受け取った内容はまず `inbox/` に保存します。
+受け取った内容はまず `source/` に保存します。
 未整理情報は、まだ正本ではありません。
 
 ### 3. 根拠を追跡可能にする
 同時に `sources.json` に source entry を追加し、どの情報がどこから来たかを残します。
 
 ### 4. 整理して状態を更新する
-`organize` が `inbox/` と既存の正本を読み、必要な内容だけを `summary.md` `decisions.md` `tasks.json` `sources.json` に反映します。
+`organize` が `source/` と `inbox/`、既存の正本を読み、必要な内容だけを `summary.md` `decisions.md` `tasks.json` `sources.json` に反映します。
 
 ### 5. 正本をもとに説明する
 人に見せるときは `present` が正本を優先して読みます。
@@ -291,7 +304,7 @@ URL、会話メモ、調査結果、ローカルファイル由来の内容な�
 
 ### `organize`
 使いどころ:
-`inbox/` の情報を正本に反映したいとき
+`source/` の情報を正本に反映したいとき
 
 更新できる場所:
 - `topics/<topic>/summary.md`
@@ -348,7 +361,7 @@ product-idea-watch の裏収集は skip。
 - 分析できる程度に蓄積したら daily で通知する
 
 更新できる場所:
-- `topics/product-idea-watch/inbox/*`
+- `topics/product-idea-watch/source/*`
 - `topics/product-idea-watch/sources.json`
 - 必要に応じて正本ファイル
 
@@ -432,7 +445,7 @@ make investment-seed-compare DATE=2026-05-11 LEFT_SEED=rough_backtest_light RIGH
 2. `topic-manifest.json` に topic の種類、公開可否、保存場所を書く
 3. `index.md` にその topic の目的を書く
 4. `summary.md` `decisions.md` `tasks.json` `sources.json` を初期化する
-5. `inbox/` と `archive/` を作る
+5. `source/` `inbox/` と `archive/` を作る
 
 手動で作る代わりに、次のスクリプトも使えます。
 
@@ -467,7 +480,7 @@ make topic-db-ingest DATE=YYYY-MM-DD
 
 ### 情報を追加する
 1. topic を決める
-2. 元情報を `inbox/` に markdown で置く
+2. 元情報を `source/` に markdown で置く
 3. `sources.json` に entry を追加する
 4. まだ結論は書かない
 
@@ -482,7 +495,7 @@ make topic-db-ingest DATE=YYYY-MM-DD
 1. まず `summary.md` を見る
 2. 判断理由は `decisions.md` を見る
 3. 次アクションは `tasks.json` を見る
-4. 根拠が必要なときだけ `sources.json` と `inbox/` を辿る
+4. 根拠が必要なときだけ `sources.json` と `source/` を辿る
 
 ## Example Flow
 ### 1. collect で扱うもの
@@ -560,7 +573,7 @@ python3 scripts/validate_topics.py
 - `templates/topic/tasks.json`
 - `templates/topic/sources.json`
 - topic に必要な正本ファイルの有無
-- `inbox/` `archive/` ディレクトリの有無
+- `source/` `inbox/` `archive/` ディレクトリの有無
 - `tasks.json` の重複 `id`
 - `sources.json` の重複 `id` と重複 `path`
 - `sources.json` から参照するファイルパスの実在
@@ -629,18 +642,18 @@ python scripts/check_scheduler_health.py --hours 24
 | `make topics-db-ingest DATE=...` | `data/topics.db` (`topic_daily_digest`, `topic_links`) | なし（読み取りのみ） | 非投資dailyの取り込み |
 | `make needs-db-ingest DATE=...` | `data/needs.db` (`need_items`, `need_item_state`) | なし（読み取りのみ） | needsログの取り込み |
 | `make topic-db-ingest DATE=...` | `data/topics.db`, `data/needs.db` | なし（読み取りのみ） | 共通 ingestion runner |
-| `make inv-daily DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 軽量投資パイプライン |
-| `make inv-deep DATE=...` | `data/investment.db` | `topics/investment-research/inbox/*`（監査ログ） | 深掘り投資パイプライン |
-| `python scripts/investment/analysis/run_morning_disclosure_digest.py --date YYYY-MM-DD` | `data/investment.db` (`tdnet_disclosures`, `signals`, `entry_candidates`, `collection_artifacts`, `daily_digest`) | `topics/investment-research/inbox/*` | TDnet 開示の朝用ダイジェストを DB に保存しつつ md を出力 |
+| `make inv-daily DATE=...` | `data/investment.db` | `topics/investment-research/source/*`（原本） | 軽量投資パイプライン |
+| `make inv-deep DATE=...` | `data/investment.db` | `topics/investment-research/source/*`（原本） | 深掘り投資パイプライン |
+| `python scripts/investment/analysis/run_morning_disclosure_digest.py --date YYYY-MM-DD` | `data/investment.db` (`tdnet_disclosures`, `signals`, `entry_candidates`, `collection_artifacts`, `daily_digest`) | `topics/investment-research/source/*` | TDnet 開示の朝用ダイジェストを DB に保存しつつ md を出力 |
 | `python scripts/notify/post_note_draft.py --markdown-path ... --db data/investment.db --note-config configs/note.local.json` | `data/investment.db`（md fallback / 投稿監査） | `configs/note.storage_state.json`, 任意のスクリーンショット/ログ | note の下書き保存（Playwright, md 読み込み, `note_draft_posts` 監査） |
 | `make daily-missing ...` | なし（DB参照） | `logs/*`（必要時） | 日次漏れの検査 |
-| `python scripts/run_ops_scheduler.py --slot night ...` | `data/ops.db`, `data/topics.db`, `data/needs.db`, `data/investment.db` | `topics/*/inbox/*`, `prompts/*`, `logs/*` | 全体夜間オーケストレーション |
-| `python scripts/run_ops_scheduler.py --slot inv-scenario ...` | `data/investment.db` (`opening_scenarios`, `execution_plan`, `scenario_gate_diagnostics` ほか) | `topics/investment-research/inbox/*` | 寄り付きシナリオ生成 |
+| `python scripts/run_ops_scheduler.py --slot night ...` | `data/ops.db`, `data/topics.db`, `data/needs.db`, `data/investment.db` | `topics/*/source/*`, `topics/*/inbox/*`, `tmp/prompts/*`, `logs/*` | 全体夜間オーケストレーション |
+| `python scripts/run_ops_scheduler.py --slot inv-scenario ...` | `data/investment.db` (`opening_scenarios`, `execution_plan`, `scenario_gate_diagnostics` ほか) | `topics/investment-research/source/*` | 寄り付きシナリオ生成 |
 | `python scripts/validate_topics.py` | なし | なし | 構造/JSON検証 |
 | `python scripts/validate_topics.py --check-db-first --db-date ...` | なし（DB参照） | なし | DB存在/主要テーブル/manifest kind整合性検証（ローカル/運用向け） |
 
 補足:
-- 正式な参照先は DB（`data/*.db`）。`topics/*/inbox/*` は監査・再現用の補助ログです。
+- 正式な参照先は DB（`data/*.db`）。`topics/*/source/*` は原本、`topics/*/inbox/*` は補助ログです。
 - `organize` 系は原則 DB更新を伴い、`present` 系は原則読み取り専用です。
 
 ## Public Samples
@@ -703,10 +716,10 @@ python3 scripts/check_daily_missing.py --date yesterday
 python3 scripts/check_daily_missing.py --date today --days 7
 ```
 
-不足がある場合は `prompts/pending-daily/latest.prompt.md` に補完用プロンプトが生成されます。
-通知用の短い本文は `prompts/pending-daily/latest.status.txt` に生成されます。
-クリップボード用本文は `prompts/pending-daily/latest.clipboard.txt` に生成されます。
-履歴は `prompts/pending-daily/archive/` に残ります。
+不足がある場合は `tmp/prompts/pending-daily/latest.prompt.md` に補完用プロンプトが生成されます。
+通知用の短い本文は `tmp/prompts/pending-daily/latest.status.txt` に生成されます。
+クリップボード用本文は `tmp/prompts/pending-daily/latest.clipboard.txt` に生成されます。
+これらは一時ファイルとして扱い、必要なら再生成できます。
 タスクスケジューラーや cron では、このスクリプトを毎日実行して通知代わりに使います。
 
 Windows 通知まで出す場合:
@@ -736,7 +749,7 @@ pre-commit run --all-files
 ## Design Principles
 - topic を作業単位として扱う
 - 正本を固定する
-- 生データは `inbox/` のみに置く
+- 生データは `source/` のみに置く
 - ファイルを増殖させない
 - AI が毎回読み直せる形を保つ
 - 推測より根拠を優先する

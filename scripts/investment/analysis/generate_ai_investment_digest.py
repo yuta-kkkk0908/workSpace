@@ -21,8 +21,8 @@ from platform_core.model_router import resolve_model
 from platform_core.openai_client import call_openai_text
 
 DEFAULT_DB = resolve_investment_db()
-DEFAULT_OUT = ROOT / "prompts" / "ai-investment-digest.txt"
-DEFAULT_JSON = ROOT / "prompts" / "ai-investment-digest.json"
+DEFAULT_OUT = ROOT / "tmp" / "prompts" / "ai-investment-digest.txt"
+DEFAULT_JSON = ROOT / "tmp" / "prompts" / "ai-investment-digest.json"
 
 
 def parse_args() -> argparse.Namespace:

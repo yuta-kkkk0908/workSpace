@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def load_metrics(date_s: str) -> dict:
-    p = ROOT / "prompts" / "signal-quality-metrics.json"
+    p = ROOT / "tmp" / "prompts" / "signal-quality-metrics.json"
     if not p.exists():
         return {}
     try:

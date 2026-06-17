@@ -424,7 +424,7 @@ def memory_list(db: Path, topic: str, limit: int) -> list[tuple]:
 
 
 def load_scheduler_health_detail(task: str) -> str:
-    p = ROOT / "prompts" / "scheduler-health.json"
+    p = ROOT / "tmp" / "prompts" / "scheduler-health.json"
     if not p.exists():
         return "処理: エラー詳細 取得失敗（scheduler-health.json なし）"
     try:

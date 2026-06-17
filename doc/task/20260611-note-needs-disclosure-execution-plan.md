@@ -46,7 +46,7 @@
   - `commands/need-watch.md`
   - `commands/need-organize.md`
   - `prompts/needs-triage.prompt.md`
-  - `prompts/needs-ai-queue.md`
+  - `tmp/prompts/needs-ai-queue.md`
   - `scripts/build_needs_ai_queue.py`
   - `scripts/apply_needs_triage.py`
 - description:

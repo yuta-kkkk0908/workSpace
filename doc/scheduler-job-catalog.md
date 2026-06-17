@@ -174,7 +174,7 @@
   - いずれか失敗時: `scripts/notify/post_alert_discord.ps1`
   - ドライラン:
     - 初回実行日から2日間は `--dry-run` で AI本文生成を擬似実行
-    - 状態ファイル: `prompts/.inv-ai-2100-dry-run-start.txt`
+    - 状態ファイル: `tmp/prompts/.inv-ai-2100-dry-run-start.txt`
 
 ---
 
@@ -193,7 +193,7 @@
   - 出力:
     - `topics/investment-research/inbox/YYYY-MM-DD-opening-scenarios.md`
     - `topics/investment-research/inbox/YYYY-MM-DD-opening-scenarios.json`
-    - `prompts/opening-scenarios-discord-message.txt`
+    - `tmp/prompts/opening-scenarios-discord-message.txt`
 
 ---
 
@@ -206,7 +206,7 @@
   - 生成済みシグナル通知文を Discord に投稿する
 - 処理内容:
   - `.env.local` から `DISCORD_SIGNAL_WEBHOOK_URL` を読込
-  - `prompts/market-signals-discord-message.txt` を POST
+  - `tmp/prompts/market-signals-discord-message.txt` を POST
 
 ---
 
@@ -271,8 +271,8 @@
   - `scripts/check_scheduler_health.py --mode weekly --hours 168`（月曜のみ）
   - `scripts/check_needs_freshness.py`（水曜のみ）
   - `.env.local` から `DISCORD_ALERT_WEBHOOK_URL` を読込
-  - `prompts/pending-daily/latest.status.txt` + `prompts/scheduler-health.status.txt` を POST
-  - 水曜のみ `prompts/needs-freshness.status.txt` を同梱して POST
+  - `tmp/prompts/pending-daily/latest.status.txt` + `tmp/prompts/scheduler-health.status.txt` を POST
+  - 水曜のみ `tmp/prompts/needs-freshness.status.txt` を同梱して POST
   - Alert本文セクション:
     - `[DATA_INGEST / DAILY_COVERAGE]`
     - `[SCHEDULER_RUNTIME]`
@@ -292,11 +292,11 @@
   - 汎用トピックの日次要約を Discord の固定topic forum post へ蓄積する
 - 処理内容:
   - `.env.local` から `DISCORD_GENERIC_FORUM_CHANNEL_ID` または `DISCORD_GENERIC_CHANNEL_ID` と `DISCORD_TASKS_BOT_TOKEN` を読込
-  - `prompts/generic-topics-discord-message.txt` を解析
+  - `tmp/prompts/generic-topics-discord-message.txt` を解析
   - forum運用時は topic固定 forum post (`ai-news-watch` / `pokemon-card-watch` / `tech-stack-reads`) を維持
   - 各topicへ `YYYY-MM-DD` 日次内容を追記
-  - 状態は `prompts/generic-forum-state.json` で管理
-  - fallback の thread互換運用では `prompts/generic-threads-state.json` を使用
+  - 状態は `tmp/prompts/generic-forum-state.json` で管理
+  - fallback の thread互換運用では `tmp/prompts/generic-threads-state.json` を使用
   - 2026-05-26: 古いアンカー編集で Discord `429 code=30046` が発生したため、forum優先に変更
 
 ---

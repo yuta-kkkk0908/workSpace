@@ -18,7 +18,7 @@ from utils.pipeline_events import write_pipeline_event
 
 DEFAULT_DB = resolve_investment_db()
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
-PROMPTS = ROOT / "prompts"
+PROMPTS = ROOT / "tmp" / "prompts"
 JST = timezone(timedelta(hours=9))
 
 
@@ -728,14 +728,12 @@ def main() -> int:
         out_json = INBOX / f"{args.date}-exit-analyzer.json"
         out_md = INBOX / f"{args.date}-exit-analyzer.md"
         out_txt = PROMPTS / "exit-analyzer-discord-message.txt"
-        out_txt_md = PROMPTS / "exit-analyzer-discord-message.md"
         INBOX.mkdir(parents=True, exist_ok=True)
         PROMPTS.mkdir(parents=True, exist_ok=True)
         out_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         out_md.write_text(render_md(payload), encoding="utf-8")
         discord = render_discord(payload)
         out_txt.write_text(discord, encoding="utf-8")
-        out_txt_md.write_text("```text\n" + discord + "```\n", encoding="utf-8")
         print(f"wrote {_display_path(out_md)}")
         print(f"wrote {_display_path(out_json)}")
         print(f"wrote {_display_path(out_txt)}")

@@ -52,8 +52,8 @@
 
 - 欠損検知: `scripts/check_daily_missing.py`
 - Scheduler健全性: `scripts/check_scheduler_health.py`
-- 補完プロンプト: `prompts/pending-daily/latest.prompt.md`
-- Health出力: `prompts/scheduler-health.status.txt`
+- 補完プロンプト: `tmp/prompts/pending-daily/latest.prompt.md`
+- Health出力: `tmp/prompts/scheduler-health.status.txt`
 - 補完後: 各DBへ再投入
 
 ## 用語
@@ -159,13 +159,13 @@
 ## Discord通知（運用メモ）
 
 - このRepoでは `inv-scenario` 実行時に以下を生成する:
-  - `prompts/opening-scenarios-discord-message.txt`
+  - `tmp/prompts/opening-scenarios-discord-message.txt`
 - このRepoでは `inv-morning/noon/evening` 実行時に以下を生成する:
-  - `prompts/market-signals-discord-message.txt`
-  - `prompts/paper-stats-discord-message.txt`（evening）
+  - `tmp/prompts/market-signals-discord-message.txt`
+  - `tmp/prompts/paper-stats-discord-message.txt`（evening）
 - このRepoでは `night` 実行時に以下を生成する:
-  - `prompts/generic-topics-discord-message.txt`
-  - `prompts/ops-kpi-summary-discord-message.txt`
+  - `tmp/prompts/generic-topics-discord-message.txt`
+  - `tmp/prompts/ops-kpi-summary-discord-message.txt`
     - 夜間監視用の要約として使う
     - 含むもの: `night` 実行状況 / 失敗ステージ / 収集漏れ系アラート / 収集母数トレンド
 - Webhook URLは `.env.local` に保存する:
@@ -178,10 +178,10 @@
 ## 通知チャネルの整理
 
 - Signal通知:
-  - 元データ: `prompts/market-signals-discord-message.txt`
+  - 元データ: `tmp/prompts/market-signals-discord-message.txt`
   - 送信先: `DISCORD_SIGNAL_WEBHOOK_URL`
 - Paper Stats通知:
-  - 元データ: `prompts/paper-stats-discord-message.txt`
+  - 元データ: `tmp/prompts/paper-stats-discord-message.txt`
   - 送信先: `DISCORD_STATS_WEBHOOK_URL`（未設定時は `DISCORD_SIGNAL_WEBHOOK_URL`）
 - Scenario通知:
   - 送信先: `DISCORD_SCENARIO_CHANNEL_ID`（Bot投稿 / `1508104046030880899`）
@@ -197,16 +197,16 @@
     - 返信同期は `scripts/notify/sync_scenario_replies_bot.py` が active threads を読んで DB 反映する
     - 日曜は `entry` が残っていないシナリオのスレッドとアンカー投稿を delete して整理する
 - Alert通知:
-  - 元データ: `prompts/pending-daily/latest.status.txt`
-  - 追加データ: `prompts/scheduler-health.status.txt`
+  - 元データ: `tmp/prompts/pending-daily/latest.status.txt`
+  - 追加データ: `tmp/prompts/scheduler-health.status.txt`
   - 追加データ: `topics/investment-research/inbox/*-decision-support-diff.json`（連続 warning 自動判定）
-  - 週次追加データ（水曜のみ）: `prompts/needs-freshness.status.txt`
+  - 週次追加データ（水曜のみ）: `tmp/prompts/needs-freshness.status.txt`
   - 送信先: `DISCORD_ALERT_WEBHOOK_URL`
   - `INV_SCENARIO_DECISION_SUPPORT` セクション:
     - warning連続 2営業日: `WARN`（事前レビュー）
     - warning連続 3営業日以上: `ACTION`（当日対応）
 - Generic Daily通知:
-  - 元データ: `prompts/generic-topics-discord-message.txt`
+  - 元データ: `tmp/prompts/generic-topics-discord-message.txt`
   - 送信先:
     - 既定: `DISCORD_GENERIC_CHANNEL_ID`（Bot投稿 / thread互換）
     - forum運用時: `DISCORD_GENERIC_FORUM_CHANNEL_ID=1508808144753791006`

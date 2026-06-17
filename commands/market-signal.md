@@ -57,10 +57,10 @@
 - `topics/investment-research/signal-rules.md`
 - `topics/investment-research/tasks.json`
 - `topics/investment-research/sources.json`
-- 必要に応じて `topics/investment-research/inbox/*market-signals*.md`
+- 必要に応じて `topics/investment-research/source/*market-signals*.md`
 
 ## Write Scope
-- `topics/investment-research/inbox/*market-signals*.md`
+- `topics/investment-research/source/*market-signals*.md`
 - `topics/investment-research/sources.json`
 - 必要に応じて `topics/investment-research/summary.md`
 - 必要に応じて `topics/investment-research/decisions.md`
@@ -556,7 +556,7 @@ T+20は毎日細かく追わず、週次または期限到来時に確認する�
 - 円安 + 機械上方修正 + 年初来高値更新
 
 ## Signal Log Format
-`topics/investment-research/inbox/YYYY-MM-DD-market-signals.md` に保存する。
+`topics/investment-research/source/YYYY-MM-DD-market-signals.md` に保存する。
 
 ```md
 # YYYY-MM-DD Market Signals

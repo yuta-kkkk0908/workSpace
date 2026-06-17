@@ -50,7 +50,7 @@
 
 ### 使用チャンネル/状態
 - チャンネルID: `1508102418863493220`
-- インデックス/アンカー/スレッド状態: `prompts/generic-threads-state.json`
+- インデックス/アンカー/スレッド状態: `tmp/prompts/generic-threads-state.json`
 
 ### 実装ファイル
 - `scripts/notify/post_generic_threads_bot.py`

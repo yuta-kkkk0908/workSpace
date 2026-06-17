@@ -188,10 +188,10 @@
 - `topics/product-idea-watch/decisions.md`
 - `topics/product-idea-watch/tasks.json`
 - `topics/product-idea-watch/sources.json`
-- 必要に応じて `topics/product-idea-watch/inbox/*`
+- 必要に応じて `topics/product-idea-watch/source/*`
 
 ## Write Scope
-- `topics/product-idea-watch/inbox/*`
+- `topics/product-idea-watch/source/*`
 - `topics/product-idea-watch/sources.json`
 - 必要に応じて `topics/product-idea-watch/summary.md`
 - 必要に応じて `topics/product-idea-watch/tasks.json`

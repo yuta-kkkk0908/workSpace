@@ -17,7 +17,7 @@ from utils.terminology import glossary_line
 from investment.analysis.exit_horizon_utils import avg, collect_price_path_returns, win_rate
 
 INBOX = ROOT / "topics" / "investment-research" / "inbox"
-OUT_DIR = ROOT / "prompts"
+OUT_DIR = ROOT / "tmp" / "prompts"
 DEFAULT_DB = resolve_investment_db()
 
 SECTION_RE = re.compile(r"^###\s+(paper_history|watch|live|paper|all)\s*$")
@@ -335,11 +335,8 @@ def main() -> int:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_txt = OUT_DIR / "paper-stats-discord-message.txt"
-    out_md = OUT_DIR / "paper-stats-discord-message.md"
     out_txt.write_text(msg, encoding="utf-8")
-    out_md.write_text("```text\n" + msg + "```\n", encoding="utf-8")
     print(f"wrote {_display_path(out_txt)}")
-    print(f"wrote {_display_path(out_md)}")
     return 0
 
 

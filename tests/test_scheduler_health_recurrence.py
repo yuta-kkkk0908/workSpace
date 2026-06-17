@@ -19,16 +19,24 @@ class SchedulerHealthRecurrenceTests(unittest.TestCase):
             data_dir = root / "data"
             logs_dir.mkdir(parents=True, exist_ok=True)
             data_dir.mkdir(parents=True, exist_ok=True)
+            now = health.datetime.now(health.JST)
+            stamps = [
+                (now - health.timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S"),
+                (now - health.timedelta(minutes=29)).strftime("%Y-%m-%d %H:%M:%S"),
+                (now - health.timedelta(minutes=28)).strftime("%Y-%m-%d %H:%M:%S"),
+                (now - health.timedelta(minutes=27)).strftime("%Y-%m-%d %H:%M:%S"),
+                (now - health.timedelta(minutes=26)).strftime("%Y-%m-%d %H:%M:%S"),
+            ]
 
             task_log = logs_dir / "task-scheduler.log"
             task_log.write_text(
                 "\n".join(
                     [
-                        "[2026-06-13 10:00:00] [AIOS-DB-Backup-2230] [START] begin",
-                        "[2026-06-13 10:01:00] [AIOS-DB-Backup-2230] [ERROR] exit_code=1",
-                        "[2026-06-13 10:02:00] [AIOS-DB-Backup-2230] [OK] recovered",
-                        "[2026-06-13 10:03:00] [AIOS-DB-Backup-2230] [EXCEPTION] exit_code=1",
-                        "[2026-06-13 10:04:00] [AIOS-DB-Backup-2230] [ERROR] exit_code=1",
+                        f"[{stamps[0]}] [AIOS-DB-Backup-2230] [START] begin",
+                        f"[{stamps[1]}] [AIOS-DB-Backup-2230] [ERROR] exit_code=1",
+                        f"[{stamps[2]}] [AIOS-DB-Backup-2230] [OK] recovered",
+                        f"[{stamps[3]}] [AIOS-DB-Backup-2230] [EXCEPTION] exit_code=1",
+                        f"[{stamps[4]}] [AIOS-DB-Backup-2230] [ERROR] exit_code=1",
                     ]
                 )
                 + "\n",
@@ -82,8 +90,8 @@ class SchedulerHealthRecurrenceTests(unittest.TestCase):
             finally:
                 conn.close()
 
-            out_json = root / "prompts" / "scheduler-health.json"
-            out_status = root / "prompts" / "scheduler-health.status.txt"
+            out_json = root / "tmp" / "prompts" / "scheduler-health.json"
+            out_status = root / "tmp" / "prompts" / "scheduler-health.status.txt"
 
             with (
                 patch.object(health, "ROOT", root),
@@ -96,8 +104,8 @@ class SchedulerHealthRecurrenceTests(unittest.TestCase):
                         hours=24,
                         tasks=["AIOS-DB-Backup-2230"],
                         task_log="logs/task-scheduler.log",
-                        out_json="prompts/scheduler-health.json",
-                        out_status="prompts/scheduler-health.status.txt",
+                        out_json="tmp/prompts/scheduler-health.json",
+                        out_status="tmp/prompts/scheduler-health.status.txt",
                         ops_db="data/ops.db",
                     ),
                 ),

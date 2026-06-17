@@ -211,7 +211,7 @@ for ($i = 0; $i -lt $parts.Count; $i++) {
 }
 
 if ($deliveryFailed) {
-  $pendingDir = Join-Path $Repo "prompts\pending"
+  $pendingDir = Join-Path $Repo "tmp\prompts\pending"
   New-Item -ItemType Directory -Force -Path $pendingDir | Out-Null
   $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
   $prefix = if ($PendingPrefix) { $PendingPrefix } else { $kindLower }

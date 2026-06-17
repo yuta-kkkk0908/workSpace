@@ -14,7 +14,7 @@ if str(ROOT / "scripts") not in sys.path:
 from utils.investment_db_path import resolve_investment_db
 from utils.sector_inference import resolve_sector_label
 
-OUT_DIR = ROOT / "prompts"
+OUT_DIR = ROOT / "tmp" / "prompts"
 DEFAULT_DB = resolve_investment_db()
 
 
@@ -542,12 +542,9 @@ def main() -> int:
     )
 
     out_txt = OUT_DIR / "market-signals-discord-message.txt"
-    out_md = OUT_DIR / "market-signals-discord-message.md"
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out_txt.write_text(msg, encoding="utf-8")
-    out_md.write_text("```text\n" + msg + "```\n", encoding="utf-8")
     print(f"wrote {out_txt.relative_to(ROOT)}")
-    print(f"wrote {out_md.relative_to(ROOT)}")
     return 0
 
 

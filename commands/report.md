@@ -40,10 +40,10 @@
 - `topics/{{topic}}/decisions.md`
 - `topics/{{topic}}/tasks.json`
 - `topics/{{topic}}/sources.json`
-- 必要に応じて `topics/{{topic}}/inbox/*`
+- 必要に応じて `topics/{{topic}}/source/*`
 
 ## Write Scope
-- `topics/{{topic}}/inbox/*report*.md`
+- `topics/{{topic}}/source/*report*.md`
 - `topics/{{topic}}/sources.json`
 - 必要に応じて `topics/{{topic}}/summary.md`
 - 必要に応じて `topics/{{topic}}/tasks.json`

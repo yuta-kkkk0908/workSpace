@@ -11,7 +11,8 @@
 - `sources.json`
 
 ## Rules
-- 新規情報は `inbox/` に保存する
+- 新規情報は `source/` に保存する
+- 作業中の一時メモは `inbox/` に残す
 - 要約は `summary.md` を更新する
 - 判断は `decisions.md` に記録する
 - 次アクションは `tasks.json` に記録する
@@ -21,4 +22,4 @@
 - 現状確認は `summary.md` を優先
 - 判断履歴は `decisions.md` を優先
 - 次アクションは `tasks.json` を優先
-- 根拠は `sources.json` と `inbox/` を参照
+- 根拠は `sources.json` と `source/` を参照

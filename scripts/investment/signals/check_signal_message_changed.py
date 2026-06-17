@@ -10,12 +10,12 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Detect whether signal message changed since last post")
     p.add_argument(
         "--message",
-        default="prompts/market-signals-discord-message.txt",
+        default="tmp/prompts/market-signals-discord-message.txt",
         help="message text path",
     )
     p.add_argument(
         "--state",
-        default="prompts/.last-signal-message.sha256.txt",
+        default="tmp/prompts/.last-signal-message.sha256.txt",
         help="hash state file path",
     )
     p.add_argument(

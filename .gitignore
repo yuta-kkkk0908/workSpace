@@ -6,9 +6,6 @@ topics/*
 !topics/.gitkeep
 
 # Generated reminder output
-prompts/pending-daily/
-prompts/pending-daily.prompt.md
-prompts/pending-daily.status.txt
 reminders.log
 reminders-toast.log
 
@@ -30,29 +27,6 @@ data/investment.db.broken-*
 data/investment.db.pre-recovery-*
 data/investment.db.bad-open-*
 data/investment.db.before-wal-fix
-
-# Generated brief prompts
-prompts/today-db-brief.md
-prompts/today-topics-db-brief.md
-prompts/*-discord-message.txt
-prompts/*-discord-message.md
-prompts/*.status.txt
-prompts/*.sha256.txt
-prompts/*-metrics.json
-prompts/*-diagnostics.json
-prompts/*-coverage-plan.json
-prompts/*-kpi-alert.json
-prompts/*-state.json
-prompts/.signal-unchanged-streak.txt
-prompts/.paper-stats-unchanged-streak.txt
-prompts/.generic-unchanged-streak.txt
-prompts/.last-*.sha256.txt
-prompts/ai-investment-digest.*
-prompts/needs-ai-queue.*
-prompts/scheduler-health*.json
-prompts/signal-quality-*.json
-prompts/signal-quality-alert.txt
-prompts/pending/
 
 # Local secrets
 .env

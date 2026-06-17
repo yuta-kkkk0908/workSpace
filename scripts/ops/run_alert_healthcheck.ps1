@@ -77,9 +77,9 @@ if (-not $healthOk) {
 $todayDow = (Get-Date).DayOfWeek
 if ($todayDow -eq [System.DayOfWeek]::Monday) {
   $weeklyCmds = @(
-    @("py", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "prompts/scheduler-health-weekly.json", "--out-status", "prompts/scheduler-health-weekly.status.txt"),
-    @("python", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "prompts/scheduler-health-weekly.json", "--out-status", "prompts/scheduler-health-weekly.status.txt"),
-    @("python3", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "prompts/scheduler-health-weekly.json", "--out-status", "prompts/scheduler-health-weekly.status.txt")
+    @("py", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "tmp/prompts/scheduler-health-weekly.json", "--out-status", "tmp/prompts/scheduler-health-weekly.status.txt"),
+    @("python", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "tmp/prompts/scheduler-health-weekly.json", "--out-status", "tmp/prompts/scheduler-health-weekly.status.txt"),
+    @("python3", "scripts/check_scheduler_health.py", "--mode", "weekly", "--hours", "168", "--out-json", "tmp/prompts/scheduler-health-weekly.json", "--out-status", "tmp/prompts/scheduler-health-weekly.status.txt")
   )
   foreach ($c in $weeklyCmds) {
     $exe = $c[0]
@@ -101,9 +101,9 @@ if ($todayDow -eq [System.DayOfWeek]::Monday) {
 # Weekly needs freshness report (run on Wednesday JST): notify only latest fetched date.
 if ($todayDow -eq [System.DayOfWeek]::Wednesday) {
   $needsCmds = @(
-    @("py", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt"),
-    @("python", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt"),
-    @("python3", "scripts/check_needs_freshness.py", "--out-status", "prompts/needs-freshness.status.txt")
+    @("py", "scripts/check_needs_freshness.py", "--out-status", "tmp/prompts/needs-freshness.status.txt"),
+    @("python", "scripts/check_needs_freshness.py", "--out-status", "tmp/prompts/needs-freshness.status.txt"),
+    @("python3", "scripts/check_needs_freshness.py", "--out-status", "tmp/prompts/needs-freshness.status.txt")
   )
   foreach ($c in $needsCmds) {
     $exe = $c[0]
