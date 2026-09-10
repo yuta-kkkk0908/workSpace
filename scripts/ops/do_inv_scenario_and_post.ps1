@@ -28,7 +28,5 @@ $rc = $LASTEXITCODE
 if ($rc -eq 0) {
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Stage "resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }
-  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_scenario_discord.ps1" -Stage "post_scenario_discord.ps1"
-  if ($stepRc -ne 0) { $rc = $stepRc }
 }
 exit $rc

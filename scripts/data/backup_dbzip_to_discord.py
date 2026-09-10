@@ -32,7 +32,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Zip and upload investment.db to Discord webhook")
     p.add_argument("--db", default=str(resolve_investment_db()))
     p.add_argument("--label", default="investment-db-backup")
-    p.add_argument("--keep-local", type=int, default=7, help="Number of local zip files to keep")
+    p.add_argument("--keep-local", type=int, default=14, help="Number of local zip files to keep")
     p.add_argument("--retention-days", type=int, default=14, help="Delete Discord backup posts older than this")
     return p.parse_args()
 
@@ -198,6 +198,9 @@ def cleanup_local_backups(keep: int) -> None:
 def main() -> int:
     args = parse_args()
     load_dotenv()
+    # Run retention even when a later upload step fails, so local archives do
+    # not grow indefinitely after a transient Discord/network failure.
+    cleanup_local_backups(max(1, int(args.keep_local)))
     webhook = os.getenv("DISCORD_BACKUPPER_URL", "").strip()
     if not webhook:
         raise SystemExit("DISCORD_BACKUPPER_URL is empty")

@@ -31,8 +31,6 @@ $rc = $LASTEXITCODE
 if ($rc -eq 0) {
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Stage "resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }
-  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_signal_discord.ps1" -Stage "post_signal_discord.ps1"
-  if ($stepRc -ne 0) { $rc = $stepRc }
 }
 
 if ($rc -eq 0) {
@@ -50,11 +48,6 @@ if ($rc -eq 0) {
     $mode = if ($isDryRun) { "dry-run" } else { "live" }
     Write-AiosPipelineEvent -Repo $repo -Pipeline "investment_analysis" -Slot "inv-ai-2100" -Stage "generate_ai_investment_digest.py" -Status "ok" -ReturnCode 0 -EventDate $eventDate -Category $mode
   }
-}
-
-if ($rc -eq 0) {
-  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_ai_investment_digest_discord.ps1" -Stage "post_ai_investment_digest_discord.ps1"
-  if ($stepRc -ne 0) { $rc = $stepRc }
 }
 
 if ($rc -ne 0) {

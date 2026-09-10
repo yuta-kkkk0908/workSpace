@@ -25,11 +25,7 @@ function Invoke-AiosDisclosureStep {
   return $stepRc
 }
 
-$noteConfig = Join-Path $repo "configs\note.local.json"
 $disclosureOutDir = Join-Path $repo "topics\investment-research\inbox"
-$noteMarkdown = Join-Path $disclosureOutDir "$eventDate-note-ready.md"
-$noteLog = Join-Path $repo "logs\disclosure-note-post-$eventDate.json"
-$noteShot = Join-Path $repo "logs\disclosure-note-post-$eventDate.png"
 
 $rc = Invoke-AiosDisclosureStep -Stage "run_morning_disclosure_digest.py" -Arguments @(
   "scripts/investment/analysis/run_morning_disclosure_digest.py",
@@ -40,18 +36,8 @@ $rc = Invoke-AiosDisclosureStep -Stage "run_morning_disclosure_digest.py" -Argum
   "--lookback-days", "90",
   "--max-items", "120"
 )
-if ($rc -eq 0 -and (Test-Path $noteConfig)) {
-  $stepRc = Invoke-AiosDisclosureStep -Stage "post_note_draft.py" -Arguments @(
-    "scripts/notify/post_note_draft.py",
-    "--markdown-path", $noteMarkdown,
-    "--db", (Join-Path $repo "data\investment.db"),
-    "--note-config", $noteConfig,
-    "--log-path", $noteLog,
-    "--screenshot-path", $noteShot
-  )
-  if ($stepRc -ne 0) { $rc = $stepRc }
-} elseif ($rc -eq 0) {
-  Write-Host "[skip] note draft post: config not found"
+if ($rc -eq 0) {
+  Write-Host "[disabled] note draft post"
 }
 
 exit $rc

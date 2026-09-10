@@ -33,8 +33,6 @@ if ($rc -eq 0 -and (Get-Date).DayOfWeek -eq "Sunday") {
 if ($rc -eq 0 -and -not $isWeekend) {
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Stage "resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }
-  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_signal_discord.ps1" -Stage "post_signal_discord.ps1"
-  if ($stepRc -ne 0) { $rc = $stepRc }
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_paper_stats_discord.ps1" -Stage "post_paper_stats_discord.ps1"
   if ($stepRc -ne 0) { $rc = $stepRc }
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_exit_analyzer_discord.ps1" -Stage "post_exit_analyzer_discord.ps1"

@@ -32,6 +32,7 @@ $fallbackMap = @{
   "scenario" = "DISCORD_ALERT_WEBHOOK_URL"
   "paper-stats" = "DISCORD_ALERT_WEBHOOK_URL"
 }
+$disabledPrefixes = @("signal", "scenario", "ai-investment-digest")
 
 $files = Get-ChildItem -Path $pendingDir -File -Filter "*-discord-pending-*.txt" | Sort-Object LastWriteTime
 if ($Kinds -and $Kinds.Count -gt 0) {
@@ -62,6 +63,10 @@ foreach ($f in $files) {
     continue
   }
   $prefix = $Matches["prefix"]
+  if ($disabledPrefixes -contains $prefix.ToLowerInvariant()) {
+    Write-Host "disabled pending prefix: $prefix ($($f.Name))"
+    continue
+  }
   if (-not $map.ContainsKey($prefix)) {
     Write-Host "skip unknown prefix: $prefix ($($f.Name))"
     continue

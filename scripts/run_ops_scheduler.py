@@ -498,10 +498,6 @@ def run_morning_disclosure_digest_and_note(py: str, d: str) -> int:
     """Build the morning disclosure digest and, when configured, save a note draft."""
     rc = 0
     disclosure_out_dir = ROOT / "topics" / "investment-research" / "inbox"
-    note_config = ROOT / "configs" / "note.local.json"
-    note_markdown = disclosure_out_dir / f"{d}-note-ready.md"
-    note_log = ROOT / "logs" / f"disclosure-note-post-{d}.json"
-    note_shot = ROOT / "logs" / f"disclosure-note-post-{d}.png"
 
     rc |= run(
         [
@@ -522,26 +518,8 @@ def run_morning_disclosure_digest_and_note(py: str, d: str) -> int:
         ],
         allow_fail=True,
     )
-    if rc == 0 and note_config.exists():
-        rc |= run(
-            [
-                py,
-                "scripts/notify/post_note_draft.py",
-                "--markdown-path",
-                str(note_markdown),
-                "--db",
-                str(INVESTMENT_DB),
-                "--note-config",
-                str(note_config),
-                "--log-path",
-                str(note_log),
-                "--screenshot-path",
-                str(note_shot),
-            ],
-            allow_fail=True,
-        )
-    elif rc == 0:
-        print("[skip] note draft post: config not found")
+    if rc == 0:
+        print("[disabled] note draft post")
     return rc
 
 

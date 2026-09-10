@@ -29,8 +29,6 @@ $rc = $LASTEXITCODE
 if ($rc -eq 0 -and -not $isWeekend) {
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\resend_pending_discord.ps1" -Stage "resend_pending_discord.ps1" -Arguments @("-Limit", "5")
   if ($stepRc -ne 0) { $rc = $stepRc }
-  $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_signal_discord.ps1" -Stage "post_signal_discord.ps1"
-  if ($stepRc -ne 0) { $rc = $stepRc }
   $stepRc = Invoke-AiosPostStep -FilePath "E:\workSpace\scripts\notify\post_signal_quality_alert.ps1" -Stage "post_signal_quality_alert.ps1"
   if ($stepRc -ne 0) { $rc = $stepRc }
 } elseif ($rc -eq 0 -and $isWeekend) {
